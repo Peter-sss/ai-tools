@@ -1,11 +1,18 @@
 use base64::Engine as _;
+use futures_util::{SinkExt, StreamExt};
 use rusqlite::{Connection, OptionalExtension};
 use serde::Deserialize;
-use serde_json::Value;
+use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::net::TcpListener;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
+use std::time::Duration;
+use tokio::time::timeout;
+use tokio_tungstenite::connect_async;
+use tokio_tungstenite::tungstenite::Message;
 
 use crate::models::cursor::{CursorAccount, CursorAccountIndex, CursorImportPayload};
 use crate::modules::{account, logger};
@@ -1637,6 +1644,317 @@ fn build_session_cookie(access_token: &str) -> Option<String> {
         "WorkosCursorSessionToken={}%3A%3A{}",
         user_id, access_token
     ))
+}
+
+fn session_cookie_value(access_token: &str) -> Option<String> {
+    let cookie = build_session_cookie(access_token)?;
+    cookie
+        .strip_prefix("WorkosCursorSessionToken=")
+        .map(str::to_string)
+}
+
+const CURSOR_DASHBOARD_URL: &str = "https://cursor.com/dashboard";
+const CHROME_CDP_CONNECT_TIMEOUT: Duration = Duration::from_secs(12);
+const CHROME_CDP_POLL_INTERVAL: Duration = Duration::from_millis(200);
+
+fn reserve_chrome_cdp_port() -> Result<u16, String> {
+    TcpListener::bind("127.0.0.1:0")
+        .map_err(|e| format!("分配 Chrome CDP 端口失败: {}", e))?
+        .local_addr()
+        .map(|addr| addr.port())
+        .map_err(|e| format!("读取 Chrome CDP 端口失败: {}", e))
+}
+
+fn find_google_chrome_executable() -> Result<PathBuf, String> {
+    #[cfg(target_os = "macos")]
+    {
+        let path =
+            PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+        if path.exists() {
+            return Ok(path);
+        }
+        return Err("未找到 Google Chrome，请先安装 Google Chrome".to_string());
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        let mut candidates = Vec::new();
+        if let Ok(program_files) = std::env::var("PROGRAMFILES") {
+            candidates.push(
+                PathBuf::from(program_files)
+                    .join("Google")
+                    .join("Chrome")
+                    .join("Application")
+                    .join("chrome.exe"),
+            );
+        }
+        if let Ok(program_files_x86) = std::env::var("PROGRAMFILES(X86)") {
+            candidates.push(
+                PathBuf::from(program_files_x86)
+                    .join("Google")
+                    .join("Chrome")
+                    .join("Application")
+                    .join("chrome.exe"),
+            );
+        }
+        if let Ok(local_app_data) = std::env::var("LOCALAPPDATA") {
+            candidates.push(
+                PathBuf::from(local_app_data)
+                    .join("Google")
+                    .join("Chrome")
+                    .join("Application")
+                    .join("chrome.exe"),
+            );
+        }
+        for path in candidates {
+            if path.exists() {
+                return Ok(path);
+            }
+        }
+        return Err("未找到 Google Chrome，请先安装 Google Chrome".to_string());
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        for name in ["google-chrome", "google-chrome-stable"] {
+            if let Ok(output) = Command::new("which").arg(name).output() {
+                if output.status.success() {
+                    let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                    if !path.is_empty() {
+                        let candidate = PathBuf::from(&path);
+                        if candidate.exists() {
+                            return Ok(candidate);
+                        }
+                    }
+                }
+            }
+        }
+        return Err("未找到 Google Chrome，请先安装 Google Chrome".to_string());
+    }
+
+    #[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+    {
+        Err("当前平台不支持打开 Google Chrome".to_string())
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ChromeCdpTarget {
+    #[serde(rename = "type")]
+    target_type: String,
+    #[serde(rename = "webSocketDebuggerUrl")]
+    websocket_url: Option<String>,
+}
+
+async fn wait_for_chrome_page_target(port: u16) -> Result<String, String> {
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(2))
+        .build()
+        .map_err(|e| format!("创建 CDP HTTP 客户端失败: {}", e))?;
+    let deadline = tokio::time::Instant::now() + CHROME_CDP_CONNECT_TIMEOUT;
+
+    while tokio::time::Instant::now() < deadline {
+        if let Ok(response) = client
+            .get(format!("http://127.0.0.1:{}/json/list", port))
+            .send()
+            .await
+        {
+            if response.status().is_success() {
+                if let Ok(targets) = response.json::<Vec<ChromeCdpTarget>>().await {
+                    if let Some(url) = targets.into_iter().find_map(|target| {
+                        if target.target_type == "page" {
+                            target.websocket_url
+                        } else {
+                            None
+                        }
+                    }) {
+                        return Ok(url);
+                    }
+                }
+            }
+        }
+        tokio::time::sleep(CHROME_CDP_POLL_INTERVAL).await;
+    }
+
+    Err("连接 Chrome CDP 超时，请确认 Chrome 已启动".to_string())
+}
+
+async fn cdp_send_and_wait(
+    socket: &mut tokio_tungstenite::WebSocketStream<
+        tokio_tungstenite::MaybeTlsStream<tokio::net::TcpStream>,
+    >,
+    id: i64,
+    method: &str,
+    params: Value,
+) -> Result<Value, String> {
+    let payload = json!({
+        "id": id,
+        "method": method,
+        "params": params,
+    });
+    socket
+        .send(Message::Text(payload.to_string().into()))
+        .await
+        .map_err(|e| format!("发送 CDP 命令失败 ({}): {}", method, e))?;
+
+    let wait = timeout(CHROME_CDP_CONNECT_TIMEOUT, async {
+        while let Some(message) = socket.next().await {
+            let Ok(Message::Text(text)) = message else {
+                continue;
+            };
+            let Ok(value) = serde_json::from_str::<Value>(&text) else {
+                continue;
+            };
+            if value.get("id").and_then(Value::as_i64) == Some(id) {
+                if let Some(error) = value.get("error") {
+                    return Err(format!("CDP {} 失败: {}", method, error));
+                }
+                return Ok(value);
+            }
+        }
+        Err(format!("CDP {} 无响应", method))
+    })
+    .await
+    .map_err(|_| format!("等待 CDP {} 响应超时", method))?;
+
+    wait
+}
+
+async fn chrome_set_cookie_and_open_dashboard(
+    websocket_url: &str,
+    cookie_value: &str,
+) -> Result<(), String> {
+    let (mut socket, _) = timeout(CHROME_CDP_CONNECT_TIMEOUT, connect_async(websocket_url))
+        .await
+        .map_err(|_| "连接 Chrome WebSocket 超时".to_string())?
+        .map_err(|e| format!("连接 Chrome WebSocket 失败: {}", e))?;
+
+    let set_cookie_result = cdp_send_and_wait(
+        &mut socket,
+        1,
+        "Network.setCookie",
+        json!({
+            "name": "WorkosCursorSessionToken",
+            "value": cookie_value,
+            "url": "https://cursor.com",
+            "domain": ".cursor.com",
+            "path": "/",
+            "secure": true,
+            "httpOnly": true,
+            "sameSite": "Lax",
+        }),
+    )
+    .await?;
+
+    let success = set_cookie_result
+        .pointer("/result/success")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+    if !success {
+        return Err("写入 WorkosCursorSessionToken Cookie 失败".to_string());
+    }
+
+    cdp_send_and_wait(
+        &mut socket,
+        2,
+        "Page.navigate",
+        json!({ "url": CURSOR_DASHBOARD_URL }),
+    )
+    .await?;
+
+    Ok(())
+}
+
+fn launch_chrome_incognito_with_cdp(
+    chrome: &Path,
+    user_data_dir: &Path,
+    port: u16,
+) -> Result<std::process::Child, String> {
+    let mut command = Command::new(chrome);
+    command
+        .arg(format!("--user-data-dir={}", user_data_dir.display()))
+        .arg("--incognito")
+        .arg("--no-first-run")
+        .arg("--no-default-browser-check")
+        .arg("--disable-default-apps")
+        .arg("--remote-debugging-address=127.0.0.1")
+        .arg(format!("--remote-debugging-port={}", port))
+        .arg("about:blank");
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(0x08000000);
+    }
+
+    command
+        .spawn()
+        .map_err(|e| format!("启动 Google Chrome 失败: {}", e))
+}
+
+/// 用账号 Session Token 打开 Chrome 无痕窗口并登录 Cursor Dashboard。
+pub async fn open_account_in_chrome(account_id: &str) -> Result<(), String> {
+    let account =
+        load_account(account_id).ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
+    if account.access_token.trim().is_empty() {
+        return Err("账号缺少 access token，无法打开 Chrome 登录".to_string());
+    }
+    let cookie_value = session_cookie_value(&account.access_token)
+        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+
+    let chrome = find_google_chrome_executable()?;
+    let port = reserve_chrome_cdp_port()?;
+    let user_data_dir = std::env::temp_dir().join(format!(
+        "ai-tools-cursor-chrome-{}-{}",
+        account.id,
+        uuid::Uuid::new_v4()
+    ));
+    fs::create_dir_all(&user_data_dir)
+        .map_err(|e| format!("创建 Chrome 临时配置目录失败: {}", e))?;
+
+    logger::log_info(&format!(
+        "[Cursor Chrome] 启动无痕窗口: account_id={}, email={}, port={}, chrome={}",
+        account.id,
+        account.email,
+        port,
+        chrome.display()
+    ));
+
+    let mut child = launch_chrome_incognito_with_cdp(&chrome, &user_data_dir, port)?;
+    // Give Chrome a moment to fail fast if launch args are rejected.
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    if let Ok(Some(status)) = child.try_wait() {
+        let _ = fs::remove_dir_all(&user_data_dir);
+        return Err(format!(
+            "Google Chrome 启动后立即退出: {}",
+            status
+        ));
+    }
+
+    let websocket_url = match wait_for_chrome_page_target(port).await {
+        Ok(url) => url,
+        Err(err) => {
+            let _ = child.kill();
+            let _ = fs::remove_dir_all(&user_data_dir);
+            return Err(err);
+        }
+    };
+
+    if let Err(err) = chrome_set_cookie_and_open_dashboard(&websocket_url, &cookie_value).await {
+        let _ = child.kill();
+        let _ = fs::remove_dir_all(&user_data_dir);
+        return Err(err);
+    }
+
+    // Detach: leave Chrome running; temp profile is cleaned on next OS temp cleanup.
+    // Do not remove user_data_dir while Chrome still uses it.
+    std::mem::forget(child);
+
+    logger::log_info(&format!(
+        "[Cursor Chrome] 无痕登录已打开: account_id={}, email={}",
+        account.id, account.email
+    ));
+    Ok(())
 }
 
 fn resolve_membership_from_stripe_profile(profile: &CursorStripeProfileResponse) -> Option<String> {

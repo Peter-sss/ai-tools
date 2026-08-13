@@ -39,7 +39,10 @@
 /* Accounts Grid - Compact Futurist Card View */
 .accounts-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); /* 缩小宽度以支持一排3-4个 */
+  grid-template-columns: repeat(
+    auto-fill,
+    minmax(280px, 1fr)
+  ); /* 缩小宽度以支持一排3-4个 */
   gap: 16px;
   padding-bottom: 40px;
   animation: fadeUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
@@ -54,8 +57,8 @@
   flex-direction: column;
   gap: 12px;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  box-shadow: 
-    0 1px 2px rgba(0, 0, 0, 0.02), 
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.02),
     0 4px 16px rgba(0, 0, 0, 0.02);
   border: 1px solid rgba(0, 0, 0, 0.04);
   overflow: visible; /* 允许悬停效果稍微溢出 */
@@ -64,8 +67,8 @@
 /* Hover Effect */
 .account-card:hover {
   transform: translateY(-2px);
-  box-shadow: 
-    0 4px 12px rgba(0, 0, 0, 0.06), 
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.06),
     0 12px 24px rgba(0, 0, 0, 0.04);
   border-color: rgba(0, 0, 0, 0.08);
 }
@@ -141,7 +144,7 @@
   background: #f8fafc; /* 非常淡的背景 */
   border-radius: 8px;
   padding: 10px;
-  border: 1px solid rgba(0,0,0,0.03);
+  border: 1px solid rgba(0, 0, 0, 0.03);
 }
 
 .card-quota-grid .quota-forbidden {
@@ -209,7 +212,7 @@
 }
 
 .card-action-btn:hover:not(:disabled) {
-  background: rgba(0,0,0,0.04); /* 只有悬停时才有淡淡的背景 */
+  background: rgba(0, 0, 0, 0.04); /* 只有悬停时才有淡淡的背景 */
   color: var(--text-primary);
   transform: none; /* 移除放大效果，保持稳重 */
   box-shadow: none;
@@ -246,10 +249,17 @@
 }
 
 .tier-badge::before {
-  content: '';
+  content: "";
   position: absolute;
-  top: 0; left: 0; right: 0; bottom: 0;
-  background: linear-gradient(45deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(
+    45deg,
+    rgba(255, 255, 255, 0.1),
+    rgba(255, 255, 255, 0)
+  );
   z-index: -1;
 }
 
@@ -569,8 +579,8 @@
 
 [data-theme="dark"] .accounts-grid .account-card {
   background: #1e293b;
-  border-color: rgba(255,255,255,0.05);
-  box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+  border-color: rgba(255, 255, 255, 0.05);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
 }
 
 [data-theme="dark"] .account-card .account-email {
@@ -579,12 +589,12 @@
 }
 
 [data-theme="dark"] .card-quota-grid {
-  background: rgba(0,0,0,0.2);
-  border-color: rgba(255,255,255,0.05);
+  background: rgba(0, 0, 0, 0.2);
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 [data-theme="dark"] .quota-compact-bar-track {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255, 255, 255, 0.1);
 }
 
 [data-theme="dark"] .view-btn.active {
@@ -594,11 +604,11 @@
 
 [data-theme="dark"] .card-actions {
   background: #1e293b;
-  border-color: rgba(255,255,255,0.05);
+  border-color: rgba(255, 255, 255, 0.05);
 }
 
 [data-theme="dark"] .card-date {
-  background: rgba(255,255,255,0.05);
+  background: rgba(255, 255, 255, 0.05);
   color: #94a3b8;
 }
 

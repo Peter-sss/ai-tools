@@ -93,3 +93,10 @@ export async function getCursorAccountsIndexPath(): Promise<string> {
 export async function injectCursorAccount(accountId: string): Promise<string> {
   return await invoke("inject_cursor_account", { accountId });
 }
+
+/** 用账号 Session Token 打开 Chrome 无痕窗口并登录 Cursor Dashboard */
+export async function openCursorAccountInChrome(
+  accountId: string,
+): Promise<void> {
+  await invoke("open_cursor_account_in_chrome", { accountId });
+}

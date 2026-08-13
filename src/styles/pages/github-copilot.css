@@ -541,7 +541,9 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.16s ease, color 0.16s ease;
+  transition:
+    background 0.16s ease,
+    color 0.16s ease;
 }
 
 .claude-accounts-page .claude-api-key-copy:hover {
@@ -553,14 +555,20 @@
   margin-top: 10px;
 }
 
-.claude-accounts-page .claude-api-key-stats-panel .codex-api-key-usage-grid > div {
+.claude-accounts-page
+  .claude-api-key-stats-panel
+  .codex-api-key-usage-grid
+  > div {
   min-height: 76px;
   justify-content: center;
   padding: 12px 14px;
   border-radius: 10px;
 }
 
-.claude-accounts-page .claude-api-key-stats-panel .codex-api-key-usage-grid span {
+.claude-accounts-page
+  .claude-api-key-stats-panel
+  .codex-api-key-usage-grid
+  span {
   color: var(--text-secondary);
 }
 
@@ -580,23 +588,31 @@
 }
 
 .claude-accounts-page.codex-accounts-page .claude-account-table th:nth-child(2),
-.claude-accounts-page.codex-accounts-page .claude-account-table td:nth-child(2) {
+.claude-accounts-page.codex-accounts-page
+  .claude-account-table
+  td:nth-child(2) {
   min-width: 260px;
 }
 
 .claude-accounts-page.codex-accounts-page .claude-account-table th:nth-child(3),
-.claude-accounts-page.codex-accounts-page .claude-account-table td:nth-child(3) {
+.claude-accounts-page.codex-accounts-page
+  .claude-account-table
+  td:nth-child(3) {
   min-width: 140px;
 }
 
 .claude-accounts-page.codex-accounts-page .claude-account-table th:nth-child(4),
-.claude-accounts-page.codex-accounts-page .claude-account-table td:nth-child(4) {
+.claude-accounts-page.codex-accounts-page
+  .claude-account-table
+  td:nth-child(4) {
   min-width: 320px;
   white-space: normal;
 }
 
 .claude-accounts-page.codex-accounts-page .claude-account-table th:nth-child(5),
-.claude-accounts-page.codex-accounts-page .claude-account-table td:nth-child(5) {
+.claude-accounts-page.codex-accounts-page
+  .claude-account-table
+  td:nth-child(5) {
   min-width: 180px;
   white-space: nowrap;
 }
@@ -875,7 +891,10 @@
 
 .claude-accounts-page .claude-compact-row {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1.35fr) minmax(112px, auto) minmax(220px, 1fr) auto;
+  grid-template-columns: auto minmax(180px, 1.35fr) minmax(112px, auto) minmax(
+      220px,
+      1fr
+    ) auto;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -883,7 +902,10 @@
   border: 1px solid var(--border-light);
   border-radius: 12px;
   background: var(--bg-secondary);
-  transition: border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease;
+  transition:
+    border-color 0.16s ease,
+    background 0.16s ease,
+    box-shadow 0.16s ease;
 }
 
 .claude-accounts-page .claude-compact-row:hover {
@@ -949,7 +971,10 @@
   min-width: 0;
 }
 
-.claude-accounts-page .claude-compact-quota .claude-quota-summary.table .claude-quota-items {
+.claude-accounts-page
+  .claude-compact-quota
+  .claude-quota-summary.table
+  .claude-quota-items {
   max-width: none;
   grid-template-columns: repeat(2, minmax(72px, 1fr));
 }
@@ -1656,6 +1681,10 @@
   padding-top: 12px;
   border-top: 1px solid var(--border-light);
   margin-top: auto;
+}
+
+.cursor-accounts-page .ghcp-account-card .card-footer {
+  justify-content: flex-end;
 }
 
 .ghcp-account-card .card-date {
@@ -2499,14 +2528,18 @@
     box-shadow 0.18s ease;
 }
 
-.claude-add-modal .claude-gateway-segmented .claude-provider-endpoint-chip:hover {
+.claude-add-modal
+  .claude-gateway-segmented
+  .claude-provider-endpoint-chip:hover {
   border-color: transparent;
   background: color-mix(in srgb, var(--primary) 7%, var(--bg-card));
   color: var(--primary);
   box-shadow: none;
 }
 
-.claude-add-modal .claude-gateway-segmented .claude-provider-endpoint-chip.active {
+.claude-add-modal
+  .claude-gateway-segmented
+  .claude-provider-endpoint-chip.active {
   border-color: color-mix(in srgb, var(--primary) 34%, transparent);
   background: var(--bg-card);
   color: var(--primary);
@@ -2546,7 +2579,8 @@
   padding: 20px 24px 24px;
   overflow-x: hidden;
   overflow-y: auto;
-  scrollbar-color: color-mix(in srgb, var(--text-muted) 42%, transparent) transparent;
+  scrollbar-color: color-mix(in srgb, var(--text-muted) 42%, transparent)
+    transparent;
   scrollbar-width: thin;
 }
 
@@ -2938,7 +2972,8 @@
 .ghcp-add-modal .oauth-idc-form input:focus {
   outline: none;
   border-color: var(--accent-color, #6366f1);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent-color, #6366f1) 22%, transparent);
+  box-shadow: 0 0 0 2px
+    color-mix(in srgb, var(--accent-color, #6366f1) 22%, transparent);
 }
 
 @media (max-width: 640px) {
@@ -3157,8 +3192,12 @@
   );
 }
 
-[data-theme="dark"] .claude-accounts-page .codex-account-card.sponsor-api-account,
-[data-theme="dark"] .claude-accounts-page .ghcp-account-card.sponsor-api-account {
+[data-theme="dark"]
+  .claude-accounts-page
+  .codex-account-card.sponsor-api-account,
+[data-theme="dark"]
+  .claude-accounts-page
+  .ghcp-account-card.sponsor-api-account {
   background:
     linear-gradient(
       180deg,
@@ -3171,7 +3210,10 @@
   box-shadow: 0 16px 36px rgba(180, 116, 11, 0.18);
 }
 
-[data-theme="dark"] .claude-accounts-page .codex-account-card.sponsor-api-account .codex-api-key-usage-panel {
+[data-theme="dark"]
+  .claude-accounts-page
+  .codex-account-card.sponsor-api-account
+  .codex-api-key-usage-panel {
   background: rgba(217, 119, 6, 0.12);
   border-color: rgba(251, 191, 36, 0.22);
 }
@@ -3281,31 +3323,50 @@
   margin-top: 8px;
 }
 
-html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card {
+html[data-reduced-motion="true"]
+  .ghcp-accounts-page
+  .ghcp-accounts-grid
+  .ghcp-account-card {
   background: var(--bg-surface);
   backdrop-filter: none;
   box-shadow: none;
   transform: none;
 }
 
-html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card:hover {
+html[data-reduced-motion="true"]
+  .ghcp-accounts-page
+  .ghcp-accounts-grid
+  .ghcp-account-card:hover {
   box-shadow: none;
   transform: none;
 }
 
-html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card.current {
+html[data-reduced-motion="true"]
+  .ghcp-accounts-page
+  .ghcp-accounts-grid
+  .ghcp-account-card.current {
   box-shadow: 0 0 0 2px var(--primary-light);
 }
 
-html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card.selected {
+html[data-reduced-motion="true"]
+  .ghcp-accounts-page
+  .ghcp-accounts-grid
+  .ghcp-account-card.selected {
   background: color-mix(in srgb, var(--bg-surface) 88%, var(--primary) 12%);
 }
 
-html[data-reduced-motion="true"] .ghcp-accounts-page .ghcp-accounts-grid .ghcp-account-card.disabled {
+html[data-reduced-motion="true"]
+  .ghcp-accounts-page
+  .ghcp-accounts-grid
+  .ghcp-account-card.disabled {
   background: color-mix(in srgb, var(--bg-surface) 92%, var(--danger) 8%);
 }
 
-html[data-reduced-motion="true"] .claude-accounts-page .codex-account-card.sponsor-api-account,
-html[data-reduced-motion="true"] .claude-accounts-page .ghcp-account-card.sponsor-api-account {
+html[data-reduced-motion="true"]
+  .claude-accounts-page
+  .codex-account-card.sponsor-api-account,
+html[data-reduced-motion="true"]
+  .claude-accounts-page
+  .ghcp-account-card.sponsor-api-account {
   background: var(--bg-surface);
 }

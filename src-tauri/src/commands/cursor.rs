@@ -174,6 +174,15 @@ pub fn cursor_oauth_login_cancel(login_id: Option<String>) -> Result<(), String>
 }
 
 #[tauri::command]
+pub async fn open_cursor_account_in_chrome(account_id: String) -> Result<(), String> {
+    logger::log_info(&format!(
+        "[Cursor Command] Chrome 无痕登录: account_id={}",
+        account_id
+    ));
+    cursor_account::open_account_in_chrome(&account_id).await
+}
+
+#[tauri::command]
 pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result<String, String> {
     let started_at = Instant::now();
     logger::log_info(&format!(

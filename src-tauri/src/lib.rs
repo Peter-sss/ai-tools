@@ -1155,6 +1155,7 @@ pub fn run() {
             commands::cursor::cursor_oauth_login_start,
             commands::cursor::cursor_oauth_login_complete,
             commands::cursor::cursor_oauth_login_cancel,
+            commands::cursor::open_cursor_account_in_chrome,
             commands::cursor::inject_cursor_account,
             // Grok Commands
             commands::grok::grok_get_cli_status,

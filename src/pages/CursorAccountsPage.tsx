@@ -374,7 +374,6 @@ export function CursorAccountsPage() {
     handleRetryOauth,
     handleOpenOauthUrl,
     currentAccountId,
-    formatDate,
     normalizeTag,
   } = page;
 
@@ -705,6 +704,23 @@ export function CursorAccountsPage() {
       }
     },
     [resolveDisplayEmail, t],
+  );
+
+  const handleOpenInChrome = useCallback(
+    async (accountId: string) => {
+      try {
+        await cursorService.openCursorAccountInChrome(accountId);
+      } catch (error) {
+        setMessage({
+          text: t("cursor.openInChromeFailed", {
+            error: String(error),
+            defaultValue: "打开 Chrome 失败: {{error}}",
+          }),
+          tone: "error",
+        });
+      }
+    },
+    [setMessage, t],
   );
 
   useEffect(() => {
@@ -1217,7 +1233,6 @@ export function CursorAccountsPage() {
           </div>
 
           <div className="card-footer">
-            <span className="card-date">{formatDate(account.created_at)}</span>
             <div className="card-actions">
               <button
                 className="card-action-btn success"
@@ -1241,6 +1256,13 @@ export function CursorAccountsPage() {
                 title={t("accounts.editTags", "编辑标签")}
               >
                 <Tag size={14} />
+              </button>
+              <button
+                className="card-action-btn"
+                onClick={() => void handleOpenInChrome(account.id)}
+                title={t("cursor.openInChrome", "Chrome 无痕登录")}
+              >
+                <Globe size={14} />
               </button>
               <button
                 className="card-action-btn"
@@ -1534,6 +1556,13 @@ export function CursorAccountsPage() {
                 title={t("accounts.editTags", "编辑标签")}
               >
                 <Tag size={14} />
+              </button>
+              <button
+                className="action-btn"
+                onClick={() => void handleOpenInChrome(account.id)}
+                title={t("cursor.openInChrome", "Chrome 无痕登录")}
+              >
+                <Globe size={14} />
               </button>
               <button
                 className="action-btn"

@@ -4543,6 +4543,9 @@
   "cursor": {
     "subscription": "订阅状态",
     "injectToCursor": "切换到 Cursor",
+    "openInChrome": "Chrome 无痕登录",
+    "openInChromeSuccess": "已在 Chrome 无痕窗口打开",
+    "openInChromeFailed": "打开 Chrome 失败: {{error}}",
     "quota": {
       "onDemand": "按需使用"
     },

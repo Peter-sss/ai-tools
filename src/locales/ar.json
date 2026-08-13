@@ -4285,6 +4285,9 @@
   "cursor": {
     "subscription": "الاشتراك",
     "injectToCursor": "التبديل إلى Cursor",
+    "openInChrome": "Open in Chrome Incognito",
+    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
+    "openInChromeFailed": "Failed to open Chrome: {{error}}",
     "quota": {
       "onDemand": "حسب الطلب"
     },
