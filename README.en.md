@@ -348,7 +348,7 @@ Notes:
 
 ### Option A: Manual Download (Recommended)
 
-Go to [GitHub Releases](https://github.com/jlcodes99/cockpit-tools/releases) to download the package for your system:
+Go to [GitHub Releases](https://github.com/Peter-sss/ai-tools/releases) to download the package for your system:
 
 *   **macOS**: `.dmg` (Apple Silicon & Intel)
 *   **Windows**: `.msi` (Recommended) or `.exe`
@@ -359,27 +359,27 @@ Go to [GitHub Releases](https://github.com/jlcodes99/cockpit-tools/releases) to 
 > Homebrew is required.
 
 ```bash
-brew tap jlcodes99/cockpit-tools https://github.com/jlcodes99/cockpit-tools
-brew install --cask cockpit-tools
+brew tap Peter-sss/ai-tools https://github.com/Peter-sss/ai-tools
+brew install --cask ai-tools
 ```
 
 If you hit the macOS "App is damaged" warning, you can also install with `--no-quarantine`:
 
 ```bash
-brew install --cask --no-quarantine cockpit-tools
+brew install --cask --no-quarantine ai-tools
 ```
 
-If Homebrew says the app already exists (e.g. `already an App at '/Applications/Cockpit Tools.app'`), remove the old app and install again:
+If Homebrew says the app already exists (e.g. `already an App at '/Applications/ai-tools.app'`), remove the old app and install again:
 
 ```bash
-rm -rf "/Applications/Cockpit Tools.app"
-brew install --cask cockpit-tools
+rm -rf "/Applications/ai-tools.app"
+brew install --cask ai-tools
 ```
 
 Or force overwrite the existing app:
 
 ```bash
-brew install --cask --force cockpit-tools
+brew install --cask --force ai-tools
 ```
 
 ### 🛠️ Troubleshooting
@@ -390,7 +390,7 @@ Due to macOS security mechanisms, apps not downloaded from the App Store may tri
 1.  **Command Line Fix** (Recommended):
     Open Terminal and run the following command:
     ```bash
-    sudo xattr -rd com.apple.quarantine "/Applications/Cockpit Tools.app"
+    sudo xattr -rd com.apple.quarantine "/Applications/ai-tools.app"
     ```
     > **Note**: If you changed the app name, please adjust the path in the command accordingly.
 

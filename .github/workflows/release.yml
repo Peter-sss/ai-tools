@@ -123,6 +123,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          write_stub() {
+            node -e 'const fs=require("fs"); fs.writeFileSync("legacy-latest.json", JSON.stringify({version:"0.0.0",notes:"First release bootstrap stub. Replaced after platform builds finish.",pub_date:"1970-01-01T00:00:00Z",platforms:{}}, null, 2) + "\n");'
+            test -s legacy-latest.json
+          }
           PREVIOUS_TAG="$(
             gh release list \
               --limit 100 \
@@ -130,15 +134,20 @@ jobs:
               --jq "[.[] | select(.isDraft == false and .isPrerelease == false and .tagName != \"${GITHUB_REF_NAME}\")][0].tagName // \"\""
           )"
           if [ -z "${PREVIOUS_TAG}" ]; then
-            echo "No previous published release was found; refusing to stage without a legacy updater manifest."
-            exit 1
+            echo "No previous published release found; writing first-release latest.json stub."
+            write_stub
+            exit 0
           fi
 
           mkdir -p previous-release
-          gh release download "${PREVIOUS_TAG}" \
+          if ! gh release download "${PREVIOUS_TAG}" \
             --pattern "latest.json" \
             --dir previous-release \
-            --clobber
+            --clobber; then
+            echo "Previous release ${PREVIOUS_TAG} has no latest.json; writing first-release stub."
+            write_stub
+            exit 0
+          fi
           test -s previous-release/latest.json
           cp previous-release/latest.json legacy-latest.json
           echo "Preserved legacy latest.json from ${PREVIOUS_TAG}"
@@ -154,7 +163,7 @@ jobs:
         run: |
           set -euo pipefail
           TAG="v${{ steps.app_version.outputs.VERSION }}"
-          TITLE="Cockpit Tools v${{ steps.app_version.outputs.VERSION }}"
+          TITLE="ai-tools v${{ steps.app_version.outputs.VERSION }}"
           if gh release view "${TAG}" > /dev/null 2>&1; then
             gh release edit "${TAG}" \
               --title "${TITLE}" \
@@ -940,10 +949,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/Cockpit.Tools_${VERSION}_universal.dmg"
+          URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/ai-tools_${VERSION}_universal.dmg"
           echo "Downloading: ${URL}"
           for i in $(seq 1 30); do
-            if curl -fL --retry 3 --retry-delay 1 -o cockpit-tools.dmg "${URL}"; then
+            if curl -fL --retry 3 --retry-delay 1 -o ai-tools.dmg "${URL}"; then
               exit 0
             fi
             echo "Asset not ready yet (attempt $i/30). Sleeping 10s..."
@@ -956,14 +965,14 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          SHA256="$(sha256sum cockpit-tools.dmg | awk '{print $1}')"
+          SHA256="$(sha256sum ai-tools.dmg | awk '{print $1}')"
           echo "SHA256=${SHA256}" >> "$GITHUB_ENV"
 
       - name: 📝 Update Cask file
         shell: bash
         run: |
           set -euo pipefail
-          FILE="Casks/cockpit-tools.rb"
+          FILE="Casks/ai-tools.rb"
           if [ ! -f "${FILE}" ]; then
             echo "Missing ${FILE}. Create it first."
             exit 1

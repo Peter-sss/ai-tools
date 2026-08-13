@@ -7,6 +7,18 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.3.17] - 2026-08-13
+
+### Changed
+
+- **Release packaging rebranded to ai-tools**: GitHub Release assets, Homebrew cask, and updater endpoints now target `Peter-sss/ai-tools` with `ai-tools_*` installer names.
+- **Updater signing uses a repository-owned keypair**: release builds emit updater signatures again (`createUpdaterArtifacts: true`) for this fork's public key.
+
+### Fixed
+
+- **First GitHub Release no longer requires a previous `latest.json`**: the release workflow bootstraps a stub updater manifest when no prior published release exists.
+
+---
 ## [1.3.16] - 2026-08-02
 
 ### Added

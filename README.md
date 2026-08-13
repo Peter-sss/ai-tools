@@ -345,7 +345,7 @@ Grok CLI 默认实例通常直接沿用官方 `~/.grok` 目录，启动时不设
 
 ### 选项 A: 手动下载 (推荐)
 
-前往 [GitHub Releases](https://github.com/jlcodes99/cockpit-tools/releases) 下载对应系统的安装包：
+前往 [GitHub Releases](https://github.com/Peter-sss/ai-tools/releases) 下载对应系统的安装包：
 
 *   **macOS**: `.dmg` (Apple Silicon & Intel)
 *   **Windows**: `.msi` (推荐) 或 `.exe`
@@ -356,27 +356,27 @@ Grok CLI 默认实例通常直接沿用官方 `~/.grok` 目录，启动时不设
 > 需要先安装 Homebrew。
 
 ```bash
-brew tap jlcodes99/cockpit-tools https://github.com/jlcodes99/cockpit-tools
-brew install --cask cockpit-tools
+brew tap Peter-sss/ai-tools https://github.com/Peter-sss/ai-tools
+brew install --cask ai-tools
 ```
 
 如果遇到 macOS “应用已损坏”或无法打开，也可以使用 `--no-quarantine` 安装：
 
 ```bash
-brew install --cask --no-quarantine cockpit-tools
+brew install --cask --no-quarantine ai-tools
 ```
 
-如果提示已存在应用（例如：`already an App at '/Applications/Cockpit Tools.app'`），请先删除旧版本再安装：
+如果提示已存在应用（例如：`already an App at '/Applications/ai-tools.app'`），请先删除旧版本再安装：
 
 ```bash
-rm -rf "/Applications/Cockpit Tools.app"
-brew install --cask cockpit-tools
+rm -rf "/Applications/ai-tools.app"
+brew install --cask ai-tools
 ```
 
 或者直接强制覆盖安装：
 
 ```bash
-brew install --cask --force cockpit-tools
+brew install --cask --force ai-tools
 ```
 
 ### 🛠️ 常见问题排查 (Troubleshooting)
@@ -387,7 +387,7 @@ brew install --cask --force cockpit-tools
 1.  **命令行修复** (推荐):
     打开终端，执行以下命令：
     ```bash
-    sudo xattr -rd com.apple.quarantine "/Applications/Cockpit Tools.app"
+    sudo xattr -rd com.apple.quarantine "/Applications/ai-tools.app"
     ```
     > **注意**: 如果您修改了应用名称，请在命令中相应调整路径。
 

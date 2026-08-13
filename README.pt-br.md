@@ -285,7 +285,7 @@ Observações:
 
 ### Opção A: Download Manual (Recomendado)
 
-Acesse a [página de lançamentos do GitHub](https://github.com/jlcodes99/cockpit-tools/releases) para baixar o pacote para o seu sistema:
+Acesse a [página de lançamentos do GitHub](https://github.com/Peter-sss/ai-tools/releases) para baixar o pacote para o seu sistema:
 
 *   **macOS**: `.dmg` (Apple Silicon & Intel)
 *   **Windows**: `.msi` (Recommended) or `.exe`
@@ -297,27 +297,27 @@ Acesse a [página de lançamentos do GitHub](https://github.com/jlcodes99/cockpi
 
 
 ```bash
-brew tap jlcodes99/cockpit-tools https://github.com/jlcodes99/cockpit-tools
-brew install --cask cockpit-tools
+brew tap Peter-sss/ai-tools https://github.com/Peter-sss/ai-tools
+brew install --cask ai-tools
 ```
 
 Se você se deparar com o aviso "O aplicativo está danificado" do macOS, também poderá instalar com a opção `--no-quarantine`:
 
 ```bash
-brew install --cask --no-quarantine cockpit-tools
+brew install --cask --no-quarantine ai-tools
 ```
 
-Se o Homebrew disser que o aplicativo já existe (por exemplo, `já existe um aplicativo em '/Applications/Cockpit Tools.app'`), remova o aplicativo antigo e instale-o novamente:
+Se o Homebrew disser que o aplicativo já existe (por exemplo, `já existe um aplicativo em '/Applications/ai-tools.app'`), remova o aplicativo antigo e instale-o novamente:
 
 ```bash
-rm -rf "/Applications/Cockpit Tools.app"
-brew install --cask cockpit-tools
+rm -rf "/Applications/ai-tools.app"
+brew install --cask ai-tools
 ```
 
 Ou force a sobrescrita do aplicativo existente:
 
 ```bash
-brew install --cask --force cockpit-tools
+brew install --cask --force ai-tools
 ```
 
 ### 🛠️ Solução de problemas
@@ -328,7 +328,7 @@ Devido aos mecanismos de segurança do macOS, apps que não foram baixados da Ap
 1.  **Correção via linha de comando** (Recomendado):
     Abra o Terminal e execute o seguinte comando:
     ```bash
-    sudo xattr -rd com.apple.quarantine "/Applications/Cockpit Tools.app"
+    sudo xattr -rd com.apple.quarantine "/Applications/ai-tools.app"
     ```
     > **Observação**: Se você alterou o nome do aplicativo, ajuste o caminho no comando de acordo.
 

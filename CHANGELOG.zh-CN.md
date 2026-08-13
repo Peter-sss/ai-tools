@@ -7,6 +7,18 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
 ---
+## [1.3.17] - 2026-08-13
+
+### 变更
+
+- **发布产物品牌切换为 ai-tools**：GitHub Release 安装包、Homebrew Cask 与自动更新地址改为指向 `Peter-sss/ai-tools`，安装包文件名使用 `ai-tools_*`。
+- **自动更新签名改用本仓库密钥对**：正式发版重新生成 updater 签名（`createUpdaterArtifacts: true`），公钥绑定本 fork。
+
+### 修复
+
+- **首次 GitHub Release 不再依赖历史 `latest.json`**：仓库尚无已发布 Release 时，工作流会写入 stub updater manifest，保证首发可跑通。
+
+---
 ## [1.3.16] - 2026-08-02
 
 ### 新增
