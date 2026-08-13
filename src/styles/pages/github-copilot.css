@@ -891,10 +891,9 @@
 
 .claude-accounts-page .claude-compact-row {
   display: grid;
-  grid-template-columns: auto minmax(180px, 1.35fr) minmax(112px, auto) minmax(
-      220px,
-      1fr
-    ) auto;
+  grid-template-columns:
+    auto minmax(180px, 1.35fr) minmax(112px, auto) minmax(220px, 1fr)
+    auto;
   align-items: center;
   gap: 12px;
   min-width: 0;
@@ -2110,6 +2109,62 @@
 
 .ghcp-accounts-page .account-table .quota-item {
   min-height: 52px;
+}
+
+/* Cursor table: compact quota rows (after shared min-height) */
+.ghcp-accounts-page.cursor-accounts-page .account-table .quota-item {
+  min-height: 0;
+  gap: 2px;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota
+  .quota-header {
+  gap: 8px;
+  min-width: 0;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-label {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.ghcp-accounts-page.cursor-accounts-page .account-table .quota-inline-cost {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-weight: 400;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota
+  .quota-progress-track {
+  height: 4px;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota--total {
+  min-width: 160px;
 }
 
 .ghcp-accounts-page .account-table th:nth-child(3),

@@ -1426,30 +1426,25 @@ export function CursorAccountsPage() {
           </td>
           <td>
             {hasQuotaData ? (
-              <div className="quota-item windsurf-table-credit-item">
+              <div
+                className="quota-item windsurf-table-credit-item cursor-table-quota cursor-table-quota--total"
+                title={
+                  resetText
+                    ? t("common.shared.quota.resetAt", {
+                        time: resetText,
+                        defaultValue: "Reset: {{time}}",
+                      })
+                    : undefined
+                }
+              >
                 <div className="quota-header">
-                  <span className="quota-name">Total Usage</span>
+                  <span className="quota-name">
+                    {total.costText || "Total Usage"}
+                  </span>
                   <span className={`quota-value ${total.quotaClass}`}>
                     {total.valueText}
                   </span>
                 </div>
-                {total.costText && (
-                  <div className="windsurf-credit-meta-row table">
-                    <span className="windsurf-credit-used">
-                      {total.costText}
-                    </span>
-                  </div>
-                )}
-                {resetText && (
-                  <div className="windsurf-credit-meta-row table">
-                    <span className="windsurf-credit-used">
-                      {t("common.shared.quota.resetAt", {
-                        time: resetText,
-                        defaultValue: "Reset: {{time}}",
-                      })}
-                    </span>
-                  </div>
-                )}
                 <div className="quota-progress-track">
                   <div
                     className={`quota-progress-bar ${total.quotaClass}`}
@@ -1465,8 +1460,8 @@ export function CursorAccountsPage() {
           </td>
           <td>
             {hasQuotaData ? (
-              <>
-                <div className="quota-item windsurf-table-credit-item">
+              <div className="cursor-table-quota-stack">
+                <div className="quota-item windsurf-table-credit-item cursor-table-quota">
                   <div className="quota-header">
                     <span className="quota-name">Auto + Composer</span>
                     <span className={`quota-value ${auto.quotaClass}`}>
@@ -1480,10 +1475,7 @@ export function CursorAccountsPage() {
                     />
                   </div>
                 </div>
-                <div
-                  className="quota-item windsurf-table-credit-item"
-                  style={{ marginTop: 4 }}
-                >
+                <div className="quota-item windsurf-table-credit-item cursor-table-quota">
                   <div className="quota-header">
                     <span className="quota-name">API</span>
                     <span className={`quota-value ${api.quotaClass}`}>
@@ -1497,25 +1489,20 @@ export function CursorAccountsPage() {
                     />
                   </div>
                 </div>
-                <div
-                  className="quota-item windsurf-table-credit-item"
-                  style={{ marginTop: 4 }}
-                >
+                <div className="quota-item windsurf-table-credit-item cursor-table-quota">
                   <div className="quota-header">
-                    <span className="quota-name">
-                      {t("cursor.quota.onDemand", "On-Demand")}
+                    <span className="quota-name cursor-table-quota-label">
+                      <span>{t("cursor.quota.onDemand", "On-Demand")}</span>
+                      {onDemand.costText && (
+                        <span className="quota-inline-cost">
+                          {onDemand.costText}
+                        </span>
+                      )}
                     </span>
                     <span className={`quota-value ${onDemand.quotaClass}`}>
                       {onDemand.valueText}
                     </span>
                   </div>
-                  {onDemand.costText && (
-                    <div className="windsurf-credit-meta-row table">
-                      <span className="windsurf-credit-used">
-                        {onDemand.costText}
-                      </span>
-                    </div>
-                  )}
                   <div className="quota-progress-track">
                     <div
                       className={`quota-progress-bar ${onDemand.quotaClass}`}
@@ -1525,7 +1512,7 @@ export function CursorAccountsPage() {
                     />
                   </div>
                 </div>
-              </>
+              </div>
             ) : (
               <div className="quota-empty">
                 {t("common.shared.quota.noData", "暂无配额数据")}
