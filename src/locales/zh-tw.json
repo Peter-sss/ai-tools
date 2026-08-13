@@ -231,7 +231,7 @@
       "desc": "此區域會固定顯示於所有頁面的右上角，適合投放活動資訊或品牌廣告。",
       "action": "查看詳情"
     },
-    "appName": "Cockpit Tools",
+    "appName": "AITool Cockpit",
     "collapse": "收合",
     "confirmDelete": "確認刪除",
     "confirmDeleteTag": "確認刪除標籤",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "啟用全域代理時，代理位址不可為空。"
     },
     "about": {
-      "appName": "Cockpit Tools",
+      "appName": "AITool Cockpit",
       "slogan": "專業帳號管理解決方案",
       "author": "主作者",
       "wechat": "微信公眾號",

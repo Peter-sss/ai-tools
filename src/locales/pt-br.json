@@ -231,7 +231,7 @@
       "desc": "Esta área fica fixa no canto superior direito de todas as páginas para campanhas ou anúncios da marca.",
       "action": "Ver detalhes"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "AITool Cockpit",
     "collapse": "Recolher",
     "confirmDelete": "Confirmar exclusão",
     "confirmDeleteTag": "Confirmar exclusão de tag",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "A URL do proxy não pode ficar vazia quando o proxy global estiver ativado."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "AITool Cockpit",
       "slogan": "Solução Profissional de Gerenciamento de Contas",
       "author": "Autor",
       "wechat": "WeChat​",

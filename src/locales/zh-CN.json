@@ -231,7 +231,7 @@
       "loginSuccess": "登录成功",
       "switchAccount": "切换账号"
     },
-    "appName": "Cockpit Tools",
+    "appName": "AITool Cockpit",
     "collapse": "收起",
     "confirmDelete": "确认删除",
     "confirmDeleteTag": "确认删除标签",
@@ -1270,7 +1270,7 @@
       "proxyUrlRequired": "启用全局代理时，代理地址不能为空。"
     },
     "about": {
-      "appName": "Cockpit Tools",
+      "appName": "AITool Cockpit",
       "slogan": "专业账号管理解决方案",
       "author": "主作者",
       "wechat": "微信公众号",
@@ -4538,6 +4538,11 @@
     "injectToCursor": "切换到 Cursor",
     "quota": {
       "onDemand": "按需使用"
+    },
+    "copyTokenLine": {
+      "success": "已复制 {{email}} 的 Token 行",
+      "missing": "缺少 access token，无法复制 {{email}}",
+      "hint": "点击复制 email----user_id::token"
     },
     "title": "Cursor 账号管理",
     "instances": {

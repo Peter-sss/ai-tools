@@ -23,8 +23,8 @@ const USER_CONFIG_FILE: &str = "config.json";
 const USER_CONFIG_LOCK_FILE: &str = "config.json.lock";
 
 /// 数据目录名
-const DATA_DIR: &str = ".antigravity_cockpit";
-const DEV_DATA_DIR: &str = ".antigravity_cockpit_dev";
+const DATA_DIR: &str = ".aitool_cockpit";
+const DEV_DATA_DIR: &str = ".aitool_cockpit_dev";
 const DATA_DIR_ENV: &str = "COCKPIT_TOOLS_DATA_DIR";
 const PROFILE_ENV: &str = "COCKPIT_TOOLS_PROFILE";
 

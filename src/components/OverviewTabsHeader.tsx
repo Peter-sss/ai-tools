@@ -1,18 +1,17 @@
-import { ReactNode, useMemo } from 'react';
-import { useTranslation } from 'react-i18next';
-import { AlarmClock, Layers, ShieldCheck } from 'lucide-react';
-import { Page } from '../types/navigation';
-import { ManualHelpIconButton } from './ManualHelpIconButton';
-import { AntigravityInstalledVersionBadge } from './AntigravityInstalledVersionBadge';
-import { PlatformId } from '../types/platform';
+import { ReactNode, useMemo } from "react";
+import { useTranslation } from "react-i18next";
+import { AlarmClock, Layers, ShieldCheck } from "lucide-react";
+import { Page } from "../types/navigation";
+import { AntigravityInstalledVersionBadge } from "./AntigravityInstalledVersionBadge";
+import { PlatformId } from "../types/platform";
 import {
   findGroupByPlatform,
   resolveGroupChildName,
   usePlatformLayoutStore,
-} from '../stores/usePlatformLayoutStore';
-import { getPlatformLabel, renderPlatformIcon } from '../utils/platformMeta';
-import { PlatformGroupSwitcher } from './platform/PlatformGroupSwitcher';
-import { useAntigravityRuntimeTarget } from '../hooks/useAntigravityRuntimeTarget';
+} from "../stores/usePlatformLayoutStore";
+import { getPlatformLabel, renderPlatformIcon } from "../utils/platformMeta";
+import { PlatformGroupSwitcher } from "./platform/PlatformGroupSwitcher";
+import { useAntigravityRuntimeTarget } from "../hooks/useAntigravityRuntimeTarget";
 
 interface OverviewTabsHeaderProps {
   active: Page;
@@ -36,6 +35,7 @@ export function OverviewTabsHeader({
   onOpenManual,
 }: OverviewTabsHeaderProps) {
   void subtitle;
+  void onOpenManual;
   const { t } = useTranslation();
   const { platformGroups } = usePlatformLayoutStore();
   const currentPlatformId: PlatformId = useAntigravityRuntimeTarget();
@@ -43,14 +43,20 @@ export function OverviewTabsHeader({
     () => findGroupByPlatform(platformGroups, currentPlatformId),
     [platformGroups, currentPlatformId],
   );
-  const switchablePlatforms = currentGroup ? currentGroup.platformIds : [currentPlatformId];
+  const switchablePlatforms = currentGroup
+    ? currentGroup.platformIds
+    : [currentPlatformId];
   const currentPlatformLabel = getPlatformLabel(currentPlatformId, t);
   const currentDisplayName = useMemo(
     () =>
       title
         ? title
         : currentGroup
-          ? resolveGroupChildName(currentGroup, currentPlatformId, currentPlatformLabel)
+          ? resolveGroupChildName(
+              currentGroup,
+              currentPlatformId,
+              currentPlatformLabel,
+            )
           : currentPlatformLabel,
     [title, currentGroup, currentPlatformId, currentPlatformLabel],
   );
@@ -59,32 +65,40 @@ export function OverviewTabsHeader({
       switchablePlatforms.map((platformId) => ({
         platformId,
         label: currentGroup
-          ? resolveGroupChildName(currentGroup, platformId, getPlatformLabel(platformId, t))
+          ? resolveGroupChildName(
+              currentGroup,
+              platformId,
+              getPlatformLabel(platformId, t),
+            )
           : getPlatformLabel(platformId, t),
       })),
     [switchablePlatforms, currentGroup, t],
   );
   const tabs: TabSpec[] = [
     {
-      key: 'overview',
-      label: t('overview.title'),
-      icon: <span className="tab-icon">{renderPlatformIcon(currentPlatformId, 16)}</span>,
+      key: "overview",
+      label: t("overview.title"),
+      icon: (
+        <span className="tab-icon">
+          {renderPlatformIcon(currentPlatformId, 16)}
+        </span>
+      ),
     },
-    ...(currentPlatformId === 'antigravity_ide'
+    ...(currentPlatformId === "antigravity_ide"
       ? [
           {
-            key: 'instances' as const,
-            label: t('instances.title', '应用多开'),
+            key: "instances" as const,
+            label: t("instances.title", "应用多开"),
             icon: <Layers className="tab-icon" />,
           },
           {
-            key: 'wakeup' as const,
-            label: t('wakeup.title'),
+            key: "wakeup" as const,
+            label: t("wakeup.title"),
             icon: <AlarmClock className="tab-icon" />,
           },
           {
-            key: 'verification' as const,
-            label: t('wakeup.verification.title'),
+            key: "verification" as const,
+            label: t("wakeup.verification.title"),
             icon: <ShieldCheck className="tab-icon" />,
           },
         ]
@@ -92,40 +106,30 @@ export function OverviewTabsHeader({
   ];
 
   return (
-    <>
-      <div className="page-top-strip">
-        <div className="page-top-strip-left">
-          <span className="page-top-strip-label">
-            {t('settings.general.account', 'Accounts')}
-          </span>
-          <ManualHelpIconButton className="platform-header-help" onClick={onOpenManual} />
-        </div>
-        <div className="page-top-strip-right">
-          <AntigravityInstalledVersionBadge />
-        </div>
+    <div className="page-tabs-row page-tabs-center page-tabs-row-with-leading">
+      <div className="page-tabs-leading">
+        <PlatformGroupSwitcher
+          currentPlatformId={currentPlatformId}
+          currentLabel={currentDisplayName}
+          options={switchOptions}
+          currentGroupId={currentGroup?.id ?? null}
+        />
       </div>
-      <div className="page-tabs-row page-tabs-center page-tabs-row-with-leading">
-        <div className="page-tabs-leading">
-          <PlatformGroupSwitcher
-            currentPlatformId={currentPlatformId}
-            currentLabel={currentDisplayName}
-            options={switchOptions}
-            currentGroupId={currentGroup?.id ?? null}
-          />
-        </div>
-        <div className="page-tabs filter-tabs">
-          {tabs.map((tab) => (
-            <button
-              key={tab.key}
-              className={`filter-tab${active === tab.key ? ' active' : ''}`}
-              onClick={() => onNavigate?.(tab.key)}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-            </button>
-          ))}
-        </div>
+      <div className="page-tabs filter-tabs">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            className={`filter-tab${active === tab.key ? " active" : ""}`}
+            onClick={() => onNavigate?.(tab.key)}
+          >
+            {tab.icon}
+            <span>{tab.label}</span>
+          </button>
+        ))}
       </div>
-    </>
+      <div className="page-tabs-trailing">
+        <AntigravityInstalledVersionBadge />
+      </div>
+    </div>
   );
 }

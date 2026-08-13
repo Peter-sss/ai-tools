@@ -231,7 +231,7 @@
       "desc": "تُثبَّت هذه المنطقة في أعلى يمين جميع الصفحات لعرض الحملات أو إعلانات العلامة التجارية.",
       "action": "عرض التفاصيل"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "AITool Cockpit",
     "collapse": "طي",
     "confirmDelete": "تأكيد الحذف",
     "confirmDeleteTag": "تأكيد حذف الوسم",
@@ -960,7 +960,7 @@
       "proxyUrlRequired": "لا يمكن أن يكون عنوان الوكيل فارغًا عند تفعيل الوكيل العام."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "AITool Cockpit",
       "slogan": "حل احترافي لإدارة الحسابات",
       "author": "المؤلف الرئيسي",
       "wechat": "حساب WeChat الرسمي",

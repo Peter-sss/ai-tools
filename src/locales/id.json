@@ -231,7 +231,7 @@
       "loginSuccess": "Login berhasil",
       "switchAccount": "Ganti Akun"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "AITool Cockpit",
     "collapse": "Ciutkan",
     "confirmDelete": "Konfirmasi Hapus",
     "confirmDeleteTag": "Konfirmasi Hapus Tag",
@@ -960,7 +960,7 @@
       "proxyUrlRequired": "URL Proxy tidak boleh kosong saat proxy global diaktifkan."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "AITool Cockpit",
       "slogan": "Solusi Akun Profesional",
       "author": "Pengembang",
       "wechat": "WeChat​",

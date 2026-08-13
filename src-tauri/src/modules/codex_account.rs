@@ -1728,24 +1728,24 @@ fn migrate_codex_data_if_needed(new_data_dir: &PathBuf) {
     }
 }
 
-/// 获取我们的多账号存储路径（统一使用 ~/.antigravity_cockpit/）
+/// 获取我们的多账号存储路径（统一使用 ~/.aitool_cockpit/）
 fn get_accounts_storage_path() -> PathBuf {
     let data_dir = account::get_data_dir().unwrap_or_else(|_| {
         dirs::home_dir()
             .expect("无法获取用户目录")
-            .join(".antigravity_cockpit")
+            .join(".aitool_cockpit")
     });
     fs::create_dir_all(&data_dir).ok();
     migrate_codex_data_if_needed(&data_dir);
     data_dir.join("codex_accounts.json")
 }
 
-/// 获取账号详情存储目录（统一使用 ~/.antigravity_cockpit/codex_accounts/）
+/// 获取账号详情存储目录（统一使用 ~/.aitool_cockpit/codex_accounts/）
 fn get_accounts_dir() -> PathBuf {
     let data_dir = account::get_data_dir().unwrap_or_else(|_| {
         dirs::home_dir()
             .expect("无法获取用户目录")
-            .join(".antigravity_cockpit")
+            .join(".aitool_cockpit")
     });
     let accounts_dir = data_dir.join("codex_accounts");
     fs::create_dir_all(&accounts_dir).ok();
@@ -7742,7 +7742,7 @@ fn next_codex_batch_import_session_id() -> String {
 fn get_codex_batch_import_sessions_dir() -> PathBuf {
     let data_dir = account::get_data_dir()
         .or_else(|_| account::resolve_data_dir())
-        .unwrap_or_else(|_| PathBuf::from(".antigravity_cockpit"));
+        .unwrap_or_else(|_| PathBuf::from(".aitool_cockpit"));
     data_dir.join(CODEX_BATCH_IMPORT_SESSIONS_DIR)
 }
 
@@ -9713,7 +9713,7 @@ mod tests {
         fn new(prefix: &str) -> Self {
             let home_dir = make_temp_dir(prefix);
             let codex_home = home_dir.join(".codex");
-            let test_data_dir = home_dir.join(".antigravity_cockpit");
+            let test_data_dir = home_dir.join(".aitool_cockpit");
             fs::create_dir_all(&codex_home).expect("create codex home");
             fs::create_dir_all(&test_data_dir).expect("create test data dir");
 

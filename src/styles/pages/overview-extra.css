@@ -30,18 +30,26 @@
 
 .account-overview-card.current {
   border-color: var(--primary);
-  background: linear-gradient(145deg, rgba(255, 255, 255, 0.8), rgba(29, 78, 216, 0.08));
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.8),
+    rgba(29, 78, 216, 0.08)
+  );
   box-shadow: 0 12px 32px rgba(29, 78, 216, 0.12);
 }
 
 [data-theme="dark"] .account-overview-card.current {
-  background: linear-gradient(145deg, rgba(59, 130, 246, 0.2), var(--bg-secondary));
+  background: linear-gradient(
+    145deg,
+    rgba(59, 130, 246, 0.2),
+    var(--bg-secondary)
+  );
   box-shadow: 0 12px 32px rgba(59, 130, 246, 0.15);
   border-color: var(--primary);
 }
 
 .account-overview-card.current::before {
-  content: '';
+  content: "";
   position: absolute;
   top: 0;
   left: 0;
@@ -103,6 +111,83 @@
   border: none;
 }
 
+.cursor-account-copy-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  outline: none;
+}
+
+.cursor-account-copy-header:hover,
+.cursor-account-copy-header:focus-visible {
+  background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+}
+
+.cursor-account-copy-plan-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cursor-copy-toast-container {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2000;
+  pointer-events: none;
+  display: flex;
+  justify-content: center;
+  max-width: min(560px, calc(100vw - 32px));
+}
+
+.cursor-copy-toast {
+  pointer-events: none;
+  animation: cursorCopyToastIn 0.25s ease;
+}
+
+@keyframes cursorCopyToastIn {
+  from {
+    transform: translateY(-8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.cursor-plan-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  padding: 2px 0;
+  overflow: hidden;
+}
+
+.cursor-plan-badge-label,
+.cursor-plan-badge-days {
+  padding: 2px 7px;
+  line-height: 1.2;
+}
+
+.cursor-plan-badge-sep {
+  width: 1px;
+  align-self: stretch;
+  background: currentColor;
+  opacity: 0.4;
+}
+
 .action-btn {
   width: 28px;
   height: 28px;
@@ -126,7 +211,11 @@
   animation: spin 1s linear infinite;
 }
 
-@keyframes spin { 100% { transform: rotate(360deg); } }
+@keyframes spin {
+  100% {
+    transform: rotate(360deg);
+  }
+}
 
 .card-body {
   flex: 1;
@@ -183,7 +272,8 @@
   transition: width 0.5s ease;
 }
 
-.disabled-state, .empty-quota {
+.disabled-state,
+.empty-quota {
   display: flex;
   flex-direction: column;
   align-items: center;

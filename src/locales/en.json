@@ -231,7 +231,7 @@
       "loginSuccess": "Login successful",
       "switchAccount": "Switch Account"
     },
-    "appName": "Cockpit Tools",
+    "appName": "AITool Cockpit",
     "collapse": "Collapse",
     "confirmDelete": "Confirm Delete",
     "confirmDeleteTag": "Confirm Tag Deletion",
@@ -1270,7 +1270,7 @@
       "proxyUrlRequired": "Proxy URL cannot be empty when global proxy is enabled."
     },
     "about": {
-      "appName": "Cockpit Tools",
+      "appName": "AITool Cockpit",
       "slogan": "Professional Account Solution",
       "author": "Author",
       "wechat": "WeChat",
@@ -4538,6 +4538,11 @@
     "injectToCursor": "Switch to Cursor",
     "quota": {
       "onDemand": "On-Demand"
+    },
+    "copyTokenLine": {
+      "success": "Copied token line for {{email}}",
+      "missing": "Missing access token, cannot copy {{email}}",
+      "hint": "Click to copy email----user_id::token"
     },
     "title": "Cursor Account",
     "instances": {

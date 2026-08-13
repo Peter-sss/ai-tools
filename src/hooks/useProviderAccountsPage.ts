@@ -17,31 +17,31 @@ import {
   type RefObject,
   type Dispatch,
   type SetStateAction,
-} from 'react';
-import { useTranslation } from 'react-i18next';
-import { invoke } from '@tauri-apps/api/core';
-import { openUrl } from '@tauri-apps/plugin-opener';
+} from "react";
+import { useTranslation } from "react-i18next";
+import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   isPrivacyModeEnabledByDefault,
   maskSensitiveValue,
   persistPrivacyModeEnabled,
-} from '../utils/privacy';
-import { useModalErrorState } from '../components/ModalErrorMessage';
-import { useExportJsonModal } from './useExportJsonModal';
-import { parseFileCorruptedError } from '../components/FileCorruptedModal';
+} from "../utils/privacy";
+import { useModalErrorState } from "../components/ModalErrorMessage";
+import { useExportJsonModal } from "./useExportJsonModal";
+import { parseFileCorruptedError } from "../components/FileCorruptedModal";
 import {
   emitAccountsChanged,
   emitCurrentAccountChanged,
   normalizeProviderPagePlatformId,
-} from '../utils/accountSyncEvents';
+} from "../utils/accountSyncEvents";
 import {
   consumeQueuedExternalProviderImportForPlatform,
   EXTERNAL_PROVIDER_IMPORT_EVENT,
   type ExternalProviderImportPayload,
-} from '../utils/externalProviderImport';
-import { useDropdownPanelPlacement } from './useDropdownPanelPlacement';
-import { useEscClose } from './useEscClose';
-import { useEnterConfirm } from './useEnterConfirm';
+} from "../utils/externalProviderImport";
+import { useDropdownPanelPlacement } from "./useDropdownPanelPlacement";
+import { useEscClose } from "./useEscClose";
+import { useEnterConfirm } from "./useEnterConfirm";
 import {
   ACCOUNTS_OVERVIEW_FILTER_PERSISTENCE_CHANGED_EVENT,
   type AccountsOverviewFilterPersistenceChangedDetail,
@@ -52,24 +52,24 @@ import {
   removeAccountsOverviewFilterField,
   setAccountsOverviewFilterPersistenceEnabled,
   writeAccountsOverviewFilterField,
-} from '../utils/accountsOverviewFilterPersistence';
-import { normalizeTimestamp } from '../utils/dataExtract';
+} from "../utils/accountsOverviewFilterPersistence";
+import { normalizeTimestamp } from "../utils/dataExtract";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-export type AddModalStatus = 'idle' | 'loading' | 'success' | 'error';
+export type AddModalStatus = "idle" | "loading" | "success" | "error";
 export type ExternalImportProgressStatus =
-  | 'idle'
-  | 'receiving'
-  | 'fetching'
-  | 'parsing'
-  | 'importing'
-  | 'refreshing'
-  | 'success'
-  | 'partial'
-  | 'error';
+  | "idle"
+  | "receiving"
+  | "fetching"
+  | "parsing"
+  | "importing"
+  | "refreshing"
+  | "success"
+  | "partial"
+  | "error";
 
 export type ExternalImportProgressFailure = {
   index: number;
@@ -88,8 +88,8 @@ export type ExternalImportProgressState = {
   message: string;
   failures: ExternalImportProgressFailure[];
 };
-export type ViewMode = 'grid' | 'list';
-export type SortDirection = 'asc' | 'desc';
+export type ViewMode = "grid" | "list";
+export type SortDirection = "asc" | "desc";
 
 /** 各平台需要提供的 OAuth 服务函数 */
 export interface OAuthStartOptions {
@@ -153,6 +153,8 @@ export interface ProviderPageConfig<TAccount extends ProviderAccountBase> {
   currentAccountIdKey?: string;
   /** 导出文件名前缀 */
   exportFilePrefix: string;
+  /** 导出弹窗是否默认打码；默认 true */
+  exportDefaultHidden?: boolean;
   /** Store 操作 */
   store: ProviderStoreActions<TAccount>;
   /** OAuth 服务（可选，Codex 等使用自定义 OAuth 流程的平台可不传） */
@@ -195,27 +197,27 @@ export interface ProviderAccountBase {
   tags?: string[] | null;
 }
 
-const DEFAULT_SORT_BY = 'created_at';
-const DEFAULT_SORT_DIRECTION: SortDirection = 'desc';
-const DEFAULT_VIEW_MODE: ViewMode = 'grid';
+const DEFAULT_SORT_BY = "created_at";
+const DEFAULT_SORT_DIRECTION: SortDirection = "desc";
+const DEFAULT_VIEW_MODE: ViewMode = "grid";
 
 const normalizeSortDirection = (value: string | null): SortDirection =>
-  value === 'asc' ? 'asc' : DEFAULT_SORT_DIRECTION;
+  value === "asc" ? "asc" : DEFAULT_SORT_DIRECTION;
 
 const normalizeViewMode = (value: string | null): ViewMode =>
-  value === 'list' ? 'list' : DEFAULT_VIEW_MODE;
+  value === "list" ? "list" : DEFAULT_VIEW_MODE;
 
-const FILTER_FIELD_VIEW_MODE = 'view_mode';
-const FILTER_FIELD_FILTER_TYPE = 'filter_type';
-const FILTER_FIELD_SORT_BY = 'sort_by';
-const FILTER_FIELD_SORT_DIRECTION = 'sort_direction';
-const FILTER_FIELD_TAGS = 'tags';
-const FILTER_FIELD_GROUP_BY_TAG = 'group_by_tag';
+const FILTER_FIELD_VIEW_MODE = "view_mode";
+const FILTER_FIELD_FILTER_TYPE = "filter_type";
+const FILTER_FIELD_SORT_BY = "sort_by";
+const FILTER_FIELD_SORT_DIRECTION = "sort_direction";
+const FILTER_FIELD_TAGS = "tags";
+const FILTER_FIELD_GROUP_BY_TAG = "group_by_tag";
 
 const normalizeStringArray = (value: unknown): string[] =>
   Array.isArray(value)
     ? value
-        .filter((item): item is string => typeof item === 'string')
+        .filter((item): item is string => typeof item === "string")
         .map((item) => item.trim())
         .filter(Boolean)
     : [];
@@ -230,15 +232,15 @@ type ExternalImportBundleParseMessages = {
 };
 
 const CODEX_REFRESH_TOKEN_PATTERN = /rt_[A-Za-z0-9._-]+/g;
-const COCKPIT_API_PROVIDER_ID = 'cockpit_api';
-const COCKPIT_API_PROVIDER_NAME = 'Cockpit Api';
+const COCKPIT_API_PROVIDER_ID = "cockpit_api";
+const COCKPIT_API_PROVIDER_NAME = "Cockpit Api";
 const COCKPIT_TOOLS_IMPORT_PATH_MARKERS = [
-  '/api/cockpit-tools/import/',
-  '/user/api/toolsimport/',
+  "/api/cockpit-tools/import/",
+  "/user/api/toolsimport/",
 ];
 
 const readBundleMessage = (value: unknown): string | null => {
-  if (typeof value !== 'string') return null;
+  if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
 };
@@ -249,7 +251,7 @@ const readRecordString = (
 ): string | null => {
   for (const key of keys) {
     const value = payload[key];
-    if (typeof value === 'string' && value.trim()) {
+    if (typeof value === "string" && value.trim()) {
       return value.trim();
     }
   }
@@ -274,7 +276,7 @@ const parseLineDelimitedJsonObjects = (
     } catch {
       throw new Error(invalidJsonMessage);
     }
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
       throw new Error(invalidJsonMessage);
     }
     return parsed;
@@ -282,37 +284,42 @@ const parseLineDelimitedJsonObjects = (
 };
 
 const isCodexDirectImportItem = (value: unknown): boolean => {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const payload = value as Record<string, unknown>;
   const tokens = payload.tokens;
   if (
-    typeof payload.id_token === 'string' &&
+    typeof payload.id_token === "string" &&
     payload.id_token.trim() &&
-    typeof payload.access_token === 'string' &&
+    typeof payload.access_token === "string" &&
     payload.access_token.trim()
   ) {
     return true;
   }
-  if (typeof payload.refresh_token === 'string' && payload.refresh_token.trim()) {
+  if (
+    typeof payload.refresh_token === "string" &&
+    payload.refresh_token.trim()
+  ) {
     return true;
   }
   if (
-    typeof payload.auth_mode === 'string' &&
-    payload.auth_mode.trim().toLowerCase() === 'apikey' &&
-    typeof payload.OPENAI_API_KEY === 'string' &&
+    typeof payload.auth_mode === "string" &&
+    payload.auth_mode.trim().toLowerCase() === "apikey" &&
+    typeof payload.OPENAI_API_KEY === "string" &&
     payload.OPENAI_API_KEY.trim()
   ) {
     return true;
   }
-  if (!tokens || typeof tokens !== 'object' || Array.isArray(tokens)) return false;
+  if (!tokens || typeof tokens !== "object" || Array.isArray(tokens))
+    return false;
   const tokenPayload = tokens as Record<string, unknown>;
   const hasFullTokens =
-    typeof tokenPayload.id_token === 'string' &&
+    typeof tokenPayload.id_token === "string" &&
     tokenPayload.id_token.trim() &&
-    typeof tokenPayload.access_token === 'string' &&
+    typeof tokenPayload.access_token === "string" &&
     tokenPayload.access_token.trim();
   const hasRefreshTokenOnly =
-    typeof tokenPayload.refresh_token === 'string' && tokenPayload.refresh_token.trim();
+    typeof tokenPayload.refresh_token === "string" &&
+    tokenPayload.refresh_token.trim();
   return Boolean(hasFullTokens || hasRefreshTokenOnly);
 };
 
@@ -360,7 +367,10 @@ const resolveExternalImportBundleItems = (
   } catch {
     let lineDelimitedError: unknown = null;
     try {
-      const lineDelimitedItems = parseLineDelimitedJsonObjects(rawContent, messages.invalidJson);
+      const lineDelimitedItems = parseLineDelimitedJsonObjects(
+        rawContent,
+        messages.invalidJson,
+      );
       if (lineDelimitedItems && lineDelimitedItems.length > 0) {
         return lineDelimitedItems;
       }
@@ -368,9 +378,12 @@ const resolveExternalImportBundleItems = (
       lineDelimitedError = error;
     }
 
-    if (platformId === 'codex') {
+    if (platformId === "codex") {
       try {
-        const rawRefreshTokenItems = parseCodexRawRefreshTokenItems(rawContent, messages);
+        const rawRefreshTokenItems = parseCodexRawRefreshTokenItems(
+          rawContent,
+          messages,
+        );
         if (rawRefreshTokenItems && rawRefreshTokenItems.length > 0) {
           return rawRefreshTokenItems;
         }
@@ -383,9 +396,9 @@ const resolveExternalImportBundleItems = (
     throw new Error(messages.invalidJson);
   }
 
-  if (parsed && typeof parsed === 'object' && 'code' in parsed) {
+  if (parsed && typeof parsed === "object" && "code" in parsed) {
     const code = (parsed as { code?: unknown }).code;
-    if (code !== 200 && code !== '200') {
+    if (code !== 200 && code !== "200") {
       throw new Error(
         readBundleMessage((parsed as { msg?: unknown }).msg) ??
           readBundleMessage((parsed as { message?: unknown }).message) ??
@@ -396,11 +409,11 @@ const resolveExternalImportBundleItems = (
   }
 
   const root =
-    parsed && typeof parsed === 'object' && 'data' in parsed
+    parsed && typeof parsed === "object" && "data" in parsed
       ? (parsed as { data?: unknown }).data
       : parsed;
 
-  if (typeof root === 'string') {
+  if (typeof root === "string") {
     return resolveExternalImportBundleItems(root, platformId, messages);
   }
 
@@ -411,12 +424,16 @@ const resolveExternalImportBundleItems = (
     return root;
   }
 
-  if (!root || typeof root !== 'object') {
+  if (!root || typeof root !== "object") {
     throw new Error(messages.empty);
   }
 
   const provider = (root as { provider?: unknown }).provider;
-  if (typeof provider === 'string' && provider.trim() && provider.trim() !== platformId) {
+  if (
+    typeof provider === "string" &&
+    provider.trim() &&
+    provider.trim() !== platformId
+  ) {
     throw new Error(messages.providerMismatch);
   }
 
@@ -425,7 +442,7 @@ const resolveExternalImportBundleItems = (
     return items;
   }
 
-  if (platformId === 'codex' && isCodexDirectImportItem(root)) {
+  if (platformId === "codex" && isCodexDirectImportItem(root)) {
     return [root];
   }
 
@@ -436,26 +453,30 @@ const resolveExternalImportBundleItems = (
   throw new Error(messages.noItems);
 };
 
-const normalizeExternalImportApiBaseUrl = (rawValue?: string | null): string | null => {
-  const trimmed = (rawValue || '').trim();
+const normalizeExternalImportApiBaseUrl = (
+  rawValue?: string | null,
+): string | null => {
+  const trimmed = (rawValue || "").trim();
   if (!trimmed) return null;
   try {
     const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return null;
     }
-    return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, '');
+    return `${parsed.origin}${parsed.pathname}`.replace(/\/+$/, "");
   } catch {
     return null;
   }
 };
 
-const deriveApiBaseUrlFromImportUrl = (importUrl?: string | null): string | null => {
-  const trimmed = (importUrl || '').trim();
+const deriveApiBaseUrlFromImportUrl = (
+  importUrl?: string | null,
+): string | null => {
+  const trimmed = (importUrl || "").trim();
   if (!trimmed) return null;
   try {
     const parsed = new URL(trimmed);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
       return null;
     }
     return `${parsed.origin}/v1`;
@@ -465,29 +486,34 @@ const deriveApiBaseUrlFromImportUrl = (importUrl?: string | null): string | null
 };
 
 const isCockpitToolsImportUrl = (importUrl?: string | null): boolean => {
-  const trimmed = (importUrl || '').trim();
+  const trimmed = (importUrl || "").trim();
   if (!trimmed) return false;
   try {
     const parsed = new URL(trimmed);
     const pathname = parsed.pathname.toLowerCase();
-    return COCKPIT_TOOLS_IMPORT_PATH_MARKERS.some((marker) => pathname.includes(marker));
+    return COCKPIT_TOOLS_IMPORT_PATH_MARKERS.some((marker) =>
+      pathname.includes(marker),
+    );
   } catch {
     return false;
   }
 };
 
 const isCockpitApiImportItem = (item: Record<string, unknown>): boolean => {
-  const providerId = readRecordString(item, ['api_provider_id', 'apiProviderId']);
+  const providerId = readRecordString(item, [
+    "api_provider_id",
+    "apiProviderId",
+  ]);
   if (providerId?.toLowerCase() === COCKPIT_API_PROVIDER_ID) return true;
 
   const candidates = [
-    readRecordString(item, ['api_provider_name', 'apiProviderName']),
-    readRecordString(item, ['plan_type', 'planType']),
-    readRecordString(item, ['account_note', 'accountNote']),
+    readRecordString(item, ["api_provider_name", "apiProviderName"]),
+    readRecordString(item, ["plan_type", "planType"]),
+    readRecordString(item, ["account_note", "accountNote"]),
   ];
   const expected = COCKPIT_API_PROVIDER_NAME.toLowerCase();
-  return candidates.some(
-    (value) => value?.trim().toLowerCase().includes(expected),
+  return candidates.some((value) =>
+    value?.trim().toLowerCase().includes(expected),
   );
 };
 
@@ -496,13 +522,17 @@ const withCockpitApiBaseUrl = (
   apiBaseUrl: string | null,
   isCockpitToolsImport: boolean,
 ): unknown => {
-  if (!apiBaseUrl || !item || typeof item !== 'object' || Array.isArray(item)) {
+  if (!apiBaseUrl || !item || typeof item !== "object" || Array.isArray(item)) {
     return item;
   }
   const payload = item as Record<string, unknown>;
-  const authMode = readRecordString(payload, ['auth_mode', 'authMode']);
-  const apiKey = readRecordString(payload, ['OPENAI_API_KEY', 'openai_api_key', 'openaiApiKey']);
-  if (authMode?.toLowerCase() !== 'apikey' || !apiKey) {
+  const authMode = readRecordString(payload, ["auth_mode", "authMode"]);
+  const apiKey = readRecordString(payload, [
+    "OPENAI_API_KEY",
+    "openai_api_key",
+    "openaiApiKey",
+  ]);
+  if (authMode?.toLowerCase() !== "apikey" || !apiKey) {
     return item;
   }
   if (!isCockpitToolsImport && !isCockpitApiImportItem(payload)) {
@@ -514,14 +544,17 @@ const withCockpitApiBaseUrl = (
     base_url: apiBaseUrl,
     api_base_url: apiBaseUrl,
     api_provider_mode:
-      readRecordString(payload, ['api_provider_mode', 'apiProviderMode']) ?? 'custom',
+      readRecordString(payload, ["api_provider_mode", "apiProviderMode"]) ??
+      "custom",
     api_provider_id:
-      readRecordString(payload, ['api_provider_id', 'apiProviderId']) ?? COCKPIT_API_PROVIDER_ID,
+      readRecordString(payload, ["api_provider_id", "apiProviderId"]) ??
+      COCKPIT_API_PROVIDER_ID,
     api_provider_name:
-      readRecordString(payload, ['api_provider_name', 'apiProviderName']) ??
+      readRecordString(payload, ["api_provider_name", "apiProviderName"]) ??
       COCKPIT_API_PROVIDER_NAME,
     plan_type:
-      readRecordString(payload, ['plan_type', 'planType']) ?? COCKPIT_API_PROVIDER_NAME,
+      readRecordString(payload, ["plan_type", "planType"]) ??
+      COCKPIT_API_PROVIDER_NAME,
   };
 };
 
@@ -535,46 +568,53 @@ const applyCockpitApiBaseUrlToExternalImportItems = (
   if (!apiBaseUrl) return items;
 
   const isCockpitToolsImport =
-    Boolean(request.apiBaseUrl?.trim()) || isCockpitToolsImportUrl(request.importUrl);
-  return items.map((item) => withCockpitApiBaseUrl(item, apiBaseUrl, isCockpitToolsImport));
+    Boolean(request.apiBaseUrl?.trim()) ||
+    isCockpitToolsImportUrl(request.importUrl);
+  return items.map((item) =>
+    withCockpitApiBaseUrl(item, apiBaseUrl, isCockpitToolsImport),
+  );
 };
 
 const buildInitialExternalImportProgress = (): ExternalImportProgressState => ({
   visible: false,
-  status: 'idle',
+  status: "idle",
   progress: 0,
   total: 0,
   success: 0,
   failed: 0,
   current: 0,
-  message: '',
+  message: "",
   failures: [],
 });
 
-const isExternalImportRunning = (status: ExternalImportProgressStatus): boolean =>
-  ['receiving', 'fetching', 'parsing', 'importing', 'refreshing'].includes(status);
+const isExternalImportRunning = (
+  status: ExternalImportProgressStatus,
+): boolean =>
+  ["receiving", "fetching", "parsing", "importing", "refreshing"].includes(
+    status,
+  );
 
 const resolveExternalImportItemLabel = (
   item: unknown,
   fallback: string,
 ): string => {
-  if (!item || typeof item !== 'object') return fallback;
+  if (!item || typeof item !== "object") return fallback;
   const payload = item as Record<string, unknown>;
-  const profile = payload['https://api.openai.com/profile'];
-  const auth = payload['https://api.openai.com/auth'];
+  const profile = payload["https://api.openai.com/profile"];
+  const auth = payload["https://api.openai.com/auth"];
   const candidates = [
     payload.email,
     payload.account_email,
     payload.id,
-    profile && typeof profile === 'object'
+    profile && typeof profile === "object"
       ? (profile as Record<string, unknown>).email
       : null,
-    auth && typeof auth === 'object'
+    auth && typeof auth === "object"
       ? (auth as Record<string, unknown>).chatgpt_user_id
       : null,
   ];
   for (const candidate of candidates) {
-    if (typeof candidate === 'string' && candidate.trim()) {
+    if (typeof candidate === "string" && candidate.trim()) {
       return candidate.trim();
     }
   }
@@ -585,9 +625,9 @@ const collectImportedAccountIds = (imported: unknown): string[] => {
   const items = Array.isArray(imported) ? imported : [imported];
   return items
     .map((item) => {
-      if (!item || typeof item !== 'object') return '';
+      if (!item || typeof item !== "object") return "";
       const id = (item as { id?: unknown }).id;
-      return typeof id === 'string' ? id.trim() : '';
+      return typeof id === "string" ? id.trim() : "";
     })
     .filter(Boolean);
 };
@@ -598,7 +638,7 @@ const collectImportedAccountIds = (imported: unknown): string[] => {
 
 export interface UseProviderAccountsPageReturn {
   // i18n
-  t: ReturnType<typeof useTranslation>['t'];
+  t: ReturnType<typeof useTranslation>["t"];
   locale: string;
 
   // Privacy
@@ -642,7 +682,7 @@ export interface UseProviderAccountsPageReturn {
   setShowTagModal: (id: string | null) => void;
   tagFilterRef: RefObject<HTMLDivElement | null>;
   tagFilterPanelRef: RefObject<HTMLDivElement | null>;
-  tagFilterPanelPlacement: 'top' | 'bottom';
+  tagFilterPanelPlacement: "top" | "bottom";
   tagFilterScrollContainerStyle: CSSProperties | undefined;
   availableTags: string[];
   toggleTagFilterValue: (tag: string) => void;
@@ -673,14 +713,12 @@ export interface UseProviderAccountsPageReturn {
   confirmDelete: () => Promise<void>;
 
   // Messages
-  message: { text: string; tone?: 'error' | 'success' } | null;
+  message: { text: string; tone?: "error" | "success" } | null;
   setMessage: (
-    msg:
-      | {
-          text: string;
-          tone?: 'error' | 'success';
-        }
-      | null
+    msg: {
+      text: string;
+      tone?: "error" | "success";
+    } | null,
   ) => void;
 
   // Export
@@ -768,7 +806,10 @@ export interface UseProviderAccountsPageReturn {
   formatDate: (timestamp: number) => string;
   normalizeTag: (tag: string) => string;
   resolveDefaultExportPath: (fileName: string) => Promise<string>;
-  saveJsonFile: (json: string, defaultFileName: string) => Promise<string | null>;
+  saveJsonFile: (
+    json: string,
+    defaultFileName: string,
+  ) => Promise<string | null>;
 }
 
 // ---------------------------------------------------------------------------
@@ -779,8 +820,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   config: ProviderPageConfig<TAccount>,
 ): UseProviderAccountsPageReturn {
   const { t, i18n } = useTranslation();
-  const locale = i18n.language || 'zh-CN';
-
+  const locale = i18n.language || "zh-CN";
 
   const {
     platformKey,
@@ -788,6 +828,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     flowNoticeCollapsedKey,
     currentAccountIdKey,
     exportFilePrefix,
+    exportDefaultHidden = true,
     store,
     oauthService,
     oauthTabKeys: oauthTabKeysConfig,
@@ -803,7 +844,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     const normalized = (oauthTabKeysConfig || [])
       .map((item) => item.trim())
       .filter(Boolean);
-    return normalized.length > 0 ? normalized : ['oauth'];
+    return normalized.length > 0 ? normalized : ["oauth"];
   }, [oauthTabKeysConfig]);
   const platformId = useMemo(
     () => normalizeProviderPagePlatformId(platformKey),
@@ -827,22 +868,29 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     () => normalizeAccountsOverviewScope(platformKey),
     [platformKey],
   );
-  const [filterPersistenceEnabled, setFilterPersistenceEnabledState] = useState<boolean>(() =>
-    readAccountsOverviewFilterPersistenceEnabled(filterPersistenceScope),
-  );
-  const managesCurrentAccountId = typeof setStoreCurrentAccountId === 'function';
+  const [filterPersistenceEnabled, setFilterPersistenceEnabledState] =
+    useState<boolean>(() =>
+      readAccountsOverviewFilterPersistenceEnabled(filterPersistenceScope),
+    );
+  const managesCurrentAccountId =
+    typeof setStoreCurrentAccountId === "function";
 
   const setFilterPersistenceEnabled = useCallback(
     (enabled: boolean) => {
       setFilterPersistenceEnabledState(enabled);
-      setAccountsOverviewFilterPersistenceEnabled(filterPersistenceScope, enabled);
+      setAccountsOverviewFilterPersistenceEnabled(
+        filterPersistenceScope,
+        enabled,
+      );
     },
     [filterPersistenceScope],
   );
 
   useEffect(() => {
     const handleFilterPersistenceChanged = (event: Event) => {
-      const detail = (event as CustomEvent<AccountsOverviewFilterPersistenceChangedDetail>).detail;
+      const detail = (
+        event as CustomEvent<AccountsOverviewFilterPersistenceChangedDetail>
+      ).detail;
       if (!detail || detail.scope !== filterPersistenceScope) {
         return;
       }
@@ -893,25 +941,25 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   // ─── Search & Filter ──────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState(
-    () => initialSearchQueryConfig ?? '',
+    () => initialSearchQueryConfig ?? "",
   );
   const [filterType, setFilterType] = useState<string>(() => {
     if (!readAccountsOverviewFilterPersistenceEnabled(filterPersistenceScope)) {
-      return 'all';
+      return "all";
     }
     const saved = readAccountsOverviewFilterField<string | null>(
       filterPersistenceScope,
       FILTER_FIELD_FILTER_TYPE,
       null,
     );
-    return saved?.trim() ? saved : 'all';
+    return saved?.trim() ? saved : "all";
   });
 
   // ─── Sort ─────────────────────────────────────────────────────────────
   const [sortBy, setSortBy] = useState<string>(() => {
     // Explicit default (e.g. Codex custom-sort active flag) wins over stale saved sort (#1123).
-    if (defaultSortBy === 'custom') {
-      return 'custom';
+    if (defaultSortBy === "custom") {
+      return "custom";
     }
     if (!readAccountsOverviewFilterPersistenceEnabled(filterPersistenceScope)) {
       return defaultSortBy;
@@ -937,23 +985,40 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_VIEW_MODE);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_FIELD_VIEW_MODE,
+      );
       return;
     }
-    writeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_VIEW_MODE, viewMode);
+    writeAccountsOverviewFilterField(
+      filterPersistenceScope,
+      FILTER_FIELD_VIEW_MODE,
+      viewMode,
+    );
   }, [filterPersistenceEnabled, filterPersistenceScope, viewMode]);
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_SORT_BY);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_FIELD_SORT_BY,
+      );
       return;
     }
-    writeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_SORT_BY, sortBy);
+    writeAccountsOverviewFilterField(
+      filterPersistenceScope,
+      FILTER_FIELD_SORT_BY,
+      sortBy,
+    );
   }, [filterPersistenceEnabled, filterPersistenceScope, sortBy]);
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_SORT_DIRECTION);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_FIELD_SORT_DIRECTION,
+      );
       return;
     }
     writeAccountsOverviewFilterField(
@@ -965,10 +1030,17 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_FILTER_TYPE);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_FIELD_FILTER_TYPE,
+      );
       return;
     }
-    writeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_FILTER_TYPE, filterType);
+    writeAccountsOverviewFilterField(
+      filterPersistenceScope,
+      FILTER_FIELD_FILTER_TYPE,
+      filterType,
+    );
   }, [filterPersistenceEnabled, filterPersistenceScope, filterType]);
 
   // ─── Selection ────────────────────────────────────────────────────────
@@ -1009,7 +1081,10 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       return [];
     }
     return normalizeStringArray(
-      readAccountsOverviewFilterStringArray(filterPersistenceScope, FILTER_FIELD_TAGS),
+      readAccountsOverviewFilterStringArray(
+        filterPersistenceScope,
+        FILTER_FIELD_TAGS,
+      ),
     );
   });
   const [groupByTag, setGroupByTag] = useState<boolean>(() => {
@@ -1036,13 +1111,19 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     set: setTagDeleteConfirmError,
   } = useModalErrorState();
   const [deletingTag, setDeletingTag] = useState(false);
-  const setTagDeleteConfirm = useCallback((value: { tag: string; count: number } | null) => {
-    setTagDeleteConfirmError(null);
-    rawSetTagDeleteConfirm(value);
-  }, []);
+  const setTagDeleteConfirm = useCallback(
+    (value: { tag: string; count: number } | null) => {
+      setTagDeleteConfirmError(null);
+      rawSetTagDeleteConfirm(value);
+    },
+    [],
+  );
   const tagFilterRef = useRef<HTMLDivElement | null>(null);
 
-  const normalizeTag = useCallback((tag: string) => tag.trim().toLowerCase(), []);
+  const normalizeTag = useCallback(
+    (tag: string) => tag.trim().toLowerCase(),
+    [],
+  );
 
   const availableTags = useMemo(() => {
     const set = new Set<string>();
@@ -1058,7 +1139,11 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     panelRef: tagFilterPanelRef,
     panelPlacement: tagFilterPanelPlacement,
     scrollContainerStyle: tagFilterScrollContainerStyle,
-  } = useDropdownPanelPlacement(tagFilterRef, showTagFilter, availableTags.length);
+  } = useDropdownPanelPlacement(
+    tagFilterRef,
+    showTagFilter,
+    availableTags.length,
+  );
 
   const toggleTagFilterValue = useCallback((tag: string) => {
     setTagFilter((prev) => {
@@ -1073,15 +1158,25 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_TAGS);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_FIELD_TAGS,
+      );
       return;
     }
-    writeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_TAGS, tagFilter);
+    writeAccountsOverviewFilterField(
+      filterPersistenceScope,
+      FILTER_FIELD_TAGS,
+      tagFilter,
+    );
   }, [filterPersistenceEnabled, filterPersistenceScope, tagFilter]);
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_FIELD_GROUP_BY_TAG);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_FIELD_GROUP_BY_TAG,
+      );
       return;
     }
     writeAccountsOverviewFilterField(
@@ -1113,22 +1208,32 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         (acc.tags || []).some((t) => normalizeTag(t) === target),
       );
       for (const acc of affectedAccounts) {
-        const newTags = (acc.tags || []).filter((t) => normalizeTag(t) !== target);
+        const newTags = (acc.tags || []).filter(
+          (t) => normalizeTag(t) !== target,
+        );
         await updateAccountTags(acc.id, newTags);
       }
       setTagFilter((prev) => prev.filter((t) => normalizeTag(t) !== target));
       setTagDeleteConfirm(null);
     } catch (error) {
       setTagDeleteConfirmError(
-        t('messages.actionFailed', {
-          action: t('common.delete'),
+        t("messages.actionFailed", {
+          action: t("common.delete"),
           error: String(error),
         }),
       );
     } finally {
       setDeletingTag(false);
     }
-  }, [tagDeleteConfirm, deletingTag, accounts, normalizeTag, updateAccountTags, setTagDeleteConfirm, t]);
+  }, [
+    tagDeleteConfirm,
+    deletingTag,
+    accounts,
+    normalizeTag,
+    updateAccountTags,
+    setTagDeleteConfirm,
+    t,
+  ]);
 
   const openTagModal = useCallback((accountId: string) => {
     setShowTagModal(accountId);
@@ -1142,7 +1247,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       setShowTagModal(null);
       window.requestAnimationFrame(() => {
         window.requestAnimationFrame(() => {
-          window.scrollTo({ top: scrollY, behavior: 'auto' });
+          window.scrollTo({ top: scrollY, behavior: "auto" });
         });
       });
     },
@@ -1158,8 +1263,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         setShowTagFilter(false);
       }
     };
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, [showTagFilter]);
 
   // ─── Fetch on mount ───────────────────────────────────────────────────
@@ -1181,11 +1286,17 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     set: setDeleteConfirmError,
   } = useModalErrorState();
   const [deleting, setDeleting] = useState(false);
-  const [message, setMessage] = useState<{ text: string; tone?: 'error' | 'success' } | null>(null);
-  const setDeleteConfirm = useCallback((value: { ids: string[]; message: string } | null) => {
-    setDeleteConfirmError(null);
-    rawSetDeleteConfirm(value);
-  }, []);
+  const [message, setMessage] = useState<{
+    text: string;
+    tone?: "error" | "success";
+  } | null>(null);
+  const setDeleteConfirm = useCallback(
+    (value: { ids: string[]; message: string } | null) => {
+      setDeleteConfirmError(null);
+      rawSetDeleteConfirm(value);
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!storeError) return;
@@ -1193,17 +1304,21 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     const corrupted = parseFileCorruptedError(storeError);
     if (corrupted) {
       setMessage({
-        text: t('error.fileCorrupted.description', '文件 {{fileName}} 已损坏，无法解析。', {
-          fileName: corrupted.file_name,
-        }),
-        tone: 'error',
+        text: t(
+          "error.fileCorrupted.description",
+          "文件 {{fileName}} 已损坏，无法解析。",
+          {
+            fileName: corrupted.file_name,
+          },
+        ),
+        tone: "error",
       });
       return;
     }
 
     setMessage({
-      text: String(storeError).replace(/^Error:\s*/, ''),
-      tone: 'error',
+      text: String(storeError).replace(/^Error:\s*/, ""),
+      tone: "error",
     });
   }, [storeError, t]);
 
@@ -1234,7 +1349,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     (accountId: string) => {
       setDeleteConfirm({
         ids: [accountId],
-        message: t('messages.deleteConfirm', '确定要删除此账号吗？'),
+        message: t("messages.deleteConfirm", "确定要删除此账号吗？"),
       });
     },
     [t],
@@ -1244,7 +1359,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     if (selected.size === 0) return;
     setDeleteConfirm({
       ids: Array.from(selected),
-      message: t('messages.batchDeleteConfirm', { count: selected.size }),
+      message: t("messages.batchDeleteConfirm", { count: selected.size }),
     });
   }, [selected, t]);
 
@@ -1264,8 +1379,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       setMessage(null);
     } catch (error) {
       setDeleteConfirmError(
-        t('messages.actionFailed', {
-          action: t('common.delete'),
+        t("messages.actionFailed", {
+          action: t("common.delete"),
           error: String(error),
         }),
       );
@@ -1282,13 +1397,15 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       setMessage(null);
       setInjecting(accountId);
       const account = accounts.find((item) => item.id === accountId);
-      const displayEmail = account ? config.getDisplayEmail(account) : accountId;
+      const displayEmail = account
+        ? config.getDisplayEmail(account)
+        : accountId;
       try {
         await injectFn(accountId);
         // Grok：以后端为准（关闭「切号同步官方登录」时不应有「当前账号」）。
         // 其他平台仍乐观标记当前账号，避免 resolver 短暂为空导致标识闪烁。
         let resolvedCurrentAccountId: string | null = accountId;
-        if (platformKey === 'grok' && storeFetchCurrentAccountId) {
+        if (platformKey === "grok" && storeFetchCurrentAccountId) {
           resolvedCurrentAccountId = await storeFetchCurrentAccountId();
         } else {
           setCurrentAccountId(accountId);
@@ -1297,10 +1414,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           await emitCurrentAccountChanged({
             platformId,
             accountId: resolvedCurrentAccountId,
-            reason: 'switch',
+            reason: "switch",
           });
         }
-        setMessage({ text: t('messages.switched', { email: maskAccountText(displayEmail) }) });
+        setMessage({
+          text: t("messages.switched", {
+            email: maskAccountText(displayEmail),
+          }),
+        });
         if (config.onInjectSuccess) {
           try {
             await config.onInjectSuccess({
@@ -1309,15 +1430,18 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
               displayEmail,
             });
           } catch (callbackError) {
-            console.error(`[${platformKey}] onInjectSuccess callback failed:`, callbackError);
+            console.error(
+              `[${platformKey}] onInjectSuccess callback failed:`,
+              callbackError,
+            );
           }
         }
       } catch (e: unknown) {
         setMessage({
-          text: t('messages.switchFailed', {
-            error: String(e) || t('common.failed', 'Failed'),
+          text: t("messages.switchFailed", {
+            error: String(e) || t("common.failed", "Failed"),
           }),
-          tone: 'error',
+          tone: "error",
         });
       }
       setInjecting(null);
@@ -1337,8 +1461,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   const handleExportError = useCallback(
     (error: unknown) => {
       setMessage({
-        text: t('messages.exportFailed', { error: String(error) }),
-        tone: 'error',
+        text: t("messages.exportFailed", { error: String(error) }),
+        tone: "error",
       });
     },
     [t],
@@ -1348,6 +1472,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     exportFilePrefix,
     exportJsonByIds: dataService.exportAccounts,
     onError: handleExportError,
+    defaultHidden: exportDefaultHidden,
   });
 
   const handleExportByIds = useCallback(
@@ -1364,7 +1489,9 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         ? scopeIds.filter(Boolean)
         : accounts.map((account) => account.id);
       const visibleIdSet = new Set(visibleIds);
-      const selectedVisibleIds = Array.from(selected).filter((id) => visibleIdSet.has(id));
+      const selectedVisibleIds = Array.from(selected).filter((id) =>
+        visibleIdSet.has(id),
+      );
 
       return { visibleIds, selectedVisibleIds };
     },
@@ -1372,33 +1499,41 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   );
 
   const getScopedSelectedCount = useCallback(
-    (scopeIds?: string[]) => resolveScopedSelection(scopeIds).selectedVisibleIds.length,
+    (scopeIds?: string[]) =>
+      resolveScopedSelection(scopeIds).selectedVisibleIds.length,
     [resolveScopedSelection],
   );
 
-  const handleExport = useCallback(async (scopeIds?: string[]) => {
-    try {
-      const { visibleIds, selectedVisibleIds } = resolveScopedSelection(scopeIds);
-      const ids = selectedVisibleIds.length > 0 ? selectedVisibleIds : visibleIds;
-      await handleExportByIds(ids);
-    } catch (error) {
-      handleExportError(error);
-    }
-  }, [resolveScopedSelection, handleExportByIds, handleExportError]);
+  const handleExport = useCallback(
+    async (scopeIds?: string[]) => {
+      try {
+        const { visibleIds, selectedVisibleIds } =
+          resolveScopedSelection(scopeIds);
+        const ids =
+          selectedVisibleIds.length > 0 ? selectedVisibleIds : visibleIds;
+        await handleExportByIds(ids);
+      } catch (error) {
+        handleExportError(error);
+      }
+    },
+    [resolveScopedSelection, handleExportByIds, handleExportError],
+  );
 
   const exporting = exportModal.preparing;
 
   // ─── Add Modal ────────────────────────────────────────────────────────
   const [showAddModal, setShowAddModal] = useState(false);
-  const [addTab, setAddTab] = useState<string>('oauth');
-  const [addStatus, setAddStatusState] = useState<AddModalStatus>('idle');
+  const [addTab, setAddTab] = useState<string>("oauth");
+  const [addStatus, setAddStatusState] = useState<AddModalStatus>("idle");
   const [addMessage, setAddMessage] = useState<string | null>(null);
   const [addErrorScrollKey, setAddErrorScrollKey] = useState(0);
-  const [tokenInput, setTokenInput] = useState('');
+  const [tokenInput, setTokenInput] = useState("");
   const [importing, setImporting] = useState(false);
   const [externalAutoImportNonce, setExternalAutoImportNonce] = useState(0);
   const [externalImportProgress, setExternalImportProgress] =
-    useState<ExternalImportProgressState>(() => buildInitialExternalImportProgress());
+    useState<ExternalImportProgressState>(() =>
+      buildInitialExternalImportProgress(),
+    );
   const externalImportRunIdRef = useRef(0);
 
   const showAddModalRef = useRef(showAddModal);
@@ -1409,7 +1544,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   const setAddStatus = useCallback((nextStatus: AddModalStatus) => {
     setAddStatusState(nextStatus);
-    if (nextStatus === 'error') {
+    if (nextStatus === "error") {
       setAddErrorScrollKey((current) => current + 1);
     }
   }, []);
@@ -1425,10 +1560,10 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     (force = false) => {
       const loginId = oauthLoginIdRef.current ?? undefined;
       if (
-        !force
-        && !loginId
-        && !oauthActiveRef.current
-        && !oauthCompletingRef.current
+        !force &&
+        !loginId &&
+        !oauthActiveRef.current &&
+        !oauthCompletingRef.current
       ) {
         return;
       }
@@ -1444,9 +1579,9 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   const resetAddModalState = useCallback(() => {
     oauthAttemptSeqRef.current += 1;
-    setAddStatus('idle');
-    setAddMessage('');
-    setTokenInput('');
+    setAddStatus("idle");
+    setAddMessage("");
+    setTokenInput("");
     setOauthUrl(null);
     setOauthCallbackUrl(null);
     setOauthUrlCopied(false);
@@ -1457,7 +1592,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     setOauthCompleteError(null);
     setOauthTimedOut(false);
     setOauthPolling(false);
-    setOauthManualCallbackInput('');
+    setOauthManualCallbackInput("");
     setOauthManualCallbackSubmitting(false);
     setOauthManualCallbackError(null);
     oauthActiveRef.current = false;
@@ -1484,9 +1619,13 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   useEscClose(showAddModal, closeAddModal);
   // Delete / tag-delete secondary confirms: Enter = confirm (stack-safe with nested dialogs)
   const deleteConfirmBusy = deleting || Boolean(config.isDeleteConfirmBusy);
-  useEscClose(Boolean(deleteConfirm) && !deleteConfirmBusy, () => setDeleteConfirm(null));
+  useEscClose(Boolean(deleteConfirm) && !deleteConfirmBusy, () =>
+    setDeleteConfirm(null),
+  );
   useEnterConfirm(
-    Boolean(deleteConfirm) && !deleteConfirmBusy && !config.disableEnterConfirmDelete,
+    Boolean(deleteConfirm) &&
+      !deleteConfirmBusy &&
+      !config.disableEnterConfirmDelete,
     () => {
       if (config.onEnterConfirmDelete) {
         void config.onEnterConfirmDelete();
@@ -1495,7 +1634,9 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       void confirmDelete();
     },
   );
-  useEscClose(Boolean(tagDeleteConfirm) && !deletingTag, () => setTagDeleteConfirm(null));
+  useEscClose(Boolean(tagDeleteConfirm) && !deletingTag, () =>
+    setTagDeleteConfirm(null),
+  );
   useEnterConfirm(Boolean(tagDeleteConfirm) && !deletingTag, () => {
     void confirmDeleteTag();
   });
@@ -1530,15 +1671,15 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       };
 
       updateProgress({
-        status: 'receiving',
+        status: "receiving",
         progress: 5,
         total: 0,
         success: 0,
         failed: 0,
         current: 0,
         message: t(
-          'common.shared.externalImport.statusReceiving',
-          '正在接收导入请求...',
+          "common.shared.externalImport.statusReceiving",
+          "正在接收导入请求...",
         ),
         failures: [],
       });
@@ -1548,57 +1689,70 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           let content = request.token.trim();
           if (importUrl) {
             updateProgress({
-              status: 'fetching',
+              status: "fetching",
               progress: 20,
               message: t(
-                'common.shared.externalImport.statusFetching',
-                '正在获取导入包...',
+                "common.shared.externalImport.statusFetching",
+                "正在获取导入包...",
               ),
             });
-            content = await invoke<string>('external_import_fetch_import_url', {
+            content = await invoke<string>("external_import_fetch_import_url", {
               importUrl,
             });
           }
           if (!content.trim()) {
-            throw new Error(t('common.shared.externalImport.bundleEmpty', '导入包内容为空'));
+            throw new Error(
+              t("common.shared.externalImport.bundleEmpty", "导入包内容为空"),
+            );
           }
 
           updateProgress({
-            status: 'parsing',
+            status: "parsing",
             progress: 35,
             message: t(
-              'common.shared.externalImport.statusParsing',
-              '正在解析 Codex JSON...',
+              "common.shared.externalImport.statusParsing",
+              "正在解析 Codex JSON...",
             ),
           });
-          const resolvedItems = resolveExternalImportBundleItems(content, platformId, {
-            invalidJson: t(
-              'common.shared.externalImport.bundleInvalidJson',
-              '导入包不是有效 JSON',
-            ),
-            empty: t('common.shared.externalImport.bundleEmpty', '导入包内容为空'),
-            providerMismatch: t(
-              'common.shared.externalImport.bundleProviderMismatch',
-              '导入包平台不匹配',
-            ),
-            noItems: t(
-              'common.shared.externalImport.bundleNoItems',
-              '导入包没有可导入内容',
-            ),
-            rawLineNoRefreshToken: (line) =>
-              t('common.shared.externalImport.rawLineNoRefreshToken', {
-                line,
-                defaultValue: '第 {{line}} 行没有匹配到 refresh_token',
-              }),
-            rawLineMultipleRefreshTokens: (line) =>
-              t('common.shared.externalImport.rawLineMultipleRefreshTokens', {
-                line,
-                defaultValue: '第 {{line}} 行匹配到多个 refresh_token，请只保留一个',
-              }),
-          });
+          const resolvedItems = resolveExternalImportBundleItems(
+            content,
+            platformId,
+            {
+              invalidJson: t(
+                "common.shared.externalImport.bundleInvalidJson",
+                "导入包不是有效 JSON",
+              ),
+              empty: t(
+                "common.shared.externalImport.bundleEmpty",
+                "导入包内容为空",
+              ),
+              providerMismatch: t(
+                "common.shared.externalImport.bundleProviderMismatch",
+                "导入包平台不匹配",
+              ),
+              noItems: t(
+                "common.shared.externalImport.bundleNoItems",
+                "导入包没有可导入内容",
+              ),
+              rawLineNoRefreshToken: (line) =>
+                t("common.shared.externalImport.rawLineNoRefreshToken", {
+                  line,
+                  defaultValue: "第 {{line}} 行没有匹配到 refresh_token",
+                }),
+              rawLineMultipleRefreshTokens: (line) =>
+                t("common.shared.externalImport.rawLineMultipleRefreshTokens", {
+                  line,
+                  defaultValue:
+                    "第 {{line}} 行匹配到多个 refresh_token，请只保留一个",
+                }),
+            },
+          );
           const items =
-            platformId === 'codex'
-              ? applyCockpitApiBaseUrlToExternalImportItems(resolvedItems, request)
+            platformId === "codex"
+              ? applyCockpitApiBaseUrlToExternalImportItems(
+                  resolvedItems,
+                  request,
+                )
               : resolvedItems;
 
           let success = 0;
@@ -1606,77 +1760,74 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           const importedAccountIds: string[] = [];
           const total = items.length;
           updateProgress({
-            status: 'importing',
+            status: "importing",
             progress: 40,
             total,
             success,
             failed: 0,
             current: 0,
             failures,
-            message: t(
-              'common.shared.externalImport.statusImporting',
-              {
-                current: 1,
-                total,
-                defaultValue: '正在导入第 {{current}} / {{total}} 个账号',
-              },
-            ),
+            message: t("common.shared.externalImport.statusImporting", {
+              current: 1,
+              total,
+              defaultValue: "正在导入第 {{current}} / {{total}} 个账号",
+            }),
           });
 
           for (let index = 0; index < items.length; index += 1) {
             const current = index + 1;
             const label = resolveExternalImportItemLabel(
               items[index],
-              t('common.shared.externalImport.unknownItem', {
+              t("common.shared.externalImport.unknownItem", {
                 index: current,
-                defaultValue: '第 {{index}} 个 JSON',
+                defaultValue: "第 {{index}} 个 JSON",
               }),
             );
             updateProgress({
-              status: 'importing',
+              status: "importing",
               current,
               progress: Math.min(90, 40 + Math.round((index / total) * 50)),
               success,
               failed: failures.length,
-              message: t(
-                'common.shared.externalImport.statusImporting',
-                {
-                  current,
-                  total,
-                  defaultValue: '正在导入第 {{current}} / {{total}} 个账号',
-                },
-              ),
+              message: t("common.shared.externalImport.statusImporting", {
+                current,
+                total,
+                defaultValue: "正在导入第 {{current}} / {{total}} 个账号",
+              }),
             });
 
             try {
-              const imported = await dataService.importFromJson(JSON.stringify(items[index]));
+              const imported = await dataService.importFromJson(
+                JSON.stringify(items[index]),
+              );
               importedAccountIds.push(...collectImportedAccountIds(imported));
               success += Array.isArray(imported) ? imported.length : 1;
             } catch (error) {
               failures.push({
                 index: current,
                 label,
-                error: String(error).replace(/^Error:\s*/, ''),
+                error: String(error).replace(/^Error:\s*/, ""),
               });
             }
           }
 
-          const activateImportedAccount = request.activate ? switchAccount : undefined;
-          const activatedAccountId =
-            activateImportedAccount
-              ? importedAccountIds[importedAccountIds.length - 1]
-              : '';
+          const activateImportedAccount = request.activate
+            ? switchAccount
+            : undefined;
+          const activatedAccountId = activateImportedAccount
+            ? importedAccountIds[importedAccountIds.length - 1]
+            : "";
           if (activatedAccountId && activateImportedAccount) {
             updateProgress({
-              status: 'refreshing',
+              status: "refreshing",
               progress: 92,
               current: total,
               success,
               failed: failures.length,
               failures: [...failures],
               message: t(
-                'common.shared.externalImport.statusActivating',
-                '正在切换到导入账号...',
+                "common.shared.externalImport.statusActivating",
+                "正在切换到导入账号...",
               ),
             });
             await activateImportedAccount(activatedAccountId);
@@ -1685,27 +1836,27 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
               await emitCurrentAccountChanged({
                 platformId,
                 accountId: activatedAccountId,
-                reason: 'external-import',
+                reason: "external-import",
               });
             }
           }
           updateProgress({
-            status: 'refreshing',
+            status: "refreshing",
             progress: 95,
             current: total,
             success,
             failed: failures.length,
             failures: [...failures],
             message: t(
-              'common.shared.externalImport.statusRefreshing',
-              '正在刷新账号列表...',
+              "common.shared.externalImport.statusRefreshing",
+              "正在刷新账号列表...",
             ),
           });
           await fetchAccounts();
           if (success > 0 && platformId) {
             await emitAccountsChanged({
               platformId,
-              reason: 'import',
+              reason: "import",
             });
           }
           if (importedAccountIds.length > 0 && onExternalImportCompleted) {
@@ -1713,7 +1864,11 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           }
 
           const status: ExternalImportProgressStatus =
-            failures.length === 0 ? 'success' : success > 0 ? 'partial' : 'error';
+            failures.length === 0
+              ? "success"
+              : success > 0
+                ? "partial"
+                : "error";
           updateProgress({
             status,
             progress: 100,
@@ -1722,17 +1877,20 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
             failed: failures.length,
             failures: [...failures],
             message:
-              status === 'success'
-                ? t('common.shared.externalImport.statusSuccess', '导入完成')
-                : status === 'partial'
-                  ? t('common.shared.externalImport.statusPartial', '部分导入完成')
-                  : t('common.shared.externalImport.statusFailed', '导入失败'),
+              status === "success"
+                ? t("common.shared.externalImport.statusSuccess", "导入完成")
+                : status === "partial"
+                  ? t(
+                      "common.shared.externalImport.statusPartial",
+                      "部分导入完成",
+                    )
+                  : t("common.shared.externalImport.statusFailed", "导入失败"),
           });
         } catch (error) {
           updateProgress({
-            status: 'error',
+            status: "error",
             progress: 100,
-            message: String(error).replace(/^Error:\s*/, ''),
+            message: String(error).replace(/^Error:\s*/, ""),
           });
         }
       })();
@@ -1752,14 +1910,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     if (!platformId) return;
     const request = consumeQueuedExternalProviderImportForPlatform(platformId);
     if (!request) return;
-    if (request.importUrl || (platformId === 'codex' && request.token.trim())) {
+    if (request.importUrl || (platformId === "codex" && request.token.trim())) {
       runExternalProviderImport(request);
       return;
     }
 
-    openAddModal('token');
+    openAddModal("token");
     setTokenInput(request.token);
-    setAddStatus('idle');
+    setAddStatus("idle");
     setAddMessage(null);
     if (request.autoImport) {
       setExternalAutoImportNonce((value) => value + 1);
@@ -1772,9 +1930,15 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       consumeExternalProviderImport();
     };
     consumeExternalProviderImport();
-    window.addEventListener(EXTERNAL_PROVIDER_IMPORT_EVENT, handleExternalImportEvent);
+    window.addEventListener(
+      EXTERNAL_PROVIDER_IMPORT_EVENT,
+      handleExternalImportEvent,
+    );
     return () => {
-      window.removeEventListener(EXTERNAL_PROVIDER_IMPORT_EVENT, handleExternalImportEvent);
+      window.removeEventListener(
+        EXTERNAL_PROVIDER_IMPORT_EVENT,
+        handleExternalImportEvent,
+      );
     };
   }, [consumeExternalProviderImport, platformId]);
 
@@ -1786,8 +1950,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   const handleImportJsonFile = useCallback(
     async (file: File) => {
       setImporting(true);
-      setAddStatus('loading');
-      setAddMessage(t('common.shared.import.importing', '正在导入...'));
+      setAddStatus("loading");
+      setAddMessage(t("common.shared.import.importing", "正在导入..."));
 
       try {
         const content = await file.text();
@@ -1796,15 +1960,15 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         if (platformId) {
           await emitAccountsChanged({
             platformId,
-            reason: 'import',
+            reason: "import",
           });
         }
 
-        setAddStatus('success');
+        setAddStatus("success");
         setAddMessage(
-          t('common.shared.token.importSuccessMsg', {
+          t("common.shared.token.importSuccessMsg", {
             count: imported.length,
-            defaultValue: '成功导入 {{count}} 个账号',
+            defaultValue: "成功导入 {{count}} 个账号",
           }),
         );
         setTimeout(() => {
@@ -1812,12 +1976,12 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           resetAddModalState();
         }, 1200);
       } catch (e) {
-        setAddStatus('error');
-        const errorMsg = String(e).replace(/^Error:\s*/, '');
+        setAddStatus("error");
+        const errorMsg = String(e).replace(/^Error:\s*/, "");
         setAddMessage(
-          t('common.shared.import.failedMsg', {
+          t("common.shared.import.failedMsg", {
             error: errorMsg,
-            defaultValue: '导入失败: {{error}}',
+            defaultValue: "导入失败: {{error}}",
           }),
         );
       }
@@ -1832,8 +1996,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     const importFn = dataService.importFromLocal;
     return async () => {
       setImporting(true);
-      setAddStatus('loading');
-      setAddMessage(t('common.shared.import.importing', '正在导入...'));
+      setAddStatus("loading");
+      setAddMessage(t("common.shared.import.importing", "正在导入..."));
       try {
         const imported = await importFn();
         await fetchAccounts();
@@ -1843,14 +2007,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         if (platformId) {
           await emitAccountsChanged({
             platformId,
-            reason: 'import',
+            reason: "import",
           });
         }
-        setAddStatus('success');
+        setAddStatus("success");
         setAddMessage(
-          t('common.shared.token.importSuccessMsg', {
+          t("common.shared.token.importSuccessMsg", {
             count: imported.length,
-            defaultValue: '成功导入 {{count}} 个账号',
+            defaultValue: "成功导入 {{count}} 个账号",
           }),
         );
         setTimeout(() => {
@@ -1858,41 +2022,51 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           resetAddModalState();
         }, 1200);
       } catch (e) {
-        setAddStatus('error');
-        const errorMsg = String(e).replace(/^Error:\s*/, '');
+        setAddStatus("error");
+        const errorMsg = String(e).replace(/^Error:\s*/, "");
         setAddMessage(
-          t('common.shared.import.failedMsg', {
+          t("common.shared.import.failedMsg", {
             error: errorMsg,
-            defaultValue: '导入失败: {{error}}',
+            defaultValue: "导入失败: {{error}}",
           }),
         );
       }
       setImporting(false);
     };
-  }, [dataService.importFromLocal, fetchAccounts, platformId, resetAddModalState, t]);
+  }, [
+    dataService.importFromLocal,
+    fetchAccounts,
+    platformId,
+    resetAddModalState,
+    t,
+  ]);
 
   const handleTokenImport = useCallback(async () => {
     const trimmed = tokenInput.trim();
     if (!trimmed) {
-      setAddStatus('error');
-      setAddMessage(t('common.shared.token.empty', '请输入 Token 或 JSON'));
+      setAddStatus("error");
+      setAddMessage(t("common.shared.token.empty", "请输入 Token 或 JSON"));
       return;
     }
 
     setImporting(true);
-    setAddStatus('loading');
-    setAddMessage(t('common.shared.token.importing', '正在导入...'));
+    setAddStatus("loading");
+    setAddMessage(t("common.shared.token.importing", "正在导入..."));
 
     try {
       let importedCount = 0;
       // 「粘贴 JSON」页签只走 JSON 导入；Token/API Key 页签仍兼容 JSON 与纯 token
-      const preferJsonOnly = addTab === 'paste';
-      if (preferJsonOnly || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const preferJsonOnly = addTab === "paste";
+      if (
+        preferJsonOnly ||
+        trimmed.startsWith("{") ||
+        trimmed.startsWith("[")
+      ) {
         const imported = await dataService.importFromJson(trimmed);
         importedCount = imported.length;
       } else if (dataService.addWithToken) {
-        await dataService.addWithToken(trimmed);
-        importedCount = 1;
+        const result = await dataService.addWithToken(trimmed);
+        importedCount = Array.isArray(result) ? result.length : 1;
       } else {
         const imported = await dataService.importFromJson(trimmed);
         importedCount = imported.length;
@@ -1901,14 +2075,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       if (platformId) {
         await emitAccountsChanged({
           platformId,
-          reason: 'import',
+          reason: "import",
         });
       }
-      setAddStatus('success');
+      setAddStatus("success");
       setAddMessage(
-        t('common.shared.token.importSuccessMsg', {
+        t("common.shared.token.importSuccessMsg", {
           count: importedCount,
-          defaultValue: '成功导入 {{count}} 个账号',
+          defaultValue: "成功导入 {{count}} 个账号",
         }),
       );
       setTimeout(() => {
@@ -1916,23 +2090,31 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         resetAddModalState();
       }, 1200);
     } catch (e) {
-      setAddStatus('error');
-      const errorMsg = String(e).replace(/^Error:\s*/, '');
+      setAddStatus("error");
+      const errorMsg = String(e).replace(/^Error:\s*/, "");
       setAddMessage(
-        t('common.shared.token.importFailedMsg', {
+        t("common.shared.token.importFailedMsg", {
           error: errorMsg,
-          defaultValue: '导入失败: {{error}}',
+          defaultValue: "导入失败: {{error}}",
         }),
       );
     }
     setImporting(false);
-  }, [addTab, dataService, fetchAccounts, platformId, resetAddModalState, t, tokenInput]);
+  }, [
+    addTab,
+    dataService,
+    fetchAccounts,
+    platformId,
+    resetAddModalState,
+    t,
+    tokenInput,
+  ]);
 
   useEffect(() => {
     if (
       externalAutoImportNonce <= 0 ||
       !showAddModal ||
-      addTab !== 'token' ||
+      addTab !== "token" ||
       importing ||
       !tokenInput.trim()
     ) {
@@ -1966,13 +2148,20 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     expiresIn: number;
     intervalSeconds: number;
   } | null>(null);
-  const [oauthPrepareError, setOauthPrepareError] = useState<string | null>(null);
-  const [oauthCompleteError, setOauthCompleteError] = useState<string | null>(null);
+  const [oauthPrepareError, setOauthPrepareError] = useState<string | null>(
+    null,
+  );
+  const [oauthCompleteError, setOauthCompleteError] = useState<string | null>(
+    null,
+  );
   const [oauthPolling, setOauthPolling] = useState(false);
   const [oauthTimedOut, setOauthTimedOut] = useState(false);
-  const [oauthManualCallbackInput, setOauthManualCallbackInput] = useState('');
-  const [oauthManualCallbackSubmitting, setOauthManualCallbackSubmitting] = useState(false);
-  const [oauthManualCallbackError, setOauthManualCallbackError] = useState<string | null>(null);
+  const [oauthManualCallbackInput, setOauthManualCallbackInput] = useState("");
+  const [oauthManualCallbackSubmitting, setOauthManualCallbackSubmitting] =
+    useState(false);
+  const [oauthManualCallbackError, setOauthManualCallbackError] = useState<
+    string | null
+  >(null);
 
   const oauthActiveRef = useRef(false);
   const oauthLoginIdRef = useRef<string | null>(null);
@@ -1988,7 +2177,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   const handleOauthPrepareError = useCallback(
     (e: unknown) => {
-      const msg = String(e).replace(/^Error:\s*/, '');
+      const msg = String(e).replace(/^Error:\s*/, "");
       console.error(`[${oauthLogPrefix}] 准备授权信息失败`, { error: msg });
       oauthActiveRef.current = false;
       oauthCompletingRef.current = false;
@@ -1996,25 +2185,28 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       setOauthCallbackUrl(null);
       setOauthManualCallbackSubmitting(false);
       setOauthManualCallbackError(null);
-      setOauthPrepareError(t('common.shared.oauth.failed', '授权失败') + ': ' + msg);
+      setOauthPrepareError(
+        t("common.shared.oauth.failed", "授权失败") + ": " + msg,
+      );
     },
     [oauthLogPrefix, t],
   );
 
   const completeOauthSuccess = useCallback(async () => {
-    oauthLog('授权完成并保存成功', {
+    oauthLog("授权完成并保存成功", {
       loginId: oauthLoginIdRef.current,
     });
     await fetchAccounts();
     if (platformId) {
       await emitAccountsChanged({
         platformId,
-        reason: 'oauth',
+        reason: "oauth",
       });
     }
-    setAddStatus('success');
+    setAddStatus("success");
     setAddMessage(
-      config.resolveOauthSuccessMessage?.() ?? t('common.shared.oauth.success', '授权成功'),
+      config.resolveOauthSuccessMessage?.() ??
+        t("common.shared.oauth.success", "授权成功"),
     );
     // 授权完成后不再触发 cancelLogin，避免误关仍需用户手动确认的授权页
     oauthLoginIdRef.current = null;
@@ -2040,7 +2232,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   const handleOauthCompleteError = useCallback(
     (e: unknown) => {
-      const msg = String(e).replace(/^Error:\s*/, '');
+      const msg = String(e).replace(/^Error:\s*/, "");
       setOauthCompleteError(msg);
       setOauthTimedOut(/超时|过期|expired|timeout/i.test(msg));
       setOauthPolling(false);
@@ -2057,7 +2249,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   const prepareOauthUrl = useCallback(() => {
     if (!oauthService) return;
-    if (!showAddModalRef.current || !oauthTabKeys.includes(addTabRef.current)) return;
+    if (!showAddModalRef.current || !oauthTabKeys.includes(addTabRef.current))
+      return;
     if (oauthActiveRef.current) return;
     if (oauthCompletingRef.current) return;
     const attemptSeq = ++oauthAttemptSeqRef.current;
@@ -2073,26 +2266,34 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     setOauthCallbackUrl(null);
     setOauthManualCallbackSubmitting(false);
     setOauthManualCallbackError(null);
-    setOauthManualCallbackInput('');
+    setOauthManualCallbackInput("");
     oauthLog(`开始准备 ${platformKey} OAuth 授权信息`);
 
     let started = false;
 
     void (async () => {
       try {
-        const resp = await oauthService.startLogin({ tabKey: addTabRef.current });
+        const resp = await oauthService.startLogin({
+          tabKey: addTabRef.current,
+        });
         started = true;
 
         if (attemptSeq !== oauthAttemptSeqRef.current) {
           oauthService.cancelLogin(resp.loginId).catch(() => {});
-          oauthLog('忽略过期 OAuth start 响应', { attemptSeq, loginId: resp.loginId });
+          oauthLog("忽略过期 OAuth start 响应", {
+            attemptSeq,
+            loginId: resp.loginId,
+          });
           return;
         }
 
         oauthLoginIdRef.current = resp.loginId ?? null;
 
         const url =
-          resp.verificationUriComplete || resp.verificationUri || resp.authUrl || '';
+          resp.verificationUriComplete ||
+          resp.verificationUri ||
+          resp.authUrl ||
+          "";
         setOauthUrl(url);
         setOauthCallbackUrl(resp.callbackUrl ?? null);
         setOauthUserCode(resp.userCode ?? null);
@@ -2103,7 +2304,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           });
         }
 
-        oauthLog('授权信息已就绪并展示在弹框', {
+        oauthLog("授权信息已就绪并展示在弹框", {
           loginId: resp.loginId,
           url,
           expiresIn: resp.expiresIn,
@@ -2117,7 +2318,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         await oauthService.completeLogin(resp.loginId);
 
         if (attemptSeq !== oauthAttemptSeqRef.current) {
-          oauthLog('忽略过期 OAuth complete 成功回调', {
+          oauthLog("忽略过期 OAuth complete 成功回调", {
             attemptSeq,
             loginId: resp.loginId,
           });
@@ -2129,7 +2330,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         await completeOauthSuccess();
       } catch (e) {
         if (attemptSeq !== oauthAttemptSeqRef.current) {
-          oauthLog('忽略过期 OAuth 异常回调', {
+          oauthLog("忽略过期 OAuth 异常回调", {
             attemptSeq,
             error: String(e),
           });
@@ -2159,34 +2360,54 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   // Auto-prepare OAuth when modal opens on oauth tab
   useEffect(() => {
     const shouldAutoPrepare =
-      typeof oauthAutoPrepareConfig === 'function'
+      typeof oauthAutoPrepareConfig === "function"
         ? oauthAutoPrepareConfig(addTab)
         : oauthAutoPrepareConfig !== false;
-    if (!showAddModal || !oauthTabKeys.includes(addTab) || oauthUrl || !shouldAutoPrepare) return;
+    if (
+      !showAddModal ||
+      !oauthTabKeys.includes(addTab) ||
+      oauthUrl ||
+      !shouldAutoPrepare
+    )
+      return;
     prepareOauthUrl();
-  }, [showAddModal, addTab, oauthUrl, prepareOauthUrl, oauthTabKeys, oauthAutoPrepareConfig]);
+  }, [
+    showAddModal,
+    addTab,
+    oauthUrl,
+    prepareOauthUrl,
+    oauthTabKeys,
+    oauthAutoPrepareConfig,
+  ]);
 
   // Cancel OAuth when modal closes or tab changes
   useEffect(() => {
     if (showAddModal && oauthTabKeys.includes(addTab)) return;
     const loginId = oauthLoginIdRef.current ?? undefined;
-    const hasOauthUiResidue = Boolean(oauthUrl)
-      || Boolean(oauthCallbackUrl)
-      || oauthUrlCopied
-      || Boolean(oauthUserCode)
-      || oauthUserCodeCopied
-      || oauthMeta !== null
-      || Boolean(oauthPrepareError)
-      || Boolean(oauthCompleteError)
-      || oauthTimedOut
-      || oauthPolling
-      || oauthManualCallbackInput.length > 0
-      || oauthManualCallbackSubmitting
-      || Boolean(oauthManualCallbackError);
-    if (!loginId && !oauthActiveRef.current && !oauthCompletingRef.current && !hasOauthUiResidue) return;
+    const hasOauthUiResidue =
+      Boolean(oauthUrl) ||
+      Boolean(oauthCallbackUrl) ||
+      oauthUrlCopied ||
+      Boolean(oauthUserCode) ||
+      oauthUserCodeCopied ||
+      oauthMeta !== null ||
+      Boolean(oauthPrepareError) ||
+      Boolean(oauthCompleteError) ||
+      oauthTimedOut ||
+      oauthPolling ||
+      oauthManualCallbackInput.length > 0 ||
+      oauthManualCallbackSubmitting ||
+      Boolean(oauthManualCallbackError);
+    if (
+      !loginId &&
+      !oauthActiveRef.current &&
+      !oauthCompletingRef.current &&
+      !hasOauthUiResidue
+    )
+      return;
     oauthAttemptSeqRef.current += 1;
     if (loginId) {
-      oauthLog('弹框关闭或切换标签，准备取消授权流程', { loginId });
+      oauthLog("弹框关闭或切换标签，准备取消授权流程", { loginId });
       oauthService?.cancelLogin(loginId).catch(() => {});
     }
     oauthActiveRef.current = false;
@@ -2202,7 +2423,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     setOauthCompleteError(null);
     setOauthTimedOut(false);
     setOauthPolling(false);
-    setOauthManualCallbackInput('');
+    setOauthManualCallbackInput("");
     setOauthManualCallbackSubmitting(false);
     setOauthManualCallbackError(null);
   }, [
@@ -2231,7 +2452,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       oauthAttemptSeqRef.current += 1;
       const loginId = oauthLoginIdRef.current ?? undefined;
       if (loginId) {
-        oauthLog('页面卸载，准备取消授权流程', { loginId });
+        oauthLog("页面卸载，准备取消授权流程", { loginId });
         oauthServiceRef.current?.cancelLogin(loginId).catch(() => {});
       }
       oauthActiveRef.current = false;
@@ -2243,46 +2464,46 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   const handleCopyOauthUrl = useCallback(async () => {
     if (!oauthUrl) return;
-    setAddStatus('idle');
+    setAddStatus("idle");
     setAddMessage(null);
     try {
       await navigator.clipboard.writeText(oauthUrl);
-      oauthLog('已复制授权链接', {
+      oauthLog("已复制授权链接", {
         loginId: oauthLoginIdRef.current,
         authUrl: oauthUrl,
       });
       setOauthUrlCopied(true);
       window.setTimeout(() => setOauthUrlCopied(false), 1200);
     } catch (e) {
-      console.error('复制失败:', e);
-      setAddStatus('error');
+      console.error("复制失败:", e);
+      setAddStatus("error");
       setAddMessage(
-        t('common.shared.export.copyFailed', '复制失败，请手动复制'),
+        t("common.shared.export.copyFailed", "复制失败，请手动复制"),
       );
     }
   }, [oauthUrl, oauthLog, setAddStatus, t]);
 
   const handleCopyOauthUserCode = useCallback(async () => {
     if (!oauthUserCode) return;
-    setAddStatus('idle');
+    setAddStatus("idle");
     setAddMessage(null);
     try {
       await navigator.clipboard.writeText(oauthUserCode);
-      oauthLog('已复制 user_code', { loginId: oauthLoginIdRef.current });
+      oauthLog("已复制 user_code", { loginId: oauthLoginIdRef.current });
       setOauthUserCodeCopied(true);
       window.setTimeout(() => setOauthUserCodeCopied(false), 1200);
     } catch (e) {
-      console.error('复制失败:', e);
-      setAddStatus('error');
+      console.error("复制失败:", e);
+      setAddStatus("error");
       setAddMessage(
-        t('common.shared.export.copyFailed', '复制失败，请手动复制'),
+        t("common.shared.export.copyFailed", "复制失败，请手动复制"),
       );
     }
   }, [oauthUserCode, oauthLog, setAddStatus, t]);
 
   const handleRetryOauth = useCallback(() => {
     const previousLoginId = oauthLoginIdRef.current ?? undefined;
-    oauthLog('用户点击刷新授权信息', {
+    oauthLog("用户点击刷新授权信息", {
       loginId: previousLoginId,
       error: oauthCompleteError,
       timedOut: oauthTimedOut,
@@ -2304,11 +2525,17 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     setOauthUrlCopied(false);
     setOauthUserCode(null);
     setOauthUserCodeCopied(false);
-    setOauthManualCallbackInput('');
+    setOauthManualCallbackInput("");
     setOauthManualCallbackSubmitting(false);
     setOauthManualCallbackError(null);
     prepareOauthUrl();
-  }, [oauthCompleteError, oauthTimedOut, oauthLog, oauthService, prepareOauthUrl]);
+  }, [
+    oauthCompleteError,
+    oauthTimedOut,
+    oauthLog,
+    oauthService,
+    prepareOauthUrl,
+  ]);
 
   const handleRetryOauthComplete = useCallback(() => {
     if (!oauthService) return;
@@ -2317,7 +2544,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     if (oauthCompletingRef.current) return;
     const attemptSeq = ++oauthAttemptSeqRef.current;
 
-    oauthLog('用户点击重新轮询授权结果', {
+    oauthLog("用户点击重新轮询授权结果", {
       loginId,
       error: oauthCompleteError,
       timedOut: oauthTimedOut,
@@ -2336,7 +2563,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       .completeLogin(loginId)
       .then(async () => {
         if (attemptSeq !== oauthAttemptSeqRef.current) {
-          oauthLog('忽略过期 OAuth 重试成功回调', { loginId, attemptSeq });
+          oauthLog("忽略过期 OAuth 重试成功回调", { loginId, attemptSeq });
           return;
         }
         setOauthPolling(false);
@@ -2345,7 +2572,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       })
       .catch((e) => {
         if (attemptSeq !== oauthAttemptSeqRef.current) {
-          oauthLog('忽略过期 OAuth 重试异常回调', {
+          oauthLog("忽略过期 OAuth 重试异常回调", {
             loginId,
             attemptSeq,
             error: String(e),
@@ -2363,29 +2590,34 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     handleOauthCompleteError,
   ]);
 
-  const handleOpenOauthUrlWithMode = useCallback(async (incognito: boolean) => {
-    if (!oauthUrl) return;
-    setOauthCompleteError(null);
-    oauthLog('用户点击打开授权链接', {
-      loginId: oauthLoginIdRef.current,
-      authUrl: oauthUrl,
-      incognito,
-    });
-    try {
-      if (oauthService?.openAuthUrl) {
-        await oauthService.openAuthUrl(oauthUrl, incognito);
-      } else {
-        await openUrl(oauthUrl);
+  const handleOpenOauthUrlWithMode = useCallback(
+    async (incognito: boolean) => {
+      if (!oauthUrl) return;
+      setOauthCompleteError(null);
+      oauthLog("用户点击打开授权链接", {
+        loginId: oauthLoginIdRef.current,
+        authUrl: oauthUrl,
+        incognito,
+      });
+      try {
+        if (oauthService?.openAuthUrl) {
+          await oauthService.openAuthUrl(oauthUrl, incognito);
+        } else {
+          await openUrl(oauthUrl);
+        }
+      } catch (e) {
+        console.error("打开授权链接失败:", e);
+        const msg = String(e).replace(/^Error:\s*/, "");
+        setOauthCompleteError(
+          `${t("common.shared.oauth.failed", "授权失败")}: ${msg}`,
+        );
+        await navigator.clipboard.writeText(oauthUrl).catch(() => {});
+        setOauthUrlCopied(true);
+        setTimeout(() => setOauthUrlCopied(false), 1200);
       }
-    } catch (e) {
-      console.error('打开授权链接失败:', e);
-      const msg = String(e).replace(/^Error:\s*/, '');
-      setOauthCompleteError(`${t('common.shared.oauth.failed', '授权失败')}: ${msg}`);
-      await navigator.clipboard.writeText(oauthUrl).catch(() => {});
-      setOauthUrlCopied(true);
-      setTimeout(() => setOauthUrlCopied(false), 1200);
-    }
-  }, [oauthUrl, oauthLog, oauthService, t]);
+    },
+    [oauthUrl, oauthLog, oauthService, t],
+  );
 
   const handleOpenOauthUrl = useCallback(
     () => handleOpenOauthUrlWithMode(false),
@@ -2403,7 +2635,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     const callbackUrl = oauthManualCallbackInput.trim();
     if (!callbackUrl) return;
     if (!loginId) {
-      setOauthManualCallbackError(t('common.shared.oauth.failed', '授权失败'));
+      setOauthManualCallbackError(t("common.shared.oauth.failed", "授权失败"));
       return;
     }
 
@@ -2415,39 +2647,41 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         handleRetryOauthComplete();
       }
     } catch (e) {
-      const msg = String(e).replace(/^Error:\s*/, '');
+      const msg = String(e).replace(/^Error:\s*/, "");
       setOauthManualCallbackError(msg);
     } finally {
       setOauthManualCallbackSubmitting(false);
     }
-  }, [
-    oauthService,
-    oauthManualCallbackInput,
-    t,
-    handleRetryOauthComplete,
-  ]);
+  }, [oauthService, oauthManualCallbackInput, t, handleRetryOauthComplete]);
 
   // ─── Flow Notice ──────────────────────────────────────────────────────
-  const [isFlowNoticeCollapsed, setIsFlowNoticeCollapsed] = useState<boolean>(() => {
-    if (!flowNoticeCollapsedKey) return false;
-    try {
-      return localStorage.getItem(flowNoticeCollapsedKey) === '1';
-    } catch {
-      return false;
-    }
-  });
+  const [isFlowNoticeCollapsed, setIsFlowNoticeCollapsed] = useState<boolean>(
+    () => {
+      if (!flowNoticeCollapsedKey) return false;
+      try {
+        return localStorage.getItem(flowNoticeCollapsedKey) === "1";
+      } catch {
+        return false;
+      }
+    },
+  );
 
   useEffect(() => {
     if (!flowNoticeCollapsedKey) return;
     try {
-      localStorage.setItem(flowNoticeCollapsedKey, isFlowNoticeCollapsed ? '1' : '0');
+      localStorage.setItem(
+        flowNoticeCollapsedKey,
+        isFlowNoticeCollapsed ? "1" : "0",
+      );
     } catch {
       // ignore persistence failures
     }
   }, [isFlowNoticeCollapsed, flowNoticeCollapsedKey]);
 
   // ─── Current Account ──────────────────────────────────────────────────
-  const [localCurrentAccountId, setLocalCurrentAccountId] = useState<string | null>(() => {
+  const [localCurrentAccountId, setLocalCurrentAccountId] = useState<
+    string | null
+  >(() => {
     if (!currentAccountIdKey) return null;
     try {
       const value = localStorage.getItem(currentAccountIdKey);
@@ -2458,7 +2692,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   });
 
   const currentAccountId = managesCurrentAccountId
-    ? storeCurrentAccountId ?? null
+    ? (storeCurrentAccountId ?? null)
     : localCurrentAccountId;
 
   const setCurrentAccountId = useCallback(
@@ -2480,7 +2714,12 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     if (!exists) {
       setCurrentAccountId(null);
     }
-  }, [accounts, currentAccountId, managesCurrentAccountId, setCurrentAccountId]);
+  }, [
+    accounts,
+    currentAccountId,
+    managesCurrentAccountId,
+    setCurrentAccountId,
+  ]);
 
   useEffect(() => {
     if (managesCurrentAccountId || !currentAccountIdKey) return;
@@ -2503,14 +2742,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       // 固定 24 小时制，避免 en-US 等 locale 显示 12 小时制分不清上下午（#859）
       return (
         d.toLocaleDateString(locale, {
-          year: 'numeric',
-          month: '2-digit',
-          day: '2-digit',
+          year: "numeric",
+          month: "2-digit",
+          day: "2-digit",
         }) +
-        ' ' +
+        " " +
         d.toLocaleTimeString(locale, {
-          hour: '2-digit',
-          minute: '2-digit',
+          hour: "2-digit",
+          minute: "2-digit",
           hour12: false,
         })
       );

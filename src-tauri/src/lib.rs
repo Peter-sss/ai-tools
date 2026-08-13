@@ -249,7 +249,7 @@ pub fn run() {
             }
         }))
         .setup(|app| {
-            info!("Cockpit Tools 启动...");
+            info!("AITool Cockpit 启动...");
             let current_exe = std::env::current_exe()
                 .map(|path| path.display().to_string())
                 .unwrap_or_else(|err| format!("unknown: {}", err));
@@ -1132,6 +1132,7 @@ pub fn run() {
             commands::cursor::import_cursor_from_json,
             commands::cursor::import_cursor_from_local,
             commands::cursor::export_cursor_accounts,
+            commands::cursor::export_cursor_accounts_text,
             commands::cursor::refresh_cursor_token,
             commands::cursor::refresh_all_cursor_tokens,
             commands::cursor::add_cursor_account_with_token,

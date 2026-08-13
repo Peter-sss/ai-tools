@@ -231,7 +231,7 @@
       "desc": "Эта область фиксируется в правом верхнем углу на всех страницах и подходит для кампаний или брендовой рекламы.",
       "action": "Подробнее"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "AITool Cockpit",
     "collapse": "Свернуть",
     "confirmDelete": "Подтвердить удаление",
     "confirmDeleteTag": "Подтвердить удаление тега",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "URL прокси не может быть пустым, когда глобальный прокси включён."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "AITool Cockpit",
       "slogan": "Профессиональное решение для управления аккаунтами",
       "author": "Автор",
       "wechat": "Вичат",

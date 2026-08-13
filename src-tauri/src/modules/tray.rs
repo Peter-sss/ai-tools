@@ -24,7 +24,7 @@ use crate::modules::logger;
 pub const TRAY_ID: &str = "main-tray";
 
 #[cfg(target_os = "macos")]
-const MACOS_STATUS_ITEM_AUTOSAVE_NAME: &str = "com.jlcodes.cockpit-tools.main-tray";
+const MACOS_STATUS_ITEM_AUTOSAVE_NAME: &str = "com.aitool.cockpit.main-tray";
 
 #[cfg(target_os = "macos")]
 static MACOS_TRAY_SKIP_LOGGED: AtomicBool = AtomicBool::new(false);
@@ -434,7 +434,7 @@ pub fn create_tray_skeleton<R: Runtime>(
     let builder = TrayIconBuilder::with_id(TRAY_ID)
         .icon(tray_icon)
         .show_menu_on_left_click(false)
-        .tooltip("Cockpit Tools")
+        .tooltip("AITool Cockpit")
         .on_menu_event(handle_menu_event)
         .on_tray_icon_event(handle_tray_event);
 

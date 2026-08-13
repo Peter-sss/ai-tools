@@ -41,6 +41,11 @@ pub fn export_cursor_accounts(account_ids: Vec<String>) -> Result<String, String
 }
 
 #[tauri::command]
+pub fn export_cursor_accounts_text(account_ids: Vec<String>) -> Result<String, String> {
+    cursor_account::export_accounts_text(&account_ids)
+}
+
+#[tauri::command]
 pub async fn refresh_cursor_token(
     app: AppHandle,
     account_id: String,
@@ -107,25 +112,10 @@ pub async fn refresh_all_cursor_tokens(app: AppHandle) -> Result<i32, String> {
 pub fn add_cursor_account_with_token(
     app: AppHandle,
     access_token: String,
-) -> Result<CursorAccount, String> {
-    let email = "unknown".to_string();
-    let payload = crate::models::cursor::CursorImportPayload {
-        email,
-        auth_id: None,
-        name: None,
-        access_token,
-        refresh_token: None,
-        membership_type: None,
-        subscription_status: None,
-        sign_up_type: None,
-        cursor_auth_raw: None,
-        cursor_usage_raw: None,
-        status: None,
-        status_reason: None,
-    };
-    let account = cursor_account::upsert_account(payload)?;
+) -> Result<Vec<CursorAccount>, String> {
+    let accounts = cursor_account::import_from_token_text(&access_token)?;
     let _ = crate::modules::tray::update_tray_menu(&app);
-    Ok(account)
+    Ok(accounts)
 }
 
 #[tauri::command]

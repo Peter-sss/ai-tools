@@ -140,20 +140,20 @@ pub fn get_default_instances_root_dir() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
         let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
-        return Ok(home.join(".antigravity_cockpit/instances/antigravity"));
+        return Ok(home.join(".aitool_cockpit/instances/antigravity"));
     }
 
     #[cfg(target_os = "windows")]
     {
         let appdata =
             std::env::var("APPDATA").map_err(|_| "无法获取 APPDATA 环境变量".to_string())?;
-        return Ok(PathBuf::from(appdata).join(".antigravity_cockpit\\instances\\antigravity"));
+        return Ok(PathBuf::from(appdata).join(".aitool_cockpit\\instances\\antigravity"));
     }
 
     #[cfg(target_os = "linux")]
     {
         let home = dirs::home_dir().ok_or("无法获取用户主目录")?;
-        return Ok(home.join(".antigravity_cockpit/instances/antigravity"));
+        return Ok(home.join(".aitool_cockpit/instances/antigravity"));
     }
 
     #[allow(unreachable_code)]

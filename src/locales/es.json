@@ -231,7 +231,7 @@
       "desc": "Esta zona se fija en la esquina superior derecha de todas las páginas para campañas o anuncios de marca.",
       "action": "Ver detalles"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "AITool Cockpit",
     "collapse": "Contraer",
     "confirmDelete": "Confirmar eliminación",
     "confirmDeleteTag": "Confirmar eliminación de etiqueta",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "La URL del proxy no puede estar vacía cuando el proxy global está habilitado."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "AITool Cockpit",
       "slogan": "Solución Profesional de Gestión de Cuentas",
       "author": "Autor",
       "wechat": "WeChat​",

@@ -79,7 +79,7 @@ fn store_path() -> Result<PathBuf, String> {
     let dir = dirs::data_local_dir()
         .or_else(dirs::data_dir)
         .ok_or("无法定位应用数据目录")?;
-    Ok(dir.join("cockpit-tools").join(STORE_FILE))
+    Ok(dir.join("aitool-cockpit").join(STORE_FILE))
 }
 
 fn load_store() -> Result<CodexSshStore, String> {

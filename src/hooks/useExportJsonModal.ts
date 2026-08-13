@@ -1,12 +1,14 @@
-import { useCallback, useMemo, useState } from 'react';
-import { save } from '@tauri-apps/plugin-dialog';
-import { openPath } from '@tauri-apps/plugin-opener';
-import { invoke } from '@tauri-apps/api/core';
+import { useCallback, useMemo, useState } from "react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { openPath } from "@tauri-apps/plugin-opener";
+import { invoke } from "@tauri-apps/api/core";
 
 interface UseExportJsonModalOptions {
   exportFilePrefix: string;
   exportJsonByIds: (ids: string[]) => Promise<string>;
   onError?: (error: unknown) => void;
+  /** 打开弹窗时是否默认打码预览；默认 true */
+  defaultHidden?: boolean;
 }
 
 interface UseExportJsonModalReturn {
@@ -28,19 +30,25 @@ interface UseExportJsonModalReturn {
   openSavedDirectory: () => Promise<void>;
   copySavedPath: () => Promise<void>;
   resolveDefaultExportPath: (fileName: string) => Promise<string>;
-  saveJsonFile: (json: string, defaultFileName: string) => Promise<string | null>;
+  saveJsonFile: (
+    json: string,
+    defaultFileName: string,
+  ) => Promise<string | null>;
 }
 
 const JSON_EXTENSION_REGEX = /\.json$/i;
 const INVALID_FILE_CHARS_REGEX = /[<>:"/\\|?*\x00-\x1F]/g;
 
-function sanitizeFileBaseName(input: string | undefined, fallback: string): string {
-  const raw = (input || '').trim().replace(JSON_EXTENSION_REGEX, '');
+function sanitizeFileBaseName(
+  input: string | undefined,
+  fallback: string,
+): string {
+  const raw = (input || "").trim().replace(JSON_EXTENSION_REGEX, "");
   const normalized = raw
-    .replace(INVALID_FILE_CHARS_REGEX, '_')
-    .replace(/\s+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '');
+    .replace(INVALID_FILE_CHARS_REGEX, "_")
+    .replace(/\s+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
   return normalized || fallback;
 }
 
@@ -50,50 +58,62 @@ function buildExportFileName(baseName: string): string {
 }
 
 function getDirectoryPath(filePath: string): string {
-  const slashIndex = Math.max(filePath.lastIndexOf('/'), filePath.lastIndexOf('\\'));
+  const slashIndex = Math.max(
+    filePath.lastIndexOf("/"),
+    filePath.lastIndexOf("\\"),
+  );
   if (slashIndex <= 0) {
     return filePath;
   }
   return filePath.slice(0, slashIndex);
 }
 
-export function useExportJsonModal(options: UseExportJsonModalOptions): UseExportJsonModalReturn {
-  const { exportFilePrefix, exportJsonByIds, onError } = options;
+export function useExportJsonModal(
+  options: UseExportJsonModalOptions,
+): UseExportJsonModalReturn {
+  const {
+    exportFilePrefix,
+    exportJsonByIds,
+    onError,
+    defaultHidden = true,
+  } = options;
 
   const [preparing, setPreparing] = useState(false);
   const [showModal, setShowModal] = useState(false);
-  const [jsonContent, setJsonContent] = useState('');
-  const [hidden, setHidden] = useState(true);
+  const [jsonContent, setJsonContent] = useState("");
+  const [hidden, setHidden] = useState(defaultHidden);
   const [copied, setCopied] = useState(false);
   const [saving, setSaving] = useState(false);
   const [savedPath, setSavedPath] = useState<string | null>(null);
   const [downloadsDir, setDownloadsDir] = useState<string | null>(null);
   const [pathCopied, setPathCopied] = useState(false);
-  const [defaultFileName, setDefaultFileName] = useState(() => buildExportFileName(exportFilePrefix));
+  const [defaultFileName, setDefaultFileName] = useState(() =>
+    buildExportFileName(exportFilePrefix),
+  );
 
   const resolveDefaultExportPath = useCallback(async (fileName: string) => {
     const userAgent = navigator.userAgent.toLowerCase();
-    if (!userAgent.includes('mac')) return fileName;
+    if (!userAgent.includes("mac")) return fileName;
     try {
-      const dir = await invoke<string>('get_downloads_dir');
+      const dir = await invoke<string>("get_downloads_dir");
       if (!dir) return fileName;
-      const normalized = dir.endsWith('/') ? dir.slice(0, -1) : dir;
+      const normalized = dir.endsWith("/") ? dir.slice(0, -1) : dir;
       return `${normalized}/${fileName}`;
     } catch (error) {
-      console.error('获取下载目录失败:', error);
+      console.error("获取下载目录失败:", error);
       return fileName;
     }
   }, []);
 
   const loadDownloadsDir = useCallback(async () => {
     try {
-      const dir = await invoke<string>('get_downloads_dir');
+      const dir = await invoke<string>("get_downloads_dir");
       if (!dir) return null;
-      const normalized = dir.replace(/\\/g, '/').replace(/\/+$/, '');
+      const normalized = dir.replace(/\\/g, "/").replace(/\/+$/, "");
       setDownloadsDir(normalized);
       return normalized;
     } catch (error) {
-      console.error('获取下载目录失败:', error);
+      console.error("获取下载目录失败:", error);
       return null;
     }
   }, []);
@@ -103,10 +123,10 @@ export function useExportJsonModal(options: UseExportJsonModalOptions): UseExpor
       const defaultPath = await resolveDefaultExportPath(fileName);
       const filePath = await save({
         defaultPath,
-        filters: [{ name: 'JSON', extensions: ['json'] }],
+        filters: [{ name: "JSON", extensions: ["json"] }],
       });
       if (!filePath) return null;
-      await invoke('save_text_file', { path: filePath, content: json });
+      await invoke("save_text_file", { path: filePath, content: json });
       return filePath;
     },
     [resolveDefaultExportPath],
@@ -121,10 +141,13 @@ export function useExportJsonModal(options: UseExportJsonModalOptions): UseExpor
           await loadDownloadsDir();
         }
         const json = await exportJsonByIds(ids);
-        const safeBaseName = sanitizeFileBaseName(fileNameBase, exportFilePrefix);
+        const safeBaseName = sanitizeFileBaseName(
+          fileNameBase,
+          exportFilePrefix,
+        );
         setDefaultFileName(buildExportFileName(safeBaseName));
         setJsonContent(json);
-        setHidden(true);
+        setHidden(defaultHidden);
         setCopied(false);
         setSavedPath(null);
         setPathCopied(false);
@@ -135,14 +158,21 @@ export function useExportJsonModal(options: UseExportJsonModalOptions): UseExpor
         setPreparing(false);
       }
     },
-    [downloadsDir, exportFilePrefix, exportJsonByIds, loadDownloadsDir, onError],
+    [
+      defaultHidden,
+      downloadsDir,
+      exportFilePrefix,
+      exportJsonByIds,
+      loadDownloadsDir,
+      onError,
+    ],
   );
 
   const closeModal = useCallback(() => {
     setShowModal(false);
-    setHidden(true);
+    setHidden(defaultHidden);
     setCopied(false);
-  }, []);
+  }, [defaultHidden]);
 
   const toggleHidden = useCallback(() => {
     setHidden((prev) => !prev);
@@ -182,8 +212,13 @@ export function useExportJsonModal(options: UseExportJsonModalOptions): UseExpor
 
   const canOpenSavedDirectory = useMemo(() => {
     if (!savedDirectory || !downloadsDir) return false;
-    const normalizedSaved = savedDirectory.replace(/\\/g, '/').replace(/\/+$/, '');
-    return normalizedSaved === downloadsDir || normalizedSaved.startsWith(`${downloadsDir}/`);
+    const normalizedSaved = savedDirectory
+      .replace(/\\/g, "/")
+      .replace(/\/+$/, "");
+    return (
+      normalizedSaved === downloadsDir ||
+      normalizedSaved.startsWith(`${downloadsDir}/`)
+    );
   }, [downloadsDir, savedDirectory]);
 
   const openSavedDirectory = useCallback(async () => {

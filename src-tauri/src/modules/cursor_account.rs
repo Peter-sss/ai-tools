@@ -944,6 +944,212 @@ pub fn update_account_tags(account_id: &str, tags: Vec<String>) -> Result<Cursor
 // Import / Export
 // ---------------------------------------------------------------------------
 
+/// Normalize common Cursor session separators (`%3A%3A` → `::`).
+fn normalize_cursor_token_separators(raw: &str) -> String {
+    raw.trim()
+        .replace("%3A%3A", "::")
+        .replace("%3a%3a", "::")
+}
+
+fn is_likely_jwt(token: &str) -> bool {
+    let parts: Vec<&str> = token.split('.').collect();
+    if parts.len() != 3 || parts.iter().any(|part| part.is_empty()) {
+        return false;
+    }
+    decode_access_token_payload(token).is_some()
+}
+
+fn normalize_workos_user_id(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let user_id = trimmed.rsplit('|').next().unwrap_or(trimmed).trim();
+    if user_id.is_empty() {
+        None
+    } else {
+        Some(user_id.to_string())
+    }
+}
+
+fn payload_from_token_parts(
+    email: Option<&str>,
+    auth_id_hint: Option<&str>,
+    access_token: &str,
+) -> Result<CursorImportPayload, String> {
+    let access_token = access_token.trim();
+    if !is_likely_jwt(access_token) {
+        return Err("无效的 Cursor JWT Token".to_string());
+    }
+
+    let jwt_auth_id = extract_workos_user_id(access_token)
+        .or_else(|| extract_auth_id_from_access_token(access_token).and_then(|id| normalize_workos_user_id(&id)));
+
+    let hint_auth_id = auth_id_hint.and_then(normalize_workos_user_id);
+    let auth_id = match (hint_auth_id, jwt_auth_id) {
+        (Some(hint), Some(from_jwt)) if hint != from_jwt => {
+            logger::log_warn(&format!(
+                "[Cursor Import] auth_id 与 JWT sub 不一致，以 JWT 为准: hint={}, jwt={}",
+                hint, from_jwt
+            ));
+            Some(from_jwt)
+        }
+        (hint, from_jwt) => hint.or(from_jwt),
+    };
+
+    let email = normalize_email_identity(email).unwrap_or_else(|| "unknown".to_string());
+
+    Ok(CursorImportPayload {
+        email,
+        auth_id,
+        name: None,
+        access_token: access_token.to_string(),
+        refresh_token: None,
+        membership_type: None,
+        subscription_status: None,
+        sign_up_type: None,
+        cursor_auth_raw: None,
+        cursor_usage_raw: None,
+        status: None,
+        status_reason: None,
+    })
+}
+
+/// Parse one Cursor token line.
+///
+/// Supported:
+/// - `email----user_id::jwt`
+/// - `user_id::jwt` / `WorkosCursorSessionToken=user_id%3A%3Ajwt`
+/// - bare JWT (`eyJ...`)
+pub fn parse_cursor_token_line(line: &str) -> Result<CursorImportPayload, String> {
+    let normalized = normalize_cursor_token_separators(line);
+    let mut trimmed = normalized.trim();
+    if trimmed.is_empty() {
+        return Err("空行".to_string());
+    }
+
+    if let Some(rest) = trimmed.strip_prefix("WorkosCursorSessionToken=") {
+        trimmed = rest.trim();
+    }
+
+    if let Some((email_part, rest)) = trimmed.split_once("----") {
+        let rest = rest.trim();
+        if rest.is_empty() {
+            return Err("email---- 格式缺少 token 部分".to_string());
+        }
+        if let Some((user_part, jwt_part)) = rest.split_once("::") {
+            return payload_from_token_parts(
+                Some(email_part.trim()),
+                Some(user_part.trim()),
+                jwt_part.trim(),
+            );
+        }
+        return payload_from_token_parts(Some(email_part.trim()), None, rest);
+    }
+
+    if let Some((user_part, jwt_part)) = trimmed.split_once("::") {
+        let user_part = user_part.trim();
+        let jwt_part = jwt_part.trim();
+        if user_part.starts_with("user_") || user_part.contains('|') {
+            return payload_from_token_parts(None, Some(user_part), jwt_part);
+        }
+    }
+
+    if is_likely_jwt(trimmed) {
+        return payload_from_token_parts(None, None, trimmed);
+    }
+
+    Err("无法识别的 Cursor Token 格式，支持: email----user_id::jwt / user_id::jwt / JWT".to_string())
+}
+
+/// Parse multi-line Cursor token text. Empty lines are skipped.
+/// Partial failures are logged; returns error only when nothing parses.
+pub fn parse_cursor_token_text(text: &str) -> Result<Vec<CursorImportPayload>, String> {
+    let mut payloads = Vec::new();
+    let mut errors = Vec::new();
+
+    for (idx, raw_line) in text.lines().enumerate() {
+        let line = raw_line.trim();
+        if line.is_empty() {
+            continue;
+        }
+        match parse_cursor_token_line(line) {
+            Ok(payload) => payloads.push(payload),
+            Err(err) => errors.push(format!("第 {} 行: {}", idx + 1, err)),
+        }
+    }
+
+    if payloads.is_empty() {
+        if errors.is_empty() {
+            return Err("未找到可导入的 Token".to_string());
+        }
+        return Err(format!("全部解析失败: {}", errors.join("; ")));
+    }
+
+    if !errors.is_empty() {
+        logger::log_warn(&format!(
+            "[Cursor Import] 部分行解析失败 (成功 {} 条): {}",
+            payloads.len(),
+            errors.join("; ")
+        ));
+    }
+
+    Ok(payloads)
+}
+
+pub fn import_from_token_text(text: &str) -> Result<Vec<CursorAccount>, String> {
+    let payloads = parse_cursor_token_text(text)?;
+    let mut result = Vec::with_capacity(payloads.len());
+    for payload in payloads {
+        result.push(upsert_account(payload)?);
+    }
+    Ok(result)
+}
+
+fn looks_like_cursor_token_text(content: &str) -> bool {
+    let trimmed = content.trim();
+    if trimmed.is_empty() || trimmed.starts_with('{') || trimmed.starts_with('[') {
+        return false;
+    }
+    trimmed.contains("----")
+        || trimmed.contains("::")
+        || trimmed.contains("%3A%3A")
+        || trimmed.contains("%3a%3a")
+        || trimmed.contains("WorkosCursorSessionToken=")
+        || trimmed.lines().any(|line| is_likely_jwt(line.trim()))
+}
+
+pub fn format_account_token_line(account: &CursorAccount) -> String {
+    let email = {
+        let trimmed = account.email.trim();
+        if trimmed.is_empty() {
+            "unknown"
+        } else {
+            trimmed
+        }
+    };
+
+    let auth_id = resolve_account_auth_id(account)
+        .and_then(|id| normalize_workos_user_id(&id))
+        .or_else(|| extract_workos_user_id(&account.access_token))
+        .unwrap_or_else(|| "unknown".to_string());
+
+    format!("{}----{}::{}", email, auth_id, account.access_token.trim())
+}
+
+pub fn export_accounts_text(account_ids: &[String]) -> Result<String, String> {
+    let mut lines = Vec::new();
+    for id in account_ids {
+        if let Some(account) = load_account(id) {
+            lines.push(format_account_token_line(&account));
+        }
+    }
+    if lines.is_empty() {
+        return Err("没有可导出的账号".to_string());
+    }
+    Ok(lines.join("\n"))
+}
+
 fn clone_object_value(value: Option<&Value>) -> Option<Value> {
     value.and_then(|raw| {
         if raw.is_object() {
@@ -1100,6 +1306,11 @@ pub fn import_from_json(json_content: &str) -> Result<Vec<CursorAccount>, String
             }
             return Ok(result);
         }
+    }
+
+    // Fall back to token-line formats when content is not JSON.
+    if looks_like_cursor_token_text(json_content) {
+        return import_from_token_text(json_content);
     }
 
     Err("无法解析 JSON 内容".to_string())
@@ -2155,4 +2366,132 @@ pub fn run_quota_alert_if_needed(
 
     crate::modules::account::dispatch_quota_alert(&payload);
     Ok(Some(payload))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn sample_jwt(sub: &str) -> String {
+        // header.payload.signature — only payload is decoded by helpers
+        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(br#"{"alg":"HS256","typ":"JWT"}"#);
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(
+            format!(r#"{{"sub":"{}","type":"session","aud":"https://cursor.com"}}"#, sub).as_bytes(),
+        );
+        format!("{}.{}.sig", header, payload)
+    }
+
+    #[test]
+    fn parse_bare_jwt() {
+        let jwt = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let payload = parse_cursor_token_line(&jwt).expect("parse jwt");
+        assert_eq!(payload.email, "unknown");
+        assert_eq!(
+            payload.auth_id.as_deref(),
+            Some("user_01ABCDEFGHIJKLMNOPQRSTUV")
+        );
+        assert_eq!(payload.access_token, jwt);
+    }
+
+    #[test]
+    fn parse_email_dash_user_jwt() {
+        let jwt = sample_jwt("auth0|user_01KN1CWBNADVQN2V0QMMHS2CX6");
+        let line = format!(
+            "demo@example.com----user_01KN1CWBNADVQN2V0QMMHS2CX6::{}",
+            jwt
+        );
+        let payload = parse_cursor_token_line(&line).expect("parse line");
+        assert_eq!(payload.email, "demo@example.com");
+        assert_eq!(
+            payload.auth_id.as_deref(),
+            Some("user_01KN1CWBNADVQN2V0QMMHS2CX6")
+        );
+        assert_eq!(payload.access_token, jwt);
+    }
+
+    #[test]
+    fn parse_user_jwt_and_url_encoded_cookie() {
+        let jwt = sample_jwt("auth0|user_01TESTUSERID000000000001");
+        let line = format!("user_01TESTUSERID000000000001::{}", jwt);
+        let payload = parse_cursor_token_line(&line).expect("parse user::jwt");
+        assert_eq!(payload.email, "unknown");
+        assert_eq!(
+            payload.auth_id.as_deref(),
+            Some("user_01TESTUSERID000000000001")
+        );
+
+        let cookie = format!(
+            "WorkosCursorSessionToken=user_01TESTUSERID000000000001%3A%3A{}",
+            jwt
+        );
+        let payload2 = parse_cursor_token_line(&cookie).expect("parse cookie");
+        assert_eq!(
+            payload2.auth_id.as_deref(),
+            Some("user_01TESTUSERID000000000001")
+        );
+        assert_eq!(payload2.access_token, jwt);
+    }
+
+    #[test]
+    fn parse_batch_text_skips_bad_lines() {
+        let jwt1 = sample_jwt("auth0|user_01AAA");
+        let jwt2 = sample_jwt("auth0|user_01BBB");
+        let text = format!(
+            "a@example.com----user_01AAA::{}\nbad-line-without-token\nb@example.com----user_01BBB::{}\n",
+            jwt1, jwt2
+        );
+        let payloads = parse_cursor_token_text(&text).expect("batch parse");
+        assert_eq!(payloads.len(), 2);
+        assert_eq!(payloads[0].email, "a@example.com");
+        assert_eq!(payloads[1].email, "b@example.com");
+    }
+
+    #[test]
+    fn format_token_line_round_trip_fields() {
+        let jwt = sample_jwt("auth0|user_01ROUNDTRIP00000000000");
+        let account = CursorAccount {
+            id: "acc1".to_string(),
+            email: "round@example.com".to_string(),
+            auth_id: Some("user_01ROUNDTRIP00000000000".to_string()),
+            name: None,
+            tags: None,
+            access_token: jwt.clone(),
+            refresh_token: None,
+            membership_type: None,
+            subscription_status: None,
+            sign_up_type: None,
+            cursor_auth_raw: None,
+            cursor_usage_raw: None,
+            status: None,
+            status_reason: None,
+            quota_query_last_error: None,
+            quota_query_last_error_at: None,
+            usage_updated_at: None,
+            created_at: 0,
+            last_used: 0,
+        };
+        let line = format_account_token_line(&account);
+        assert_eq!(
+            line,
+            format!("round@example.com----user_01ROUNDTRIP00000000000::{}", jwt)
+        );
+        let parsed = parse_cursor_token_line(&line).expect("round-trip parse");
+        assert_eq!(parsed.email, "round@example.com");
+        assert_eq!(parsed.access_token, jwt);
+        assert_eq!(
+            parsed.auth_id.as_deref(),
+            Some("user_01ROUNDTRIP00000000000")
+        );
+    }
+
+    #[test]
+    fn prefer_jwt_sub_when_auth_id_mismatches() {
+        let jwt = sample_jwt("auth0|user_01REALUSERID00000000000");
+        let line = format!("demo@example.com----user_01WRONGID0000000000000::{}", jwt);
+        let payload = parse_cursor_token_line(&line).expect("parse mismatch");
+        assert_eq!(
+            payload.auth_id.as_deref(),
+            Some("user_01REALUSERID00000000000")
+        );
+    }
 }

@@ -231,7 +231,7 @@
       "desc": "이 영역은 모든 페이지의 우측 상단에 고정되어 캠페인 또는 브랜드 광고 노출에 적합합니다.",
       "action": "자세히 보기"
     },
-    "appName": "Cockpit Tools​",
+    "appName": "AITool Cockpit",
     "collapse": "접기",
     "confirmDelete": "삭제 확인",
     "confirmDeleteTag": "태그 삭제 확인",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "전역 프록시를 켠 경우 프록시 URL은 비워둘 수 없습니다."
     },
     "about": {
-      "appName": "Cockpit Tools​",
+      "appName": "AITool Cockpit",
       "slogan": "전문적인 계정 관리 솔루션",
       "author": "제작자",
       "wechat": "WeChat 플러스",
