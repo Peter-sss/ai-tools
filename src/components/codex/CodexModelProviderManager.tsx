@@ -64,6 +64,7 @@ import {
   getCurrentCodexAccount,
   listCodexAccounts,
   syncCodexApiKeyProviderAccounts,
+  updateCodexAccountName,
   updateCodexApiKeyBoundOAuthAccount,
 } from "../../services/codexService";
 import {
@@ -101,6 +102,7 @@ import {
   readCodexApiKeyUsageCache,
 } from "../../services/codexApiKeyUsageRefreshService";
 import {
+  formatModelProviderUsageMoney,
   resolveNewApiQuotaSnapshot,
 } from "../../services/modelProviderUsageService";
 import { useSponsorStore } from "../../stores/useSponsorStore";
@@ -108,6 +110,7 @@ import type { Sponsor } from "../../types/sponsor";
 import {
   CODEX_API_PROVIDER_CUSTOM_ID,
   CODEX_API_PROVIDER_PRESETS,
+  DEEPSEEK_API_PROVIDER_ID,
   findCodexApiProviderPresetById,
   resolveCodexApiProviderPresetId,
 } from "../../utils/codexProviderPresets";
@@ -139,6 +142,10 @@ import {
   type CodexProviderWireApi,
 } from "../../utils/codexProviderGateway";
 import { emitAccountsChanged } from "../../utils/accountSyncEvents";
+import {
+  resolveCodexModelProviderAccountName,
+  shouldSyncCodexModelProviderAccountName,
+} from "../../utils/codexModelProviderAccountName";
 import { findCodexAccountsReferencingModelProvider } from "../../utils/codexModelProviderAccountSync";
 import { CodexQuickConfigCard } from "./CodexQuickConfigCard";
 import {
@@ -2376,7 +2383,36 @@ export function CodexModelProviderManager({
       );
       if (next === null) return;
       try {
+        const previousName = apiKey.name;
         await renameApiKeyOnCodexModelProvider(provider.id, apiKey.id, next);
+        const normalizedProviderBaseUrl = normalizeCodexModelProviderBaseUrl(
+          provider.baseUrl,
+        );
+        const nextName = resolveCodexModelProviderAccountName(provider.name, next);
+        const accountsToRename = accounts.filter(
+          (account) =>
+            isCodexApiKeyAccount(account) &&
+            account.openai_api_key?.trim() === apiKey.apiKey.trim() &&
+            (account.api_provider_id === provider.id ||
+              normalizeCodexModelProviderBaseUrl(account.api_base_url ?? "") ===
+                normalizedProviderBaseUrl) &&
+            shouldSyncCodexModelProviderAccountName(
+              account.account_name,
+              provider.name,
+              previousName,
+            ),
+        );
+        if (accountsToRename.length > 0) {
+          await Promise.all(
+            accountsToRename.map((account) =>
+              updateCodexAccountName(account.id, nextName),
+            ),
+          );
+          await emitAccountsChanged({
+            platformId: "codex",
+            reason: "provider-api-key-rename",
+          });
+        }
         await reloadProviders();
         setNotice({
           tone: "success",
@@ -2392,7 +2428,7 @@ export function CodexModelProviderManager({
         });
       }
     },
-    [parseServiceError, reloadProviders, t],
+    [accounts, parseServiceError, reloadProviders, t],
   );
 
   const handleBatchDeleteProviders = useCallback(async () => {
@@ -3005,12 +3041,11 @@ export function CodexModelProviderManager({
     refreshProviderUsage,
   ]);
 
-  const formatUsageMoney = useCallback((value?: number | null, unit?: string | null): string => {
-    if (typeof value !== "number" || Number.isNaN(value)) return "-";
-    const normalizedUnit = unit?.trim() || "USD";
-    const formatted = value.toFixed(value >= 100 ? 0 : 2);
-    return normalizedUnit === "USD" ? `$${formatted}` : `${formatted} ${normalizedUnit}`;
-  }, []);
+  const formatUsageMoney = useCallback(
+    (value?: number | null, unit?: string | null): string =>
+      formatModelProviderUsageMoney(value ?? undefined, unit ?? undefined),
+    [],
+  );
 
   const formatUsageQuotaValue = useCallback(
     (
@@ -3081,6 +3116,11 @@ export function CodexModelProviderManager({
           "模型限制",
         ),
         totalUsage: t("codex.modelProviders.usage.fields.totalUsage", "累计消耗"),
+        isAvailable: t("codex.modelProviders.usage.fields.isAvailable", "余额可用"),
+        currency: t("codex.modelProviders.usage.fields.currency", "币种"),
+        totalBalance: t("codex.modelProviders.usage.fields.totalBalance", "总余额"),
+        grantedBalance: t("codex.modelProviders.usage.fields.grantedBalance", "赠金余额"),
+        toppedUpBalance: t("codex.modelProviders.usage.fields.toppedUpBalance", "充值余额"),
       };
       return labels[key] ?? fallback;
     },
@@ -3105,7 +3145,11 @@ export function CodexModelProviderManager({
       if (Number.isFinite(numeric) && item.key === "expiresAt") {
         return numeric > 0 ? formatDateTime(numeric * 1000) : "-";
       }
-      if (item.key === "quotaUnlimited" || item.key === "modelLimitsEnabled") {
+      if (
+        item.key === "quotaUnlimited" ||
+        item.key === "modelLimitsEnabled" ||
+        item.key === "isAvailable"
+      ) {
         if (raw === "true") return t("codex.modelProviders.usage.booleanTrue", "是");
         if (raw === "false") return t("codex.modelProviders.usage.booleanFalse", "否");
       }
@@ -3119,6 +3163,9 @@ export function CodexModelProviderManager({
           "hardLimitUsd",
           "softLimitUsd",
           "systemHardLimitUsd",
+          "totalBalance",
+          "grantedBalance",
+          "toppedUpBalance",
         ].includes(item.key)
       ) {
         return formatUsageMoney(numeric, unit);
@@ -3404,9 +3451,15 @@ export function CodexModelProviderManager({
               provider.baseUrl
             }`;
             const usageMode =
-              usageSummary?.mode === "new_api" || usageSummary?.mode === "sub2api"
+              usageSummary?.mode === "new_api" ||
+              usageSummary?.mode === "sub2api" ||
+              usageSummary?.mode === "deepseek"
                 ? usageSummary.mode
                 : provider.integrationType ?? null;
+            const deepSeekDetailValue = (key: string) => {
+              const item = usageSummary?.details?.find((detail) => detail.key === key);
+              return item ? formatUsageDetailValue(item, usageSummary?.unit) : "-";
+            };
             const {
               granted: totalGranted,
               available: totalAvailable,
@@ -3541,7 +3594,24 @@ export function CodexModelProviderManager({
                   </span>
                 </div>
                 <div className="codex-quota-section">
-                  {usageMode === "sub2api" ? (
+                  {usageMode === "deepseek" ? (
+                    <div className="codex-api-key-usage-panel sub2api">
+                      <div className="codex-api-key-usage-grid">
+                        <div>
+                          <span>{t("codex.modelProviders.usage.fields.totalBalance", "总余额")}</span>
+                          <strong>{usagePrimaryText}</strong>
+                        </div>
+                        <div>
+                          <span>{t("codex.modelProviders.usage.fields.grantedBalance", "赠金余额")}</span>
+                          <strong>{deepSeekDetailValue("grantedBalance")}</strong>
+                        </div>
+                        <div>
+                          <span>{t("codex.modelProviders.usage.fields.toppedUpBalance", "充值余额")}</span>
+                          <strong>{deepSeekDetailValue("toppedUpBalance")}</strong>
+                        </div>
+                      </div>
+                    </div>
+                  ) : usageMode === "sub2api" ? (
                     <div className="codex-api-key-usage-panel sub2api">
                       <div className="codex-api-key-usage-grid">
                         <div>
@@ -4679,7 +4749,7 @@ export function CodexModelProviderManager({
                           ),
                       })
                     }
-                    disabled={saving}
+                    disabled={saving || selectedPresetId === DEEPSEEK_API_PROVIDER_ID}
                   >
                     <span>
                       {t(
@@ -4720,7 +4790,11 @@ export function CodexModelProviderManager({
                         onChange={(event) =>
                           mutateForm({ supportsWebsockets: event.target.checked })
                         }
-                        disabled={saving || selectedPresetId === "openai_official"}
+                        disabled={
+                          saving ||
+                          selectedPresetId === "openai_official" ||
+                          selectedPresetId === DEEPSEEK_API_PROVIDER_ID
+                        }
                       />
                       <span className="provider-vision-switch-track" />
                     </span>
@@ -5533,7 +5607,9 @@ export function CodexModelProviderManager({
         const usageSummary = usageState?.summary;
         const resolvedWireApi = resolveProviderWireApi(provider);
         const usageMode =
-          usageSummary?.mode === "new_api" || usageSummary?.mode === "sub2api"
+          usageSummary?.mode === "new_api" ||
+          usageSummary?.mode === "sub2api" ||
+          usageSummary?.mode === "deepseek"
             ? usageSummary.mode
             : provider.integrationType ?? null;
         const coreDetailKeys =
@@ -5541,7 +5617,15 @@ export function CodexModelProviderManager({
             ? new Set(["mode", "totalGranted", "totalAvailable", "expiresAt"])
             : usageMode === "sub2api"
               ? new Set(["mode", "remaining", "todayRequests", "todayTokens"])
-              : new Set<string>();
+              : usageMode === "deepseek"
+                ? new Set([
+                    "isAvailable",
+                    "currency",
+                    "totalBalance",
+                    "grantedBalance",
+                    "toppedUpBalance",
+                  ])
+                : new Set<string>();
         const detailMetrics: CodexServicePanelMetricItem[] = [
           {
             key: "wireApi",
@@ -5632,7 +5716,22 @@ export function CodexModelProviderManager({
 
         const newApiQuota = resolveNewApiQuotaSnapshot(usageSummary);
         const coreMetrics: CodexServicePanelMetricItem[] =
-          usageMode === "new_api"
+          usageMode === "deepseek"
+            ? [
+                "isAvailable",
+                "currency",
+                "totalBalance",
+                "grantedBalance",
+                "toppedUpBalance",
+              ].map((key) => {
+                const item = usageSummary?.details?.find((detail) => detail.key === key);
+                return {
+                  key,
+                  label: formatUsageDetailLabel(key, key),
+                  value: item ? formatUsageDetailValue(item, usageSummary?.unit) : "-",
+                };
+              })
+            : usageMode === "new_api"
             ? [
                 {
                   key: "totalGranted",

@@ -505,6 +505,7 @@ pub fn run() {
             }
 
             apply_startup_minimized(&app.handle());
+            modules::workbuddy_auto_checkin::start_auto_checkin_scheduler(app.handle().clone());
 
             Ok(())
         })
@@ -990,6 +991,17 @@ pub fn run() {
             commands::workbuddy::sync_workbuddy_to_codebuddy_cn,
             commands::workbuddy::get_checkin_status_workbuddy,
             commands::workbuddy::checkin_workbuddy,
+            // WorkBuddy WebView (网页会话) Commands
+            modules::workbuddy_webview::is_workbuddy_webview_supported,
+            modules::workbuddy_webview::open_workbuddy_webview,
+            modules::workbuddy_webview::close_workbuddy_webview,
+            modules::workbuddy_webview::list_workbuddy_webview_sessions,
+            commands::workbuddy::get_workbuddy_auto_checkin_config,
+            commands::workbuddy::migrate_workbuddy_auto_checkin_config,
+            commands::workbuddy::save_workbuddy_auto_checkin_config,
+            commands::workbuddy::get_workbuddy_auto_checkin_logs,
+            commands::workbuddy::clear_workbuddy_auto_checkin_logs,
+            commands::workbuddy::run_workbuddy_auto_checkin_now,
             // WorkBuddy Instance Commands
             commands::workbuddy_instance::workbuddy_get_instance_defaults,
             commands::workbuddy_instance::workbuddy_list_instances,
@@ -1115,6 +1127,8 @@ pub fn run() {
             commands::trae::update_trae_account_tags,
             commands::trae::get_trae_accounts_index_path,
             commands::trae::inject_trae_account,
+            commands::trae::get_trae_checkin_status,
+            commands::trae::claim_trae_checkin,
             // Trae Instance Commands
             commands::trae_instance::trae_get_instance_defaults,
             commands::trae_instance::trae_list_instances,
