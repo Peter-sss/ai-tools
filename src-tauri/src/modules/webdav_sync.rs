@@ -490,8 +490,8 @@ mod tests {
             "https://dav.jianguoyun.com/dav/"
         );
         assert_eq!(
-            normalize_remote_dir(" /aitool-cockpit/ ").unwrap(),
-            "aitool-cockpit"
+            normalize_remote_dir(" /ai-tools/ ").unwrap(),
+            "ai-tools"
         );
     }
 }

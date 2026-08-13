@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect, Fragment } from 'react';
+import { useState, useMemo, useCallback, useEffect, Fragment } from "react";
 import {
   Plus,
   RefreshCw,
@@ -24,29 +24,29 @@ import {
   Eye,
   EyeOff,
   BookOpen,
-  CalendarCheck,
-  Gift,
-  Settings,
-} from 'lucide-react';
-import { TagEditModal } from '../components/TagEditModal';
-import { ExportJsonModal } from '../components/ExportJsonModal';
-import { ModalErrorMessage } from '../components/ModalErrorMessage';
-import { MfaQuickCodeSelect } from '../components/MfaQuickCodeSelect';
-import { PaginationControls } from '../components/PaginationControls';
-import { AccountSelectionToolbar } from '../components/AccountSelectionToolbar';
-import { QuickSettingsPopover } from '../components/QuickSettingsPopover';
+} from "lucide-react";
+import { TagEditModal } from "../components/TagEditModal";
+import { ExportJsonModal } from "../components/ExportJsonModal";
+import { ModalErrorMessage } from "../components/ModalErrorMessage";
+import { MfaQuickCodeSelect } from "../components/MfaQuickCodeSelect";
+import { PaginationControls } from "../components/PaginationControls";
+import { AccountSelectionToolbar } from "../components/AccountSelectionToolbar";
+import { QuickSettingsPopover } from "../components/QuickSettingsPopover";
 import {
   PlatformOverviewTab,
   PlatformOverviewTabsHeader,
-} from '../components/platform/PlatformOverviewTabsHeader';
-import { useProviderAccountsPage } from '../hooks/useProviderAccountsPage';
-import { MultiSelectFilterDropdown, type MultiSelectFilterOption } from '../components/MultiSelectFilterDropdown';
-import { SingleSelectFilterDropdown } from '../components/SingleSelectFilterDropdown';
-import { TraeInstancesContent } from './TraeInstancesPage';
-import { useTraeAccountStore } from '../stores/useTraeAccountStore';
-import * as traeService from '../services/traeService';
-import type { TraePlatformId } from '../services/traeService';
-import type { TraeAccount } from '../types/trae';
+} from "../components/platform/PlatformOverviewTabsHeader";
+import { useProviderAccountsPage } from "../hooks/useProviderAccountsPage";
+import {
+  MultiSelectFilterDropdown,
+  type MultiSelectFilterOption,
+} from "../components/MultiSelectFilterDropdown";
+import { SingleSelectFilterDropdown } from "../components/SingleSelectFilterDropdown";
+import { TraeInstancesContent } from "./TraeInstancesPage";
+import { useTraeAccountStore } from "../stores/useTraeAccountStore";
+import * as traeService from "../services/traeService";
+import type { TraePlatformId } from "../services/traeService";
+import type { TraeAccount } from "../types/trae";
 import {
   getTraeAccountDisplayEmail,
   getTraeAccountDisplayName,
@@ -59,71 +59,66 @@ import {
   hasTraeQuotaData,
   isTraeCnAccountPlatform,
   TRAE_PRODUCT_TYPE,
-} from '../types/trae';
-import { compareCurrentAccountFirst } from '../utils/currentAccountSort';
+} from "../types/trae";
+import { compareCurrentAccountFirst } from "../utils/currentAccountSort";
 import {
   buildValidAccountsFilterOption,
   splitValidityFilterValues,
   VALID_ACCOUNTS_FILTER_VALUE,
-} from '../utils/accountValidityFilter';
+} from "../utils/accountValidityFilter";
 import {
   buildPaginatedGroups,
   buildPaginationPageSizeStorageKey,
   isEveryIdSelected,
   usePagination,
-} from '../hooks/usePagination';
+} from "../hooks/usePagination";
 import {
   normalizeAccountsOverviewScope,
   readAccountsOverviewFilterPersistenceEnabled,
   readAccountsOverviewFilterStringArray,
   removeAccountsOverviewFilterField,
   writeAccountsOverviewFilterField,
-} from '../utils/accountsOverviewFilterPersistence';
-import { TraeCheckinModal } from '../components/codebuddy-suite/TraeCheckinModal';
-import { TraeAutoCheckinConfigModal } from '../components/codebuddy-suite/TraeAutoCheckinConfigModal';
-import {
-  TraeAutoCheckinConfig,
-  getTraeAutoCheckinConfig,
-  saveTraeAutoCheckinConfig,
-} from '../services/traeAutoCheckinService';
+} from "../utils/accountsOverviewFilterPersistence";
+const FILTER_TYPES_FIELD = "filter_types";
+const TRAE_KNOWN_SORT_KEYS = ["created_at", "plan", "quota"] as const;
 
-const FILTER_TYPES_FIELD = 'filter_types';
-const TRAE_KNOWN_SORT_KEYS = ['created_at', 'plan', 'quota'] as const;
-
-const TRAE_PLATFORM_PAGE_CONFIG: Record<TraePlatformId, {
-  platformKey: string;
-  currentAccountIdKey: string;
-  flowNoticeCollapsedKey: string;
-  exportFilePrefix: string;
-  networkNoticeKey: string;
-}> = {
+const TRAE_PLATFORM_PAGE_CONFIG: Record<
+  TraePlatformId,
+  {
+    platformKey: string;
+    currentAccountIdKey: string;
+    flowNoticeCollapsedKey: string;
+    exportFilePrefix: string;
+    networkNoticeKey: string;
+  }
+> = {
   trae: {
-    platformKey: 'Trae',
-    currentAccountIdKey: 'agtools.trae.current_account_id',
-    flowNoticeCollapsedKey: 'agtools.trae.flow_notice_collapsed',
-    exportFilePrefix: 'trae_accounts',
-    networkNoticeKey: 'trae.flowNotice.networkGlobal',
+    platformKey: "Trae",
+    currentAccountIdKey: "agtools.trae.current_account_id",
+    flowNoticeCollapsedKey: "agtools.trae.flow_notice_collapsed",
+    exportFilePrefix: "trae_accounts",
+    networkNoticeKey: "trae.flowNotice.networkGlobal",
   },
   trae_solo: {
-    platformKey: 'TRAE SOLO',
-    currentAccountIdKey: 'agtools.trae_solo.current_account_id',
-    flowNoticeCollapsedKey: 'agtools.trae_solo.flow_notice_collapsed',
-    exportFilePrefix: 'trae_solo_accounts',
-    networkNoticeKey: 'trae.flowNotice.networkGlobal',
+    platformKey: "TRAE SOLO",
+    currentAccountIdKey: "agtools.trae_solo.current_account_id",
+    flowNoticeCollapsedKey: "agtools.trae_solo.flow_notice_collapsed",
+    exportFilePrefix: "trae_solo_accounts",
+    networkNoticeKey: "trae.flowNotice.networkGlobal",
   },
   trae_cn: {
-    platformKey: 'Trae CN',
-    currentAccountIdKey: 'agtools.trae_cn.current_account_id',
-    flowNoticeCollapsedKey: 'agtools.trae_cn.flow_notice_collapsed',
-    exportFilePrefix: 'trae_cn_accounts',
-    networkNoticeKey: 'trae.flowNotice.networkCn',
+    platformKey: "Trae CN",
+    currentAccountIdKey: "agtools.trae_cn.current_account_id",
+    flowNoticeCollapsedKey: "agtools.trae_cn.flow_notice_collapsed",
+    exportFilePrefix: "trae_cn_accounts",
+    networkNoticeKey: "trae.flowNotice.networkCn",
   },
   trae_solo_cn: {
-    platformKey: 'TRAE SOLO CN',
-    currentAccountIdKey: 'agtools.trae_solo_cn.current_account_id',
-    flowNoticeCollapsedKey: 'agtools.trae_solo_cn.flow_notice_collapsed',
-    exportFilePrefix: 'trae_solo_cn_accounts',
-    networkNoticeKey: 'trae.flowNotice.networkCn',
+    platformKey: "TRAE SOLO CN",
+    currentAccountIdKey: "agtools.trae_solo_cn.current_account_id",
+    flowNoticeCollapsedKey: "agtools.trae_solo_cn.flow_notice_collapsed",
+    exportFilePrefix: "trae_solo_cn_accounts",
+    networkNoticeKey: "trae.flowNotice.networkCn",
   },
 };
 
@@ -134,10 +129,10 @@ interface TraeAccountsPageProps {
 type TraeQuotaSummary = {
   percentage: number | null;
   percentageText: string;
-  quotaClass: 'high' | 'medium' | 'critical';
+  quotaClass: "high" | "medium" | "critical";
   costText: string;
   statusText: string;
-  statusTone: 'normal' | 'warning' | 'unknown';
+  statusTone: "normal" | "warning" | "unknown";
   bonusText: string;
   resetText: string;
   packageText: string;
@@ -145,23 +140,25 @@ type TraeQuotaSummary = {
 };
 
 function formatNumber(value: number | null | undefined): string {
-  if (value == null || !Number.isFinite(value)) return '--';
+  if (value == null || !Number.isFinite(value)) return "--";
   const hasDecimal = Math.abs(value - Math.trunc(value)) > 0.001;
-  return new Intl.NumberFormat('en-US', {
+  return new Intl.NumberFormat("en-US", {
     maximumFractionDigits: hasDecimal ? 2 : 0,
   }).format(value);
 }
 
-function computeQuotaClass(percent: number | null): 'high' | 'medium' | 'critical' {
-  if (percent == null) return 'high';
-  if (percent >= 90) return 'critical';
-  if (percent >= 70) return 'medium';
-  return 'high';
+function computeQuotaClass(
+  percent: number | null,
+): "high" | "medium" | "critical" {
+  if (percent == null) return "high";
+  if (percent >= 90) return "critical";
+  if (percent >= 70) return "medium";
+  return "high";
 }
 
 function formatTraeResetAt(timestamp: number): string {
   const date = new Date(timestamp * 1000);
-  const pad = (value: number) => String(value).padStart(2, '0');
+  const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}/${pad(date.getMonth() + 1)}/${pad(date.getDate())} ${pad(
     date.getHours(),
   )}:${pad(date.getMinutes())}`;
@@ -173,28 +170,41 @@ function formatTraeMoney(value: number | null | undefined): string {
 
 function getTraeAccountSwitchLabel(account: TraeAccount): string {
   const email = getTraeAccountDisplayEmail(account);
-  const label = email === 'unknown' ? getTraeAccountDisplayName(account) : email;
-  return label === 'unknown' ? (account.user_id || account.id) : label;
+  const label =
+    email === "unknown" ? getTraeAccountDisplayName(account) : email;
+  return label === "unknown" ? account.user_id || account.id : label;
 }
 
-export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps) {
+export function TraeAccountsPage({
+  platformId = "trae",
+}: TraeAccountsPageProps) {
   const platformConfig = TRAE_PLATFORM_PAGE_CONFIG[platformId];
   const filterPersistenceScopeSeed = platformConfig.platformKey;
-  const targetFilterPersistenceScope = normalizeAccountsOverviewScope(filterPersistenceScopeSeed);
-  const [activeTab, setActiveTab] = useState<PlatformOverviewTab>('overview');
+  const targetFilterPersistenceScope = normalizeAccountsOverviewScope(
+    filterPersistenceScopeSeed,
+  );
+  const [activeTab, setActiveTab] = useState<PlatformOverviewTab>("overview");
   const [filterTypes, setFilterTypes] = useState<string[]>(() =>
     readAccountsOverviewFilterPersistenceEnabled(targetFilterPersistenceScope)
-      ? readAccountsOverviewFilterStringArray(targetFilterPersistenceScope, FILTER_TYPES_FIELD)
+      ? readAccountsOverviewFilterStringArray(
+          targetFilterPersistenceScope,
+          FILTER_TYPES_FIELD,
+        )
       : [],
   );
-  const untaggedKey = '__untagged__';
+  const untaggedKey = "__untagged__";
 
   const store = useTraeAccountStore();
   const platformAccounts = useMemo(
-    () => store.accounts.filter((account) => getTraeAccountPlatformId(account) === platformId),
+    () =>
+      store.accounts.filter(
+        (account) => getTraeAccountPlatformId(account) === platformId,
+      ),
     [platformId, store.accounts],
   );
-  const [targetCurrentAccountId, setTargetCurrentAccountIdState] = useState<string | null>(() => {
+  const [targetCurrentAccountId, setTargetCurrentAccountIdState] = useState<
+    string | null
+  >(() => {
     try {
       const value = localStorage.getItem(platformConfig.currentAccountIdKey);
       return value && value.trim() ? value : null;
@@ -220,9 +230,14 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
   );
   const loadTargetCurrentAccountId = useCallback(async () => {
     try {
-      setTargetCurrentAccountId(await traeService.getTraeCurrentAccountId(platformId));
+      setTargetCurrentAccountId(
+        await traeService.getTraeCurrentAccountId(platformId),
+      );
     } catch (error) {
-      console.warn('[Trae Accounts] Failed to load target current account:', error);
+      console.warn(
+        "[Trae Accounts] Failed to load target current account:",
+        error,
+      );
       setTargetCurrentAccountId(null);
     }
   }, [platformId, setTargetCurrentAccountId]);
@@ -238,7 +253,8 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
       loading: store.loading,
       error: store.error,
       fetchAccounts: store.fetchAccounts,
-      fetchCurrentAccountId: () => traeService.getTraeCurrentAccountId(platformId),
+      fetchCurrentAccountId: () =>
+        traeService.getTraeCurrentAccountId(platformId),
       deleteAccounts: store.deleteAccounts,
       refreshToken: store.refreshToken,
       refreshAllTokens: store.refreshAllTokens,
@@ -268,14 +284,15 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
         return imported;
       },
       exportAccounts: traeService.exportTraeAccounts,
-      injectToVSCode: (accountId: string) => traeService.injectTraeAccount(accountId, platformId),
+      injectToVSCode: (accountId: string) =>
+        traeService.injectTraeAccount(accountId, platformId),
     }),
     [loadTargetCurrentAccountId, platformId],
   );
 
   const page = useProviderAccountsPage<TraeAccount>({
     platformKey: platformConfig.platformKey,
-    oauthLogPrefix: 'TraeOAuth',
+    oauthLogPrefix: "TraeOAuth",
     flowNoticeCollapsedKey: platformConfig.flowNoticeCollapsedKey,
     currentAccountIdKey: platformConfig.currentAccountIdKey,
     exportFilePrefix: platformConfig.exportFilePrefix,
@@ -287,7 +304,11 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
       cancelLogin: (loginId?: string) =>
         traeService.traeOauthLoginCancel(loginId, platformId),
       submitCallbackUrl: (loginId: string, callbackUrl: string) =>
-        traeService.traeOauthSubmitCallbackUrl(loginId, callbackUrl, platformId),
+        traeService.traeOauthSubmitCallbackUrl(
+          loginId,
+          callbackUrl,
+          platformId,
+        ),
     },
     dataService,
     getDisplayEmail: getTraeAccountSwitchLabel,
@@ -404,10 +425,17 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
-      removeAccountsOverviewFilterField(filterPersistenceScope, FILTER_TYPES_FIELD);
+      removeAccountsOverviewFilterField(
+        filterPersistenceScope,
+        FILTER_TYPES_FIELD,
+      );
       return;
     }
-    writeAccountsOverviewFilterField(filterPersistenceScope, FILTER_TYPES_FIELD, filterTypes);
+    writeAccountsOverviewFilterField(
+      filterPersistenceScope,
+      FILTER_TYPES_FIELD,
+      filterTypes,
+    );
   }, [filterPersistenceEnabled, filterPersistenceScope, filterTypes]);
 
   const toggleFilterTypeValue = useCallback((value: string) => {
@@ -427,7 +455,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
   const loading = store.loading;
 
   const isAbnormalAccount = useCallback(
-    (account: TraeAccount) => (account.status || '').toLowerCase() === 'error',
+    (account: TraeAccount) => (account.status || "").toLowerCase() === "error",
     [],
   );
 
@@ -445,7 +473,9 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
     return {
       all: accounts.length,
       validCount,
-      entries: Array.from(counts.entries()).sort(([left], [right]) => left.localeCompare(right)),
+      entries: Array.from(counts.entries()).sort(([left], [right]) =>
+        left.localeCompare(right),
+      ),
     };
   }, [accounts, isAbnormalAccount]);
 
@@ -471,25 +501,31 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
   const compareAccountsBySort = useCallback(
     (left: TraeAccount, right: TraeAccount) => {
-      const currentFirstDiff = compareCurrentAccountFirst(left.id, right.id, currentAccountId);
+      const currentFirstDiff = compareCurrentAccountFirst(
+        left.id,
+        right.id,
+        currentAccountId,
+      );
       if (currentFirstDiff !== 0) {
         return currentFirstDiff;
       }
 
-      if (sortBy === 'plan') {
-        const diff = getTraePlanBadge(left).localeCompare(getTraePlanBadge(right));
-        return sortDirection === 'desc' ? -diff : diff;
+      if (sortBy === "plan") {
+        const diff = getTraePlanBadge(left).localeCompare(
+          getTraePlanBadge(right),
+        );
+        return sortDirection === "desc" ? -diff : diff;
       }
 
-      if (sortBy === 'quota') {
+      if (sortBy === "quota") {
         const leftPercent = getTraeUsage(left).usedPercent ?? -1;
         const rightPercent = getTraeUsage(right).usedPercent ?? -1;
         const diff = leftPercent - rightPercent;
-        return sortDirection === 'desc' ? -diff : diff;
+        return sortDirection === "desc" ? -diff : diff;
       }
 
       const diff = left.created_at - right.created_at;
-      return sortDirection === 'desc' ? -diff : diff;
+      return sortDirection === "desc" ? -diff : diff;
     },
     [currentAccountId, sortBy, sortDirection],
   );
@@ -508,47 +544,66 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
         const searchText = [
           getTraeAccountDisplayName(account),
           getTraeAccountDisplayEmail(account),
-          getTraeLoginProvider(account) ?? '',
-          account.user_id ?? '',
-          account.nickname ?? '',
+          getTraeLoginProvider(account) ?? "",
+          account.user_id ?? "",
+          account.nickname ?? "",
           account.id,
           getTraePlanBadge(account),
         ]
-          .join(' ')
+          .join(" ")
           .toLowerCase();
         return searchText.includes(query);
       });
     }
 
     if (filterTypes.length > 0) {
-      const { requireValidAccounts, selectedTypes } = splitValidityFilterValues(filterTypes);
+      const { requireValidAccounts, selectedTypes } =
+        splitValidityFilterValues(filterTypes);
       if (requireValidAccounts) {
         result = result.filter((account) => !isAbnormalAccount(account));
       }
       if (selectedTypes.size > 0) {
-        result = result.filter((account) => selectedTypes.has(getTraePlanBadge(account)));
+        result = result.filter((account) =>
+          selectedTypes.has(getTraePlanBadge(account)),
+        );
       }
     }
 
     if (tagFilter.length > 0) {
       const selectedTags = new Set(tagFilter.map(normalizeTag));
       result = result.filter((account) =>
-        (account.tags || []).map(normalizeTag).some((tag) => selectedTags.has(tag)),
+        (account.tags || [])
+          .map(normalizeTag)
+          .some((tag) => selectedTags.has(tag)),
       );
     }
 
     result.sort(compareAccountsBySort);
     return result;
-  }, [accounts, compareAccountsBySort, filterTypes, isAbnormalAccount, normalizeTag, searchQuery, tagFilter]);
+  }, [
+    accounts,
+    compareAccountsBySort,
+    filterTypes,
+    isAbnormalAccount,
+    normalizeTag,
+    searchQuery,
+    tagFilter,
+  ]);
 
-  const filteredIds = useMemo(() => filteredAccounts.map((account) => account.id), [filteredAccounts]);
+  const filteredIds = useMemo(
+    () => filteredAccounts.map((account) => account.id),
+    [filteredAccounts],
+  );
   const exportSelectionCount = getScopedSelectedCount(filteredIds);
   const pagination = usePagination({
     items: filteredAccounts,
     storageKey: buildPaginationPageSizeStorageKey(platformConfig.platformKey),
   });
   const paginatedAccounts = pagination.pageItems;
-  const paginatedIds = useMemo(() => paginatedAccounts.map((account) => account.id), [paginatedAccounts]);
+  const paginatedIds = useMemo(
+    () => paginatedAccounts.map((account) => account.id),
+    [paginatedAccounts],
+  );
   const isAllPaginatedSelected = useMemo(
     () => isEveryIdSelected(selected, paginatedIds),
     [paginatedIds, selected],
@@ -561,7 +616,9 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
     const selectedTags = new Set(tagFilter.map(normalizeTag));
 
     filteredAccounts.forEach((account) => {
-      const normalizedTags = (account.tags || []).map(normalizeTag).filter(Boolean);
+      const normalizedTags = (account.tags || [])
+        .map(normalizeTag)
+        .filter(Boolean);
       const matchedTags =
         selectedTags.size > 0
           ? normalizedTags.filter((tag) => selectedTags.has(tag))
@@ -593,7 +650,9 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
   const resolveGroupLabel = useCallback(
     (groupKey: string) =>
-      groupKey === untaggedKey ? t('accounts.defaultGroup', '默认分组') : groupKey,
+      groupKey === untaggedKey
+        ? t("accounts.defaultGroup", "默认分组")
+        : groupKey,
     [t],
   );
 
@@ -601,26 +660,29 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
     (account: TraeAccount): TraeQuotaSummary => {
       const usage = getTraeUsage(account);
       const isCnAccount =
-        platformId === 'trae_cn' ||
-        platformId === 'trae_solo_cn' ||
+        platformId === "trae_cn" ||
+        platformId === "trae_solo_cn" ||
         isTraeCnAccountPlatform(account);
       const percentage =
-        typeof usage.usedPercent === 'number' && Number.isFinite(usage.usedPercent)
+        typeof usage.usedPercent === "number" &&
+        Number.isFinite(usage.usedPercent)
           ? Math.max(0, Math.min(100, Math.round(usage.usedPercent)))
           : null;
 
-      const isFreePlan = (usage.identityStr ?? account.plan_type ?? '')
+      const isFreePlan = (usage.identityStr ?? account.plan_type ?? "")
         .trim()
         .toLowerCase()
-        .includes('free');
+        .includes("free");
 
-      const hasUsageRaw = account.trae_usage_raw != null || account.trae_entitlement_raw != null;
+      const hasUsageRaw =
+        account.trae_usage_raw != null || account.trae_entitlement_raw != null;
       const hasFastRequest =
-        usage.usageModel === 'fast_request' && usage.fastRequestAvailable != null;
+        usage.usageModel === "fast_request" &&
+        usage.fastRequestAvailable != null;
       const formatFastTimes = (value: number) =>
         value === -1
-          ? t('trae.quota.fastUnlimited', '无限次')
-          : t('trae.quota.fastTimes', '{{count}} 次', {
+          ? t("trae.quota.fastUnlimited", "无限次")
+          : t("trae.quota.fastTimes", "{{count}} 次", {
               count: value,
             });
 
@@ -628,120 +690,132 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
       let costText: string;
       if (isCnAccount) {
         if (hasFastRequest) {
-          costText = t('trae.quota.fastAvailable', '速通可用 {{times}}', {
+          costText = t("trae.quota.fastAvailable", "速通可用 {{times}}", {
             times: formatFastTimes(usage.fastRequestAvailable ?? 0),
           });
         } else if ((usage.fastRequestPerMonth ?? 0) > 0) {
-          costText = t('trae.quota.fastPerMonth', '快请求/月：{{count}}', {
+          costText = t("trae.quota.fastPerMonth", "快请求/月：{{count}}", {
             count: usage.fastRequestPerMonth ?? 0,
           });
         } else if (isFreePlan) {
           costText = hasUsageRaw
-            ? t('trae.quota.freeRemainingUnknown', '免费剩余：--')
-            : t('trae.quota.usageUnknown', 'Usage: --');
-        } else if (usage.spentUsd != null && usage.totalUsd != null && (usage.totalUsd ?? 0) > 0) {
-          costText = t('trae.quota.usedOfTotal', {
+            ? t("trae.quota.freeRemainingUnknown", "免费剩余：--")
+            : t("trae.quota.usageUnknown", "Usage: --");
+        } else if (
+          usage.spentUsd != null &&
+          usage.totalUsd != null &&
+          (usage.totalUsd ?? 0) > 0
+        ) {
+          costText = t("trae.quota.usedOfTotal", {
             used: formatNumber(usage.spentUsd),
             total: formatNumber(usage.totalUsd),
-            defaultValue: '${{used}} / ${{total}}',
+            defaultValue: "${{used}} / ${{total}}",
           });
         } else {
           costText = hasUsageRaw
-            ? t('trae.quota.timesRemainingUnknown', '剩余次数：--')
-            : t('trae.quota.usageUnknown', 'Usage: --');
+            ? t("trae.quota.timesRemainingUnknown", "剩余次数：--")
+            : t("trae.quota.usageUnknown", "Usage: --");
         }
       } else {
         costText =
           usage.spentUsd != null && usage.totalUsd != null
-            ? t('trae.quota.usedOfTotal', {
+            ? t("trae.quota.usedOfTotal", {
                 used: formatNumber(usage.spentUsd),
                 total: formatNumber(usage.totalUsd),
-                defaultValue: '${{used}} / ${{total}}',
+                defaultValue: "${{used}} / ${{total}}",
               })
-            : t('trae.quota.usageUnknown', 'Usage: --');
+            : t("trae.quota.usageUnknown", "Usage: --");
       }
 
-      const statusTone: TraeQuotaSummary['statusTone'] = !hasUsageRaw
-        ? 'unknown'
+      const statusTone: TraeQuotaSummary["statusTone"] = !hasUsageRaw
+        ? "unknown"
         : isCnAccount
           ? hasFastRequest
             ? usage.usageExhausted
-              ? 'warning'
-              : 'normal'
-            : 'unknown'
+              ? "warning"
+              : "normal"
+            : "unknown"
           : usage.usageExhausted
             ? usage.payAsYouGoOpen && !isFreePlan
-              ? 'normal'
-              : 'warning'
-            : 'normal';
+              ? "normal"
+              : "warning"
+            : "normal";
 
       const statusText = !hasUsageRaw
-        ? t('trae.quota.statusUnknown', 'Status: --')
+        ? t("trae.quota.statusUnknown", "Status: --")
         : isCnAccount
           ? hasFastRequest
             ? usage.usageExhausted
-              ? t('trae.quota.statusExhaustedFree', 'Status: Usage exhausted, upgrade recommended')
-              : t('trae.quota.statusSynced', '状态：已同步')
-            : t('trae.quota.statusSyncedPending', '状态：已同步，剩余额待确认')
+              ? t(
+                  "trae.quota.statusExhaustedFree",
+                  "Status: Usage exhausted, upgrade recommended",
+                )
+              : t("trae.quota.statusSynced", "状态：已同步")
+            : t("trae.quota.statusSyncedPending", "状态：已同步，剩余额待确认")
           : usage.usageExhausted
             ? isFreePlan
               ? t(
-                  'trae.quota.statusExhaustedFree',
-                  'Status: Usage exhausted, upgrade recommended',
+                  "trae.quota.statusExhaustedFree",
+                  "Status: Usage exhausted, upgrade recommended",
                 )
               : usage.payAsYouGoOpen
-                ? t('trae.quota.statusNormal', 'Status: Normal')
+                ? t("trae.quota.statusNormal", "Status: Normal")
                 : t(
-                    'trae.quota.statusExhaustedPro',
-                    'Status: Usage exhausted, upgrade or enable on-demand usage',
+                    "trae.quota.statusExhaustedPro",
+                    "Status: Usage exhausted, upgrade or enable on-demand usage",
                   )
-            : t('trae.quota.statusNormal', 'Status: Normal');
+            : t("trae.quota.statusNormal", "Status: Normal");
 
       const bonusText = isCnAccount
         ? hasFastRequest
-          ? ''
+          ? ""
           : (usage.fastRequestPerMonth ?? 0) > 0
-            ? t('trae.quota.fastChannelPerMonth', '快通道: {{count}}/月', {
+            ? t("trae.quota.fastChannelPerMonth", "快通道: {{count}}/月", {
                 count: usage.fastRequestPerMonth ?? 0,
               })
             : usage.canGetExpressStatus != null
-              ? t('trae.quota.fastChannelStatus', '快通道: {{status}}', {
+              ? t("trae.quota.fastChannelStatus", "快通道: {{status}}", {
                   status: usage.canGetExpressStatus,
                 })
-              : t('trae.quota.bonusEmpty', 'Bonus: --')
+              : t("trae.quota.bonusEmpty", "Bonus: --")
         : (usage.bonusUsage ?? 0) > 0
-          ? t('trae.quota.bonusUsed', {
+          ? t("trae.quota.bonusUsed", {
               amount: formatTraeMoney(usage.bonusUsage),
-              defaultValue: 'Bonus: +{{amount}}',
+              defaultValue: "Bonus: +{{amount}}",
             })
           : (usage.bonusQuota ?? 0) > 0
-            ? t('trae.quota.bonusIncluded', 'Bonus: Included')
-            : t('trae.quota.bonusEmpty', 'Bonus: --');
+            ? t("trae.quota.bonusIncluded", "Bonus: Included")
+            : t("trae.quota.bonusEmpty", "Bonus: --");
 
       const packageText = isCnAccount
         ? usage.hasSoloPackage || usage.hasPackage
           ? usage.soloParallelLimit != null
-            ? t('trae.quota.soloParallel', '权益包: Solo 并发 {{count}}', {
+            ? t("trae.quota.soloParallel", "权益包: Solo 并发 {{count}}", {
                 count: usage.soloParallelLimit,
               })
-            : t('trae.quota.packageAvailable', 'Package: Available')
-          : t('trae.quota.packageEmpty', 'Package: --')
+            : t("trae.quota.packageAvailable", "Package: Available")
+          : t("trae.quota.packageEmpty", "Package: --")
         : usage.hasPackage
           ? usage.consumingProductType === TRAE_PRODUCT_TYPE.PACKAGE
-            ? t('trae.quota.packageConsuming', 'Package: Consuming')
-            : t('trae.quota.packageAvailable', 'Package: Available')
-          : t('trae.quota.packageEmpty', 'Package: --');
+            ? t("trae.quota.packageConsuming", "Package: Consuming")
+            : t("trae.quota.packageAvailable", "Package: Available")
+          : t("trae.quota.packageEmpty", "Package: --");
 
       return {
-        percentage: isCnAccount && !hasFastRequest && usage.usageModel !== 'usd' ? null : percentage,
+        percentage:
+          isCnAccount && !hasFastRequest && usage.usageModel !== "usd"
+            ? null
+            : percentage,
         percentageText:
-          isCnAccount && !hasFastRequest && usage.usageModel !== 'usd'
-            ? '--'
+          isCnAccount && !hasFastRequest && usage.usageModel !== "usd"
+            ? "--"
             : percentage == null
-              ? '--'
+              ? "--"
               : `${percentage}%`,
         quotaClass: computeQuotaClass(
-          isCnAccount && !hasFastRequest && usage.usageModel !== 'usd' ? null : percentage,
+          isCnAccount && !hasFastRequest && usage.usageModel !== "usd"
+            ? null
+            : percentage,
         ),
         costText,
         statusText,
@@ -749,19 +823,24 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
         bonusText,
         resetText:
           (usage.resetAt ?? account.plan_reset_at ?? null) != null
-            ? t('trae.quota.resetAt', {
-                date: formatTraeResetAt(usage.resetAt ?? account.plan_reset_at ?? 0),
-                defaultValue: '重置时间：{{date}}',
+            ? t("trae.quota.resetAt", {
+                date: formatTraeResetAt(
+                  usage.resetAt ?? account.plan_reset_at ?? 0,
+                ),
+                defaultValue: "重置时间：{{date}}",
               })
-            : t('trae.quota.resetUnknown', '重置时间未知'),
+            : t("trae.quota.resetUnknown", "重置时间未知"),
         packageText,
         payAsYouGoText: isCnAccount
-          ? t('trae.quota.payAsYouGoEmpty', 'On-Demand Usage: --')
+          ? t("trae.quota.payAsYouGoEmpty", "On-Demand Usage: --")
           : usage.payAsYouGoOpen
             ? usage.consumingProductType === TRAE_PRODUCT_TYPE.PAY_GO
-              ? t('trae.quota.payAsYouGoConsuming', 'On-Demand Usage: Consuming')
-              : t('trae.quota.payAsYouGoEnabled', 'On-Demand Usage: Enabled')
-            : t('trae.quota.payAsYouGoEmpty', 'On-Demand Usage: --'),
+              ? t(
+                  "trae.quota.payAsYouGoConsuming",
+                  "On-Demand Usage: Consuming",
+                )
+              : t("trae.quota.payAsYouGoEnabled", "On-Demand Usage: Enabled")
+            : t("trae.quota.payAsYouGoEmpty", "On-Demand Usage: --"),
       };
     },
     [platformId, t],
@@ -779,10 +858,12 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
   const resolveSignedInWithText = useCallback(
     (account: TraeAccount) => {
-      const provider = getTraeLoginProvider(account) ?? t('kiro.account.providerUnknown', 'Unknown');
-      return t('kiro.account.signedInWith', {
+      const provider =
+        getTraeLoginProvider(account) ??
+        t("kiro.account.providerUnknown", "Unknown");
+      return t("kiro.account.signedInWith", {
         provider,
-        defaultValue: 'Signed in with {{provider}}',
+        defaultValue: "Signed in with {{provider}}",
       });
     },
     [t],
@@ -791,7 +872,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
   const resolveSingleExportBaseName = useCallback(
     (account: TraeAccount) => {
       const display = resolveDisplayEmail(account);
-      const atIndex = display.indexOf('@');
+      const atIndex = display.indexOf("@");
       return atIndex > 0 ? display.slice(0, atIndex) : display;
     },
     [resolveDisplayEmail],
@@ -803,22 +884,33 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
   );
 
   const renderCompactQuota = useCallback(
-    (quota: TraeQuotaSummary, variant: 'card' | 'table' = 'card') => {
-      const labelClass = variant === 'table' ? 'quota-name' : 'quota-label';
-      const valueClass = variant === 'table' ? 'quota-value' : 'quota-pct';
-      const trackClass = variant === 'table' ? 'quota-progress-track' : 'quota-bar-track';
-      const barClass = variant === 'table' ? 'quota-progress-bar' : 'quota-bar';
-      const metaPills = [quota.bonusText, quota.packageText, quota.payAsYouGoText];
+    (quota: TraeQuotaSummary, variant: "card" | "table" = "card") => {
+      const labelClass = variant === "table" ? "quota-name" : "quota-label";
+      const valueClass = variant === "table" ? "quota-value" : "quota-pct";
+      const trackClass =
+        variant === "table" ? "quota-progress-track" : "quota-bar-track";
+      const barClass = variant === "table" ? "quota-progress-bar" : "quota-bar";
+      const metaPills = [
+        quota.bonusText,
+        quota.packageText,
+        quota.payAsYouGoText,
+      ];
 
       return (
-        <div className={`quota-item trae-compact-quota ${variant === 'table' ? 'is-table windsurf-table-credit-item' : 'is-card'}`}>
+        <div
+          className={`quota-item trae-compact-quota ${variant === "table" ? "is-table windsurf-table-credit-item" : "is-card"}`}
+        >
           <div className="quota-header trae-compact-quota-header">
-            <span className={labelClass}>{t('instances.labels.quota', '配额')}</span>
+            <span className={labelClass}>
+              {t("instances.labels.quota", "配额")}
+            </span>
             <div className="trae-compact-quota-main">
               <span className="trae-compact-quota-total" title={quota.costText}>
                 {quota.costText}
               </span>
-              <span className={`${valueClass} ${quota.quotaClass}`}>{quota.percentageText}</span>
+              <span className={`${valueClass} ${quota.quotaClass}`}>
+                {quota.percentageText}
+              </span>
             </div>
           </div>
           <div className={trackClass}>
@@ -828,7 +920,10 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
             />
           </div>
           <div className="trae-compact-quota-meta-row">
-            <span className={`trae-compact-quota-status ${quota.statusTone}`} title={quota.statusText}>
+            <span
+              className={`trae-compact-quota-status ${quota.statusTone}`}
+              title={quota.statusText}
+            >
               {quota.statusText}
             </span>
             <span className="trae-compact-quota-reset" title={quota.resetText}>
@@ -837,7 +932,11 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
           </div>
           <div className="trae-compact-quota-pills">
             {metaPills.map((text, index) => (
-              <span key={`${variant}-meta-${index}`} className="pill pill-secondary trae-compact-quota-pill" title={text}>
+              <span
+                key={`${variant}-meta-${index}`}
+                className="pill pill-secondary trae-compact-quota-pill"
+                title={text}
+              >
                 {text}
               </span>
             ))}
@@ -853,26 +952,34 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
       items.map((account) => {
         const displayName = resolveDisplayName(account);
         const displayEmail = resolveDisplayEmail(account);
-        const showDisplayEmail = displayEmail !== 'unknown' && displayEmail !== displayName;
+        const showDisplayEmail =
+          displayEmail !== "unknown" && displayEmail !== displayName;
         const quota = resolveQuotaSummary(account);
         const planLabel = resolvePlanLabel(account);
         const planClass = getTraePlanBadgeClass(planLabel);
-        const accountTags = (account.tags || []).map((tag) => tag.trim()).filter(Boolean);
+        const accountTags = (account.tags || [])
+          .map((tag) => tag.trim())
+          .filter(Boolean);
         const visibleTags = accountTags.slice(0, 2);
-        const moreTagCount = Math.max(0, accountTags.length - visibleTags.length);
+        const moreTagCount = Math.max(
+          0,
+          accountTags.length - visibleTags.length,
+        );
         const isSelected = selected.has(account.id);
         const isCurrent = currentAccountId === account.id;
-        const hasStatusError = (account.status || '').toLowerCase() === 'error';
-        const statusTitle = account.status_reason || t('accounts.status.refreshFailed', '刷新失败');
+        const hasStatusError = (account.status || "").toLowerCase() === "error";
+        const statusTitle =
+          account.status_reason ||
+          t("accounts.status.refreshFailed", "刷新失败");
         const signedInWithText = resolveSignedInWithText(account);
-        const userIdText = account.user_id || '--';
+        const userIdText = account.user_id || "--";
         const quotaError = account.quota_query_last_error?.trim();
         const hasQuotaData = hasTraeQuotaData(account);
 
         return (
           <div
             key={groupKey ? `${groupKey}-${account.id}` : account.id}
-            className={`ghcp-account-card ${isCurrent ? 'current' : ''} ${isSelected ? 'selected' : ''}`}
+            className={`ghcp-account-card ${isCurrent ? "current" : ""} ${isSelected ? "selected" : ""}`}
           >
             <div className="card-top">
               <div className="card-select">
@@ -882,25 +989,32 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                   onChange={() => toggleSelect(account.id)}
                 />
               </div>
-              <span className="account-email" title={maskAccountText(displayName)}>
+              <span
+                className="account-email"
+                title={maskAccountText(displayName)}
+              >
                 {maskAccountText(displayName)}
               </span>
-              {planLabel && planLabel !== 'UNKNOWN' && (
-                <span className={`tier-badge ${planClass} raw-value`}>{planLabel}</span>
+              {planLabel && planLabel !== "UNKNOWN" && (
+                <span className={`tier-badge ${planClass} raw-value`}>
+                  {planLabel}
+                </span>
               )}
               {isCurrent && (
-                <span className="current-tag">{t('accounts.status.current', '当前')}</span>
+                <span className="current-tag">
+                  {t("accounts.status.current", "当前")}
+                </span>
               )}
               {hasStatusError && (
                 <span className="status-pill warning" title={statusTitle}>
                   <CircleAlert size={12} />
-                  {t('accounts.status.refreshFailed', '刷新失败')}
+                  {t("accounts.status.refreshFailed", "刷新失败")}
                 </span>
               )}
               {quotaError && (
                 <span className="status-pill warning" title={quotaError}>
                   <CircleAlert size={12} />
-                  {t('common.shared.quota.queryFailed', '配额查询失败')}
+                  {t("common.shared.quota.queryFailed", "配额查询失败")}
                 </span>
               )}
             </div>
@@ -910,40 +1024,50 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                 {showDisplayEmail && (
                   <>
                     {maskAccountText(displayEmail)}
-                    {' | '}
+                    {" | "}
                   </>
                 )}
-                {signedInWithText} | {t('kiro.account.userId', 'User ID')}: {maskAccountText(userIdText)}
+                {signedInWithText} | {t("kiro.account.userId", "User ID")}:{" "}
+                {maskAccountText(userIdText)}
               </span>
             </div>
 
             {accountTags.length > 0 && (
               <div className="card-tags">
                 {visibleTags.map((tag, index) => (
-                  <span key={`${account.id}-${tag}-${index}`} className="tag-pill">
+                  <span
+                    key={`${account.id}-${tag}-${index}`}
+                    className="tag-pill"
+                  >
                     {tag}
                   </span>
                 ))}
-                {moreTagCount > 0 && <span className="tag-pill more">+{moreTagCount}</span>}
+                {moreTagCount > 0 && (
+                  <span className="tag-pill more">+{moreTagCount}</span>
+                )}
               </div>
             )}
 
             <div className="ghcp-quota-section">
               {hasQuotaData ? (
-                renderCompactQuota(quota, 'card')
+                renderCompactQuota(quota, "card")
               ) : (
-                <div className="quota-empty">{t('common.shared.quota.noData', '暂无配额数据')}</div>
+                <div className="quota-empty">
+                  {t("common.shared.quota.noData", "暂无配额数据")}
+                </div>
               )}
             </div>
 
             <div className="card-footer">
-              <span className="card-date">{formatDate(account.created_at)}</span>
+              <span className="card-date">
+                {formatDate(account.created_at)}
+              </span>
               <div className="card-actions">
                 <button
                   className="card-action-btn success"
                   onClick={() => handleInjectToVSCode?.(account.id)}
                   disabled={injecting === account.id}
-                  title={t('dashboard.switch', '切换')}
+                  title={t("dashboard.switch", "切换")}
                 >
                   {injecting === account.id ? (
                     <RefreshCw size={14} className="loading-spinner" />
@@ -954,7 +1078,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                 <button
                   className="card-action-btn"
                   onClick={() => openTagModal(account.id)}
-                  title={t('accounts.editTags', '编辑标签')}
+                  title={t("accounts.editTags", "编辑标签")}
                 >
                   <Tag size={14} />
                 </button>
@@ -962,26 +1086,31 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                   className="card-action-btn"
                   onClick={() => handleRefresh(account.id)}
                   disabled={refreshing === account.id}
-                  title={t('common.refresh', '刷新')}
+                  title={t("common.refresh", "刷新")}
                 >
                   <RotateCw
                     size={14}
-                    className={refreshing === account.id ? 'loading-spinner' : ''}
+                    className={
+                      refreshing === account.id ? "loading-spinner" : ""
+                    }
                   />
                 </button>
                 <button
                   className="card-action-btn export-btn"
                   onClick={() =>
-                    handleExportByIds([account.id], resolveSingleExportBaseName(account))
+                    handleExportByIds(
+                      [account.id],
+                      resolveSingleExportBaseName(account),
+                    )
                   }
-                  title={t('common.shared.export.title', '导出')}
+                  title={t("common.shared.export.title", "导出")}
                 >
                   <Upload size={14} />
                 </button>
                 <button
                   className="card-action-btn danger"
                   onClick={() => handleDelete(account.id)}
-                  title={t('common.delete', '删除')}
+                  title={t("common.delete", "删除")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -1019,23 +1148,34 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
       items.map((account) => {
         const displayName = resolveDisplayName(account);
         const displayEmail = resolveDisplayEmail(account);
-        const showDisplayEmail = displayEmail !== 'unknown' && displayEmail !== displayName;
+        const showDisplayEmail =
+          displayEmail !== "unknown" && displayEmail !== displayName;
         const quota = resolveQuotaSummary(account);
         const planLabel = resolvePlanLabel(account);
         const planClass = getTraePlanBadgeClass(planLabel);
-        const accountTags = (account.tags || []).map((tag) => tag.trim()).filter(Boolean);
+        const accountTags = (account.tags || [])
+          .map((tag) => tag.trim())
+          .filter(Boolean);
         const visibleTags = accountTags.slice(0, 3);
-        const moreTagCount = Math.max(0, accountTags.length - visibleTags.length);
+        const moreTagCount = Math.max(
+          0,
+          accountTags.length - visibleTags.length,
+        );
         const isCurrent = currentAccountId === account.id;
-        const hasStatusError = (account.status || '').toLowerCase() === 'error';
-        const statusTitle = account.status_reason || t('accounts.status.refreshFailed', '刷新失败');
+        const hasStatusError = (account.status || "").toLowerCase() === "error";
+        const statusTitle =
+          account.status_reason ||
+          t("accounts.status.refreshFailed", "刷新失败");
         const signedInWithText = resolveSignedInWithText(account);
-        const userIdText = account.user_id || '--';
+        const userIdText = account.user_id || "--";
         const quotaError = account.quota_query_last_error?.trim();
         const hasQuotaData = hasTraeQuotaData(account);
 
         return (
-          <tr key={groupKey ? `${groupKey}-${account.id}` : account.id} className={isCurrent ? 'current' : ''}>
+          <tr
+            key={groupKey ? `${groupKey}-${account.id}` : account.id}
+            className={isCurrent ? "current" : ""}
+          >
             <td>
               <input
                 type="checkbox"
@@ -1046,21 +1186,28 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
             <td>
               <div className="account-cell">
                 <div className="account-main-line">
-                  <span className="account-email-text" title={maskAccountText(displayName)}>
+                  <span
+                    className="account-email-text"
+                    title={maskAccountText(displayName)}
+                  >
                     {maskAccountText(displayName)}
                   </span>
-                  {planLabel && planLabel !== 'UNKNOWN' && (
-                    <span className={`tier-badge ${planClass} raw-value`}>{planLabel}</span>
+                  {planLabel && planLabel !== "UNKNOWN" && (
+                    <span className={`tier-badge ${planClass} raw-value`}>
+                      {planLabel}
+                    </span>
                   )}
                   {isCurrent && (
-                    <span className="mini-tag current">{t('accounts.status.current', '当前')}</span>
+                    <span className="mini-tag current">
+                      {t("accounts.status.current", "当前")}
+                    </span>
                   )}
                 </div>
                 {hasStatusError && (
                   <div className="account-sub-line">
                     <span className="status-pill warning" title={statusTitle}>
                       <CircleAlert size={12} />
-                      {t('accounts.status.refreshFailed', '刷新失败')}
+                      {t("accounts.status.refreshFailed", "刷新失败")}
                     </span>
                   </div>
                 )}
@@ -1068,7 +1215,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                   <div className="account-sub-line">
                     <span className="status-pill warning" title={quotaError}>
                       <CircleAlert size={12} />
-                      {t('common.shared.quota.queryFailed', '配额查询失败')}
+                      {t("common.shared.quota.queryFailed", "配额查询失败")}
                     </span>
                   </div>
                 )}
@@ -1077,29 +1224,37 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                     {showDisplayEmail && (
                       <>
                         {maskAccountText(displayEmail)}
-                        {' | '}
+                        {" | "}
                       </>
                     )}
-                    {signedInWithText} | {t('kiro.account.userId', 'User ID')}: {maskAccountText(userIdText)}
+                    {signedInWithText} | {t("kiro.account.userId", "User ID")}:{" "}
+                    {maskAccountText(userIdText)}
                   </span>
                 </div>
                 {accountTags.length > 0 && (
                   <div className="account-tags-inline">
                     {visibleTags.map((tag, index) => (
-                      <span key={`${account.id}-tag-${tag}-${index}`} className="tag-pill">
+                      <span
+                        key={`${account.id}-tag-${tag}-${index}`}
+                        className="tag-pill"
+                      >
                         {tag}
                       </span>
                     ))}
-                    {moreTagCount > 0 && <span className="tag-pill more">+{moreTagCount}</span>}
+                    {moreTagCount > 0 && (
+                      <span className="tag-pill more">+{moreTagCount}</span>
+                    )}
                   </div>
                 )}
               </div>
             </td>
             <td>
               {hasQuotaData ? (
-                renderCompactQuota(quota, 'table')
+                renderCompactQuota(quota, "table")
               ) : (
-                <div className="quota-empty">{t('common.shared.quota.noData', '暂无配额数据')}</div>
+                <div className="quota-empty">
+                  {t("common.shared.quota.noData", "暂无配额数据")}
+                </div>
               )}
             </td>
             <td>{formatDate(account.created_at)}</td>
@@ -1109,7 +1264,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                   className="action-btn success"
                   onClick={() => handleInjectToVSCode?.(account.id)}
                   disabled={injecting === account.id}
-                  title={t('dashboard.switch', '切换')}
+                  title={t("dashboard.switch", "切换")}
                 >
                   {injecting === account.id ? (
                     <RefreshCw size={14} className="loading-spinner" />
@@ -1120,7 +1275,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                 <button
                   className="action-btn"
                   onClick={() => openTagModal(account.id)}
-                  title={t('accounts.editTags', '编辑标签')}
+                  title={t("accounts.editTags", "编辑标签")}
                 >
                   <Tag size={14} />
                 </button>
@@ -1128,26 +1283,31 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                   className="action-btn"
                   onClick={() => handleRefresh(account.id)}
                   disabled={refreshing === account.id}
-                  title={t('common.refresh', '刷新')}
+                  title={t("common.refresh", "刷新")}
                 >
                   <RotateCw
                     size={14}
-                    className={refreshing === account.id ? 'loading-spinner' : ''}
+                    className={
+                      refreshing === account.id ? "loading-spinner" : ""
+                    }
                   />
                 </button>
                 <button
                   className="action-btn"
                   onClick={() =>
-                    handleExportByIds([account.id], resolveSingleExportBaseName(account))
+                    handleExportByIds(
+                      [account.id],
+                      resolveSingleExportBaseName(account),
+                    )
                   }
-                  title={t('common.shared.export.title', '导出')}
+                  title={t("common.shared.export.title", "导出")}
                 >
                   <Upload size={14} />
                 </button>
                 <button
                   className="action-btn danger"
                   onClick={() => handleDelete(account.id)}
-                  title={t('common.delete', '删除')}
+                  title={t("common.delete", "删除")}
                 >
                   <Trash2 size={14} />
                 </button>
@@ -1190,7 +1350,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
       />
 
       <div
-        className={`ghcp-flow-notice ${isFlowNoticeCollapsed ? 'collapsed' : ''}`}
+        className={`ghcp-flow-notice ${isFlowNoticeCollapsed ? "collapsed" : ""}`}
         role="note"
         aria-live="polite"
       >
@@ -1203,61 +1363,57 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
           <div className="ghcp-flow-notice-title">
             <CircleAlert size={16} />
             <span>
-              {t('trae.flowNotice.titleWithPlatform', {
+              {t("trae.flowNotice.titleWithPlatform", {
                 platform: platformConfig.platformKey,
-                defaultValue: '{{platform}} 账号接入说明（点击展开/收起）',
+                defaultValue: "{{platform}} 账号接入说明（点击展开/收起）",
               })}
             </span>
           </div>
           <ChevronDown
             size={16}
-            className={`ghcp-flow-notice-arrow ${isFlowNoticeCollapsed ? 'collapsed' : ''}`}
+            className={`ghcp-flow-notice-arrow ${isFlowNoticeCollapsed ? "collapsed" : ""}`}
           />
         </button>
         {!isFlowNoticeCollapsed && (
           <div className="ghcp-flow-notice-body">
             <div className="ghcp-flow-notice-desc">
-              {t(
-                'trae.flowNotice.descWithPlatform',
-                {
-                  platform: platformConfig.platformKey,
-                  defaultValue:
-                    '支持 {{platform}} 官方 OAuth 授权、本机导入、JSON 导入与本地注入切号；切号过程按 {{platform}} 客户端真实落盘规则写回。',
-                },
-              )}
+              {t("trae.flowNotice.descWithPlatform", {
+                platform: platformConfig.platformKey,
+                defaultValue:
+                  "支持 {{platform}} 官方 OAuth 授权、本机导入、JSON 导入与本地注入切号；切号过程按 {{platform}} 客户端真实落盘规则写回。",
+              })}
             </div>
             <ul className="ghcp-flow-notice-list">
               <li>
-                {t(
-                  'trae.flowNotice.permissionWithPlatform',
-                  {
-                    platform: platformConfig.platformKey,
-                    defaultValue:
-                      '权限范围：读取并写入本机 {{platform}} 配置目录中的 storage.json 登录相关字段，用于账号导入、切号注入与套餐信息展示；所有数据仅在本机处理。',
-                  },
-                )}
+                {t("trae.flowNotice.permissionWithPlatform", {
+                  platform: platformConfig.platformKey,
+                  defaultValue:
+                    "权限范围：读取并写入本机 {{platform}} 配置目录中的 storage.json 登录相关字段，用于账号导入、切号注入与套餐信息展示；所有数据仅在本机处理。",
+                })}
               </li>
               <li>
-                {t(
-                  platformConfig.networkNoticeKey,
-                  {
-                    platform: platformConfig.platformKey,
-                    defaultValue:
-                      '网络范围：{{platform}} OAuth 登录、令牌刷新和套餐查询会请求 Trae 官方接口；不会向第三方服务上传本地账号文件或原始存储内容。',
-                  },
-                )}
+                {t(platformConfig.networkNoticeKey, {
+                  platform: platformConfig.platformKey,
+                  defaultValue:
+                    "网络范围：{{platform}} OAuth 登录、令牌刷新和套餐查询会请求 Trae 官方接口；不会向第三方服务上传本地账号文件或原始存储内容。",
+                })}
               </li>
             </ul>
           </div>
         )}
       </div>
 
-      {activeTab === 'overview' && (
+      {activeTab === "overview" && (
         <>
           {message && (
-            <div className={`message-bar ${message.tone === 'error' ? 'error' : 'success'}`}>
+            <div
+              className={`message-bar ${message.tone === "error" ? "error" : "success"}`}
+            >
               {message.text}
-              <button onClick={() => setMessage(null)} aria-label={t('common.close', '关闭')}>
+              <button
+                onClick={() => setMessage(null)}
+                aria-label={t("common.close", "关闭")}
+              >
                 <X size={14} />
               </button>
             </div>
@@ -1269,7 +1425,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                 <Search size={16} className="search-icon" />
                 <input
                   type="text"
-                  placeholder={t('common.shared.search')}
+                  placeholder={t("common.shared.search")}
                   value={searchQuery}
                   onChange={(event) => setSearchQuery(event.target.value)}
                 />
@@ -1277,16 +1433,16 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
               <div className="view-switcher">
                 <button
-                  className={`view-btn ${viewMode === 'list' ? 'active' : ''}`}
-                  onClick={() => setViewMode('list')}
-                  title={t('common.shared.view.list', '列表视图')}
+                  className={`view-btn ${viewMode === "list" ? "active" : ""}`}
+                  onClick={() => setViewMode("list")}
+                  title={t("common.shared.view.list", "列表视图")}
                 >
                   <List size={16} />
                 </button>
                 <button
-                  className={`view-btn ${viewMode === 'grid' ? 'active' : ''}`}
-                  onClick={() => setViewMode('grid')}
-                  title={t('common.shared.view.grid', '卡片视图')}
+                  className={`view-btn ${viewMode === "grid" ? "active" : ""}`}
+                  onClick={() => setViewMode("grid")}
+                  title={t("common.shared.view.grid", "卡片视图")}
                 >
                   <LayoutGrid size={16} />
                 </button>
@@ -1295,11 +1451,13 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
               <MultiSelectFilterDropdown
                 options={tierFilterOptions}
                 selectedValues={filterTypes}
-                allLabel={t('common.shared.filter.all', '全部 ({{count}})', { count: tierSummary.all })}
-                filterLabel={t('common.shared.filterLabel', '筛选')}
-                clearLabel={t('accounts.clearFilter', '清空筛选')}
-                emptyLabel={t('common.none', '暂无')}
-                ariaLabel={t('common.shared.filterLabel', '筛选')}
+                allLabel={t("common.shared.filter.all", "全部 ({{count}})", {
+                  count: tierSummary.all,
+                })}
+                filterLabel={t("common.shared.filterLabel", "筛选")}
+                clearLabel={t("accounts.clearFilter", "清空筛选")}
+                emptyLabel={t("common.none", "暂无")}
+                ariaLabel={t("common.shared.filterLabel", "筛选")}
                 onToggleValue={toggleFilterTypeValue}
                 onClear={clearFilterTypes}
               />
@@ -1307,30 +1465,33 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
               <div className="tag-filter" ref={tagFilterRef}>
                 <button
                   type="button"
-                  className={`tag-filter-btn ${tagFilter.length > 0 ? 'active' : ''}`}
+                  className={`tag-filter-btn ${tagFilter.length > 0 ? "active" : ""}`}
                   onClick={() => setShowTagFilter((prev) => !prev)}
-                  aria-label={t('accounts.filterTags', '标签筛选')}
+                  aria-label={t("accounts.filterTags", "标签筛选")}
                 >
                   <Tag size={14} />
                   {tagFilter.length > 0
-                    ? `${t('accounts.filterTagsCount', '标签')}(${tagFilter.length})`
-                    : t('accounts.filterTags', '标签筛选')}
+                    ? `${t("accounts.filterTagsCount", "标签")}(${tagFilter.length})`
+                    : t("accounts.filterTags", "标签筛选")}
                 </button>
                 {showTagFilter && (
                   <div
                     ref={page.tagFilterPanelRef}
-                    className={`tag-filter-panel ${page.tagFilterPanelPlacement === 'top' ? 'open-top' : ''}`}
+                    className={`tag-filter-panel ${page.tagFilterPanelPlacement === "top" ? "open-top" : ""}`}
                   >
                     {availableTags.length === 0 ? (
                       <div className="tag-filter-empty">
-                        {t('accounts.noAvailableTags', '暂无可用标签')}
+                        {t("accounts.noAvailableTags", "暂无可用标签")}
                       </div>
                     ) : (
-                      <div className="tag-filter-options" style={page.tagFilterScrollContainerStyle}>
+                      <div
+                        className="tag-filter-options"
+                        style={page.tagFilterScrollContainerStyle}
+                      >
                         {availableTags.map((tag) => (
                           <label
                             key={tag}
-                            className={`tag-filter-option ${tagFilter.includes(tag) ? 'selected' : ''}`}
+                            className={`tag-filter-option ${tagFilter.includes(tag) ? "selected" : ""}`}
                           >
                             <input
                               type="checkbox"
@@ -1346,9 +1507,9 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                                 event.stopPropagation();
                                 requestDeleteTag(tag);
                               }}
-                              aria-label={t('accounts.deleteTagAria', {
+                              aria-label={t("accounts.deleteTagAria", {
                                 tag,
-                                defaultValue: '删除标签 {{tag}}',
+                                defaultValue: "删除标签 {{tag}}",
                               })}
                             >
                               <X size={12} />
@@ -1362,13 +1523,19 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                       <input
                         type="checkbox"
                         checked={groupByTag}
-                        onChange={(event) => setGroupByTag(event.target.checked)}
+                        onChange={(event) =>
+                          setGroupByTag(event.target.checked)
+                        }
                       />
-                      <span>{t('accounts.groupByTag', '按标签分组展示')}</span>
+                      <span>{t("accounts.groupByTag", "按标签分组展示")}</span>
                     </label>
                     {tagFilter.length > 0 && (
-                      <button type="button" className="tag-filter-clear" onClick={clearTagFilter}>
-                        {t('accounts.clearFilter', '清空筛选')}
+                      <button
+                        type="button"
+                        className="tag-filter-clear"
+                        onClick={clearTagFilter}
+                      >
+                        {t("accounts.clearFilter", "清空筛选")}
                       </button>
                     )}
                   </div>
@@ -1376,37 +1543,54 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
               </div>
 
               <SingleSelectFilterDropdown
-                value={TRAE_KNOWN_SORT_KEYS.includes(sortBy as (typeof TRAE_KNOWN_SORT_KEYS)[number]) ? sortBy : 'created_at'}
+                value={
+                  TRAE_KNOWN_SORT_KEYS.includes(
+                    sortBy as (typeof TRAE_KNOWN_SORT_KEYS)[number],
+                  )
+                    ? sortBy
+                    : "created_at"
+                }
                 options={[
-                  { value: 'created_at', label: t('accounts.sort.createdAt') },
-                  { value: 'plan', label: t('accounts.sort.plan') },
-                  { value: 'quota', label: t('accounts.sort.quota') },
+                  { value: "created_at", label: t("accounts.sort.createdAt") },
+                  { value: "plan", label: t("accounts.sort.plan") },
+                  { value: "quota", label: t("accounts.sort.quota") },
                 ]}
-                ariaLabel={t('common.shared.sortLabel')}
+                ariaLabel={t("common.shared.sortLabel")}
                 icon={<ArrowDownWideNarrow size={14} />}
                 onChange={setSortBy}
               />
 
               <button
                 className="sort-direction-btn"
-                onClick={() => setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))}
-                title={
-                  sortDirection === 'desc'
-                    ? t('common.shared.sort.descTooltip', '当前：降序，点击切换为升序')
-                    : t('common.shared.sort.ascTooltip', '当前：升序，点击切换为降序')
+                onClick={() =>
+                  setSortDirection((prev) => (prev === "desc" ? "asc" : "desc"))
                 }
-                aria-label={t('common.shared.sort.toggleDirection', '切换排序方向')}
+                title={
+                  sortDirection === "desc"
+                    ? t(
+                        "common.shared.sort.descTooltip",
+                        "当前：降序，点击切换为升序",
+                      )
+                    : t(
+                        "common.shared.sort.ascTooltip",
+                        "当前：升序，点击切换为降序",
+                      )
+                }
+                aria-label={t(
+                  "common.shared.sort.toggleDirection",
+                  "切换排序方向",
+                )}
               >
-                {sortDirection === 'desc' ? '⬇' : '⬆'}
+                {sortDirection === "desc" ? "⬇" : "⬆"}
               </button>
             </div>
 
             <div className="toolbar-right">
               <button
                 className="btn btn-primary icon-only"
-                onClick={() => openAddModal('oauth')}
-                title={t('common.shared.addAccount')}
-                aria-label={t('common.shared.addAccount')}
+                onClick={() => openAddModal("oauth")}
+                title={t("common.shared.addAccount")}
+                aria-label={t("common.shared.addAccount")}
               >
                 <Plus size={14} />
               </button>
@@ -1414,33 +1598,36 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                 className="btn btn-secondary icon-only"
                 onClick={handleRefreshAll}
                 disabled={refreshingAll || accounts.length === 0}
-                title={t('common.shared.refreshAll', '刷新全部')}
-                aria-label={t('common.shared.refreshAll', '刷新全部')}
+                title={t("common.shared.refreshAll", "刷新全部")}
+                aria-label={t("common.shared.refreshAll", "刷新全部")}
               >
-                <RefreshCw size={14} className={refreshingAll ? 'loading-spinner' : ''} />
+                <RefreshCw
+                  size={14}
+                  className={refreshingAll ? "loading-spinner" : ""}
+                />
               </button>
               <button
                 className="btn btn-secondary icon-only"
                 onClick={togglePrivacyMode}
                 title={
                   privacyModeEnabled
-                    ? t('privacy.showSensitive', '显示邮箱')
-                    : t('privacy.hideSensitive', '隐藏邮箱')
+                    ? t("privacy.showSensitive", "显示邮箱")
+                    : t("privacy.hideSensitive", "隐藏邮箱")
                 }
                 aria-label={
                   privacyModeEnabled
-                    ? t('privacy.showSensitive', '显示邮箱')
-                    : t('privacy.hideSensitive', '隐藏邮箱')
+                    ? t("privacy.showSensitive", "显示邮箱")
+                    : t("privacy.hideSensitive", "隐藏邮箱")
                 }
               >
                 {privacyModeEnabled ? <EyeOff size={14} /> : <Eye size={14} />}
               </button>
               <button
                 className="btn btn-secondary icon-only"
-                onClick={() => openAddModal('import')}
+                onClick={() => openAddModal("import")}
                 disabled={importing}
-                title={t('common.shared.import.label', '导入')}
-                aria-label={t('common.shared.import.label', '导入')}
+                title={t("common.shared.import.label", "导入")}
+                aria-label={t("common.shared.import.label", "导入")}
               >
                 <Download size={14} />
               </button>
@@ -1450,13 +1637,13 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                 disabled={exporting || filteredIds.length === 0}
                 title={
                   exportSelectionCount > 0
-                    ? `${t('common.shared.export.title', '导出')} (${exportSelectionCount})`
-                    : t('common.shared.export.title', '导出')
+                    ? `${t("common.shared.export.title", "导出")} (${exportSelectionCount})`
+                    : t("common.shared.export.title", "导出")
                 }
                 aria-label={
                   exportSelectionCount > 0
-                    ? `${t('common.shared.export.title', '导出')} (${exportSelectionCount})`
-                    : t('common.shared.export.title', '导出')
+                    ? `${t("common.shared.export.title", "导出")} (${exportSelectionCount})`
+                    : t("common.shared.export.title", "导出")
                 }
               >
                 <Upload size={14} />
@@ -1472,79 +1659,99 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
               disabled={paginatedIds.length === 0}
               onToggleSelectAll={() => toggleSelectAll(paginatedIds)}
               onClearSelection={() => toggleSelectAll(Array.from(selected))}
-              actions={(
+              actions={
                 <button
                   className="btn btn-danger icon-only"
                   onClick={handleBatchDelete}
-                  title={`${t('common.delete', '删除')} (${selected.size})`}
-                  aria-label={`${t('common.delete', '删除')} (${selected.size})`}
+                  title={`${t("common.delete", "删除")} (${selected.size})`}
+                  aria-label={`${t("common.delete", "删除")} (${selected.size})`}
                 >
                   <Trash2 size={14} />
                 </button>
-              )}
+              }
             />
           )}
 
           {loading && accounts.length === 0 ? (
             <div className="loading-container">
               <RefreshCw size={24} className="loading-spinner" />
-              <p>{t('common.loading', '加载中...')}</p>
+              <p>{t("common.loading", "加载中...")}</p>
             </div>
           ) : accounts.length === 0 ? (
             <div className="empty-state">
               <Globe size={48} />
-              <h3>{t('common.shared.empty.title', '暂无账号')}</h3>
+              <h3>{t("common.shared.empty.title", "暂无账号")}</h3>
               <p>
-                {t('trae.empty.descriptionWithPlatform', {
+                {t("trae.empty.descriptionWithPlatform", {
                   platform: platformConfig.platformKey,
                   defaultValue:
-                    '点击“添加账号”开始管理您的 {{platform}} 账号，也可以从本机 {{platform}} 数据或 JSON 文件导入。',
+                    "点击“添加账号”开始管理您的 {{platform}} 账号，也可以从本机 {{platform}} 数据或 JSON 文件导入。",
                 })}
               </p>
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'center', marginTop: '16px' }}>
-                <button className="btn btn-primary" onClick={() => openAddModal('oauth')}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "12px",
+                  justifyContent: "center",
+                  marginTop: "16px",
+                }}
+              >
+                <button
+                  className="btn btn-primary"
+                  onClick={() => openAddModal("oauth")}
+                >
                   <Plus size={16} />
-                  {t('common.shared.addAccount')}
+                  {t("common.shared.addAccount")}
                 </button>
                 <button
                   className="btn btn-secondary"
                   onClick={() =>
                     window.dispatchEvent(
-                      new CustomEvent('app-request-navigate', { detail: 'manual' }),
+                      new CustomEvent("app-request-navigate", {
+                        detail: "manual",
+                      }),
                     )
                   }
                 >
                   <BookOpen size={16} />
-                  {t('manual.navTitle', '功能使用手册')}
+                  {t("manual.navTitle", "功能使用手册")}
                 </button>
               </div>
             </div>
           ) : filteredAccounts.length === 0 ? (
             <div className="empty-state">
-              <h3>{t('common.shared.noMatch.title', '没有匹配的账号')}</h3>
-              <p>{t('common.shared.noMatch.desc', '请尝试调整搜索或筛选条件')}</p>
+              <h3>{t("common.shared.noMatch.title", "没有匹配的账号")}</h3>
+              <p>
+                {t("common.shared.noMatch.desc", "请尝试调整搜索或筛选条件")}
+              </p>
             </div>
-          ) : viewMode === 'grid' ? (
-        <div className="grid-view-container">
-          {groupByTag ? (
-              <div className="tag-group-list">
-                {paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (
-                  <div key={groupKey} className="tag-group-section">
-                    <div className="tag-group-header">
-                      <span className="tag-group-title">{resolveGroupLabel(groupKey)}</span>
-                      <span className="tag-group-count">{totalCount}</span>
-                    </div>
-                    <div className="tag-group-grid ghcp-accounts-grid">
-                      {renderGridCards(items, groupKey)}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="ghcp-accounts-grid">{renderGridCards(paginatedAccounts)}</div>
-            )}
-        </div>
-      ) : groupByTag ? (
+          ) : viewMode === "grid" ? (
+            <div className="grid-view-container">
+              {groupByTag ? (
+                <div className="tag-group-list">
+                  {paginatedGroupedAccounts.map(
+                    ({ groupKey, items, totalCount }) => (
+                      <div key={groupKey} className="tag-group-section">
+                        <div className="tag-group-header">
+                          <span className="tag-group-title">
+                            {resolveGroupLabel(groupKey)}
+                          </span>
+                          <span className="tag-group-count">{totalCount}</span>
+                        </div>
+                        <div className="tag-group-grid ghcp-accounts-grid">
+                          {renderGridCards(items, groupKey)}
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
+              ) : (
+                <div className="ghcp-accounts-grid">
+                  {renderGridCards(paginatedAccounts)}
+                </div>
+              )}
+            </div>
+          ) : groupByTag ? (
             <div className="account-table-container grouped">
               <table className="account-table">
                 <thead>
@@ -1556,28 +1763,38 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                         onChange={() => toggleSelectAll(paginatedIds)}
                       />
                     </th>
-                    <th style={{ width: 260 }}>{t('common.shared.columns.account')}</th>
-                    <th>{t('instances.labels.quota', '配额')}</th>
-                    <th style={{ width: 160 }}>{t('common.shared.columns.createdAt')}</th>
+                    <th style={{ width: 260 }}>
+                      {t("common.shared.columns.account")}
+                    </th>
+                    <th>{t("instances.labels.quota", "配额")}</th>
+                    <th style={{ width: 160 }}>
+                      {t("common.shared.columns.createdAt")}
+                    </th>
                     <th className="sticky-action-header table-action-header">
-                      {t('common.shared.columns.actions')}
+                      {t("common.shared.columns.actions")}
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  {paginatedGroupedAccounts.map(({ groupKey, items, totalCount }) => (
-                    <Fragment key={groupKey}>
-                      <tr className="tag-group-row">
-                        <td colSpan={5}>
-                          <div className="tag-group-header">
-                            <span className="tag-group-title">{resolveGroupLabel(groupKey)}</span>
-                            <span className="tag-group-count">{totalCount}</span>
-                          </div>
-                        </td>
-                      </tr>
-                      {renderTableRows(items, groupKey)}
-                    </Fragment>
-                  ))}
+                  {paginatedGroupedAccounts.map(
+                    ({ groupKey, items, totalCount }) => (
+                      <Fragment key={groupKey}>
+                        <tr className="tag-group-row">
+                          <td colSpan={5}>
+                            <div className="tag-group-header">
+                              <span className="tag-group-title">
+                                {resolveGroupLabel(groupKey)}
+                              </span>
+                              <span className="tag-group-count">
+                                {totalCount}
+                              </span>
+                            </div>
+                          </td>
+                        </tr>
+                        {renderTableRows(items, groupKey)}
+                      </Fragment>
+                    ),
+                  )}
                 </tbody>
               </table>
             </div>
@@ -1593,11 +1810,15 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                         onChange={() => toggleSelectAll(paginatedIds)}
                       />
                     </th>
-                    <th style={{ width: 260 }}>{t('common.shared.columns.account')}</th>
-                    <th>{t('instances.labels.quota', '配额')}</th>
-                    <th style={{ width: 160 }}>{t('common.shared.columns.createdAt')}</th>
+                    <th style={{ width: 260 }}>
+                      {t("common.shared.columns.account")}
+                    </th>
+                    <th>{t("instances.labels.quota", "配额")}</th>
+                    <th style={{ width: 160 }}>
+                      {t("common.shared.columns.createdAt")}
+                    </th>
                     <th className="sticky-action-header table-action-header">
-                      {t('common.shared.columns.actions')}
+                      {t("common.shared.columns.actions")}
                     </th>
                   </tr>
                 </thead>
@@ -1623,19 +1844,29 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
           {showAddModal && (
             <div className="modal-overlay">
-              <div className="modal-content ghcp-add-modal" onClick={(event) => event.stopPropagation()}>
+              <div
+                className="modal-content ghcp-add-modal"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <div className="modal-header">
-                  <button className="btn btn-secondary icon-only" onClick={closeAddModal} title={t('common.back', '返回')} aria-label={t('common.back', '返回')}><ChevronLeft size={14} /></button>
+                  <button
+                    className="btn btn-secondary icon-only"
+                    onClick={closeAddModal}
+                    title={t("common.back", "返回")}
+                    aria-label={t("common.back", "返回")}
+                  >
+                    <ChevronLeft size={14} />
+                  </button>
                   <h2>
-                    {t('trae.addModal.titleWithPlatform', {
+                    {t("trae.addModal.titleWithPlatform", {
                       platform: platformConfig.platformKey,
-                      defaultValue: '添加 {{platform}} 账号',
+                      defaultValue: "添加 {{platform}} 账号",
                     })}
                   </h2>
                   <button
                     className="modal-close"
                     onClick={closeAddModal}
-                    aria-label={t('common.close', '关闭')}
+                    aria-label={t("common.close", "关闭")}
                   >
                     <X />
                   </button>
@@ -1643,37 +1874,37 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
                 <div className="modal-tabs">
                   <button
-                    className={`modal-tab ${addTab === 'oauth' ? 'active' : ''}`}
-                    onClick={() => openAddModal('oauth')}
+                    className={`modal-tab ${addTab === "oauth" ? "active" : ""}`}
+                    onClick={() => openAddModal("oauth")}
                   >
                     <Globe size={14} />
-                    {t('common.shared.addModal.oauth', 'OAuth 授权')}
+                    {t("common.shared.addModal.oauth", "OAuth 授权")}
                   </button>
                   <button
-                    className={`modal-tab ${addTab === 'token' ? 'active' : ''}`}
-                    onClick={() => openAddModal('token')}
+                    className={`modal-tab ${addTab === "token" ? "active" : ""}`}
+                    onClick={() => openAddModal("token")}
                   >
                     <KeyRound size={14} />
-                    {t('common.shared.addModal.token', 'Token / JSON')}
+                    {t("common.shared.addModal.token", "Token / JSON")}
                   </button>
                   <button
-                    className={`modal-tab ${addTab === 'import' ? 'active' : ''}`}
-                    onClick={() => openAddModal('import')}
+                    className={`modal-tab ${addTab === "import" ? "active" : ""}`}
+                    onClick={() => openAddModal("import")}
                   >
                     <Database size={14} />
-                    {t('accounts.tabs.import', '导入')}
+                    {t("accounts.tabs.import", "导入")}
                   </button>
                 </div>
 
                 <div className="modal-body">
                   <MfaQuickCodeSelect />
-                  {addTab === 'oauth' ? (
+                  {addTab === "oauth" ? (
                     <div className="add-section">
                       <p className="section-desc">
-                        {t('trae.oauth.descWithPlatform', {
+                        {t("trae.oauth.descWithPlatform", {
                           platform: platformConfig.platformKey,
                           defaultValue:
-                            '点击下方按钮，在浏览器中完成 {{platform}} OAuth 授权登录。',
+                            "点击下方按钮，在浏览器中完成 {{platform}} OAuth 授权登录。",
                         })}
                       </p>
 
@@ -1681,50 +1912,94 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                         <div className="add-status error">
                           <CircleAlert size={16} />
                           <span>{oauthPrepareError}</span>
-                          <button className="btn btn-sm btn-outline" onClick={handleRetryOauth}>
-                            {t('common.shared.oauth.retry', '重新生成授权信息')}
+                          <button
+                            className="btn btn-sm btn-outline"
+                            onClick={handleRetryOauth}
+                          >
+                            {t("common.shared.oauth.retry", "重新生成授权信息")}
                           </button>
                         </div>
                       ) : oauthUrl ? (
                         <div className="oauth-url-section">
                           <div className="oauth-link">
-                            <label>{t('accounts.oauth.linkLabel', '授权链接')}</label>
+                            <label>
+                              {t("accounts.oauth.linkLabel", "授权链接")}
+                            </label>
                             <div className="oauth-url-box">
                               <input type="text" value={oauthUrl} readOnly />
                               <button onClick={handleCopyOauthUrl}>
-                                {oauthUrlCopied ? <Check size={16} /> : <Copy size={16} />}
+                                {oauthUrlCopied ? (
+                                  <Check size={16} />
+                                ) : (
+                                  <Copy size={16} />
+                                )}
                               </button>
                             </div>
                           </div>
                           {oauthMeta && (
                             <p className="oauth-hint">
-                              {t('common.shared.oauth.meta', '授权有效期：{{expires}}s；轮询间隔：{{interval}}s', {
-                                expires: oauthMeta.expiresIn,
-                                interval: oauthMeta.intervalSeconds,
-                              })}
+                              {t(
+                                "common.shared.oauth.meta",
+                                "授权有效期：{{expires}}s；轮询间隔：{{interval}}s",
+                                {
+                                  expires: oauthMeta.expiresIn,
+                                  interval: oauthMeta.intervalSeconds,
+                                },
+                              )}
                             </p>
                           )}
-                          <button className="btn btn-primary btn-full" onClick={handleOpenOauthUrl}>
+                          <button
+                            className="btn btn-primary btn-full"
+                            onClick={handleOpenOauthUrl}
+                          >
                             <Globe size={16} />
-                            {t('common.shared.oauth.openBrowser', '在浏览器中打开')}
+                            {t(
+                              "common.shared.oauth.openBrowser",
+                              "在浏览器中打开",
+                            )}
                           </button>
                           {oauthSupportsManualCallback && (
                             <div className="oauth-link">
-                              <label>{t('common.shared.oauth.manualCallbackLabel', '手动输入回调地址')}</label>
+                              <label>
+                                {t(
+                                  "common.shared.oauth.manualCallbackLabel",
+                                  "手动输入回调地址",
+                                )}
+                              </label>
                               <div className="oauth-url-box oauth-manual-input">
                                 <input
                                   type="text"
                                   value={oauthManualCallbackInput}
-                                  onChange={(e) => setOauthManualCallbackInput(e.target.value)}
-                                  placeholder={t('common.shared.oauth.manualCallbackPlaceholder', '粘贴完整回调地址，例如：http://localhost:1455/auth/callback?code=...&state=...')}
+                                  onChange={(e) =>
+                                    setOauthManualCallbackInput(e.target.value)
+                                  }
+                                  placeholder={t(
+                                    "common.shared.oauth.manualCallbackPlaceholder",
+                                    "粘贴完整回调地址，例如：http://localhost:1455/auth/callback?code=...&state=...",
+                                  )}
                                 />
                                 <button
                                   className="oauth-copy-button"
-                                  onClick={() => void handleSubmitOauthCallbackUrl()}
-                                  disabled={oauthManualCallbackSubmitting || !oauthManualCallbackInput.trim()}
+                                  onClick={() =>
+                                    void handleSubmitOauthCallbackUrl()
+                                  }
+                                  disabled={
+                                    oauthManualCallbackSubmitting ||
+                                    !oauthManualCallbackInput.trim()
+                                  }
                                 >
-                                  {oauthManualCallbackSubmitting ? <RefreshCw size={16} className="loading-spinner" /> : <Check size={16} />}
-                                  {t('accounts.oauth.continue', '我已授权，继续')}
+                                  {oauthManualCallbackSubmitting ? (
+                                    <RefreshCw
+                                      size={16}
+                                      className="loading-spinner"
+                                    />
+                                  ) : (
+                                    <Check size={16} />
+                                  )}
+                                  {t(
+                                    "accounts.oauth.continue",
+                                    "我已授权，继续",
+                                  )}
                                 </button>
                               </div>
                             </div>
@@ -1737,75 +2012,108 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                           )}
                           {oauthPolling && (
                             <div className="add-status loading">
-                              <RefreshCw size={16} className="loading-spinner" />
-                              <span>{t('common.shared.oauth.waiting', '等待授权完成...')}</span>
+                              <RefreshCw
+                                size={16}
+                                className="loading-spinner"
+                              />
+                              <span>
+                                {t(
+                                  "common.shared.oauth.waiting",
+                                  "等待授权完成...",
+                                )}
+                              </span>
                             </div>
                           )}
                           {oauthCompleteError && (
                             <div className="add-status error">
                               <CircleAlert size={16} />
                               <span>{oauthCompleteError}</span>
-                              <button className="btn btn-sm btn-outline" onClick={handleRetryOauth}>
+                              <button
+                                className="btn btn-sm btn-outline"
+                                onClick={handleRetryOauth}
+                              >
                                 {oauthTimedOut
-                                  ? t('common.shared.oauth.timeoutRetry', '刷新授权链接')
-                                  : t('common.shared.oauth.retry', '重新生成授权信息')}
+                                  ? t(
+                                      "common.shared.oauth.timeoutRetry",
+                                      "刷新授权链接",
+                                    )
+                                  : t(
+                                      "common.shared.oauth.retry",
+                                      "重新生成授权信息",
+                                    )}
                               </button>
                             </div>
                           )}
                           <p className="oauth-hint">
                             {t(
-                              'common.shared.oauth.hint',
-                              'Once authorized, this window will update automatically',
+                              "common.shared.oauth.hint",
+                              "Once authorized, this window will update automatically",
                             )}
                           </p>
                         </div>
                       ) : (
                         <div className="oauth-loading">
                           <RefreshCw size={24} className="loading-spinner" />
-                          <span>{t('common.shared.oauth.preparing', '正在准备授权信息...')}</span>
+                          <span>
+                            {t(
+                              "common.shared.oauth.preparing",
+                              "正在准备授权信息...",
+                            )}
+                          </span>
                         </div>
                       )}
                     </div>
-                  ) : addTab === 'token' ? (
+                  ) : addTab === "token" ? (
                     <div className="add-section">
                       <p className="section-desc">
-                        {platformId === 'trae_cn' || platformId === 'trae_solo_cn'
+                        {platformId === "trae_cn" ||
+                        platformId === "trae_solo_cn"
                           ? t(
-                              'trae.token.jsonOnlyDesc',
-                              '粘贴完整 Trae CN 账号 JSON。暂不支持裸 Token，避免导入后无法稳定识别账号或写入不可用登录态。',
+                              "trae.token.jsonOnlyDesc",
+                              "粘贴完整 Trae CN 账号 JSON。暂不支持裸 Token，避免导入后无法稳定识别账号或写入不可用登录态。",
                             )
-                          : t('accounts.importJsonHint', '导入由本工具导出的 Trae JSON 文件。')}
+                          : t(
+                              "accounts.importJsonHint",
+                              "导入由本工具导出的 Trae JSON 文件。",
+                            )}
                       </p>
                       <textarea
                         className="token-input"
                         value={tokenInput}
                         onChange={(event) => setTokenInput(event.target.value)}
                         placeholder={
-                          platformId === 'trae_cn' || platformId === 'trae_solo_cn'
-                            ? t('trae.token.jsonOnlyPlaceholder', '粘贴完整 Trae CN JSON...')
-                            : t('common.shared.token.placeholder', '粘贴 Token 或 JSON...')
+                          platformId === "trae_cn" ||
+                          platformId === "trae_solo_cn"
+                            ? t(
+                                "trae.token.jsonOnlyPlaceholder",
+                                "粘贴完整 Trae CN JSON...",
+                              )
+                            : t(
+                                "common.shared.token.placeholder",
+                                "粘贴 Token 或 JSON...",
+                              )
                         }
                       />
                       <button
                         className="btn btn-primary btn-full"
                         onClick={() => void handleTokenImport()}
-                        disabled={addStatus === 'loading' || !tokenInput.trim()}
+                        disabled={addStatus === "loading" || !tokenInput.trim()}
                       >
-                        {addStatus === 'loading' ? (
+                        {addStatus === "loading" ? (
                           <RefreshCw size={16} className="loading-spinner" />
                         ) : (
                           <Download size={16} />
                         )}
-                        {t('common.shared.token.import', '导入')}
+                        {t("common.shared.token.import", "导入")}
                       </button>
                     </div>
                   ) : (
                     <div className="add-section">
                       <p className="section-desc">
-                        {t('trae.import.localDescWithPlatform', {
+                        {t("trae.import.localDescWithPlatform", {
                           platform: platformConfig.platformKey,
                           defaultValue:
-                            '支持从本机 {{platform}} 配置目录读取当前登录账号、套餐信息和配额缓存数据。',
+                            "支持从本机 {{platform}} 配置目录读取当前登录账号、套餐信息和配额缓存数据。",
                         })}
                       </p>
                       <button
@@ -1818,19 +2126,22 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                         ) : (
                           <Database size={16} />
                         )}
-                        {t('common.shared.addModal.import')}
+                        {t("common.shared.addModal.import")}
                       </button>
-                      <div className="oauth-hint" style={{ margin: '8px 0 4px' }}>
-                        {t('common.shared.import.orJson', '或从 JSON 文件导入')}
+                      <div
+                        className="oauth-hint"
+                        style={{ margin: "8px 0 4px" }}
+                      >
+                        {t("common.shared.import.orJson", "或从 JSON 文件导入")}
                       </div>
                       <input
                         ref={importFileInputRef}
                         type="file"
                         accept=".json,application/json"
-                        style={{ display: 'none' }}
+                        style={{ display: "none" }}
                         onChange={(event) => {
                           const file = event.target.files?.[0];
-                          event.target.value = '';
+                          event.target.value = "";
                           if (!file) return;
                           void handleImportJsonFile(file);
                         }}
@@ -1845,16 +2156,19 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                         ) : (
                           <Upload size={16} />
                         )}
-                        {t('common.shared.import.pickFile', '选择 JSON 文件导入')}
+                        {t(
+                          "common.shared.import.pickFile",
+                          "选择 JSON 文件导入",
+                        )}
                       </button>
                     </div>
                   )}
 
-                  {addStatus !== 'idle' && addMessage && (
+                  {addStatus !== "idle" && addMessage && (
                     <div className={`add-status ${addStatus}`}>
-                      {addStatus === 'success' ? (
+                      {addStatus === "success" ? (
                         <Check size={16} />
-                      ) : addStatus === 'loading' ? (
+                      ) : addStatus === "loading" ? (
                         <RefreshCw size={16} className="loading-spinner" />
                       ) : (
                         <CircleAlert size={16} />
@@ -1869,7 +2183,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
           <ExportJsonModal
             isOpen={showExportModal}
-            title={`${t('common.shared.export.title', '导出')} JSON`}
+            title={`${t("common.shared.export.title", "导出")} JSON`}
             jsonContent={exportJsonContent}
             hidden={exportJsonHidden}
             copied={exportJsonCopied}
@@ -1887,19 +2201,25 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
           {deleteConfirm && (
             <div className="modal-overlay">
-              <div className="modal" onClick={(event) => event.stopPropagation()}>
+              <div
+                className="modal"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <div className="modal-header">
-                  <h2>{t('common.confirm', '确认')}</h2>
+                  <h2>{t("common.confirm", "确认")}</h2>
                   <button
                     className="modal-close"
                     onClick={() => !deleting && setDeleteConfirm(null)}
-                    aria-label={t('common.close', '关闭')}
+                    aria-label={t("common.close", "关闭")}
                   >
                     <X />
                   </button>
                 </div>
                 <div className="modal-body">
-                  <ModalErrorMessage message={deleteConfirmError} scrollKey={deleteConfirmErrorScrollKey} />
+                  <ModalErrorMessage
+                    message={deleteConfirmError}
+                    scrollKey={deleteConfirmErrorScrollKey}
+                  />
                   <p>{deleteConfirm.message}</p>
                 </div>
                 <div className="modal-footer">
@@ -1908,10 +2228,14 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                     onClick={() => setDeleteConfirm(null)}
                     disabled={deleting}
                   >
-                    {t('common.cancel', '取消')}
+                    {t("common.cancel", "取消")}
                   </button>
-                  <button className="btn btn-danger" onClick={confirmDelete} disabled={deleting}>
-                    {t('common.confirm', '确认')}
+                  <button
+                    className="btn btn-danger"
+                    onClick={confirmDelete}
+                    disabled={deleting}
+                  >
+                    {t("common.confirm", "确认")}
                   </button>
                 </div>
               </div>
@@ -1920,22 +2244,28 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
           {tagDeleteConfirm && (
             <div className="modal-overlay">
-              <div className="modal" onClick={(event) => event.stopPropagation()}>
+              <div
+                className="modal"
+                onClick={(event) => event.stopPropagation()}
+              >
                 <div className="modal-header">
-                  <h2>{t('common.confirm', '确认')}</h2>
+                  <h2>{t("common.confirm", "确认")}</h2>
                   <button
                     className="modal-close"
                     onClick={() => !deletingTag && setTagDeleteConfirm(null)}
-                    aria-label={t('common.close', '关闭')}
+                    aria-label={t("common.close", "关闭")}
                   >
                     <X />
                   </button>
                 </div>
                 <div className="modal-body">
-                  <ModalErrorMessage message={tagDeleteConfirmError} scrollKey={tagDeleteConfirmErrorScrollKey} />
+                  <ModalErrorMessage
+                    message={tagDeleteConfirmError}
+                    scrollKey={tagDeleteConfirmErrorScrollKey}
+                  />
                   <p>
                     {t(
-                      'accounts.confirmDeleteTag',
+                      "accounts.confirmDeleteTag",
                       'Delete tag "{{tag}}"? This tag will be removed from {{count}} accounts.',
                       {
                         tag: tagDeleteConfirm.tag,
@@ -1950,10 +2280,16 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
                     onClick={() => setTagDeleteConfirm(null)}
                     disabled={deletingTag}
                   >
-                    {t('common.cancel', '取消')}
+                    {t("common.cancel", "取消")}
                   </button>
-                  <button className="btn btn-danger" onClick={confirmDeleteTag} disabled={deletingTag}>
-                    {deletingTag ? t('common.processing', '处理中...') : t('common.confirm', '确认')}
+                  <button
+                    className="btn btn-danger"
+                    onClick={confirmDeleteTag}
+                    disabled={deletingTag}
+                  >
+                    {deletingTag
+                      ? t("common.processing", "处理中...")
+                      : t("common.confirm", "确认")}
                   </button>
                 </div>
               </div>
@@ -1962,7 +2298,10 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
 
           <TagEditModal
             isOpen={!!showTagModal}
-            initialTags={accounts.find((account) => account.id === showTagModal)?.tags || []}
+            initialTags={
+              accounts.find((account) => account.id === showTagModal)?.tags ||
+              []
+            }
             availableTags={availableTags}
             onClose={() => setShowTagModal(null)}
             onSave={handleSaveTags}
@@ -1970,7 +2309,7 @@ export function TraeAccountsPage({ platformId = 'trae' }: TraeAccountsPageProps)
         </>
       )}
 
-      {activeTab === 'instances' && (
+      {activeTab === "instances" && (
         <TraeInstancesContent
           platformId={platformId}
           accountsForSelect={sortedAccountsForInstances}

@@ -5421,28 +5421,38 @@ pub async fn get_trae_checkin_status(
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::CONTENT_TYPE,
-        "application/json".parse().map_err(|e| e.to_string())?,
+        "application/json"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::ACCEPT,
-        "application/json, text/plain, */*".parse().map_err(|e| e.to_string())?,
+        "application/json, text/plain, */*"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::ORIGIN,
-        "https://www.trae.cn".parse().map_err(|e| e.to_string())?,
+        "https://www.trae.cn"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::REFERER,
-        "https://www.trae.cn/".parse().map_err(|e| e.to_string())?,
+        "https://www.trae.cn/"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         "x-app-type",
-        "trae".parse().map_err(|e| e.to_string())?,
+        "trae"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::AUTHORIZATION,
         format!("Bearer {}", account.access_token)
-            .parse()
+            .parse::<reqwest::header::HeaderValue>()
             .map_err(|e| e.to_string())?,
     );
 
@@ -5506,28 +5516,38 @@ pub async fn claim_trae_checkin(
     let mut headers = reqwest::header::HeaderMap::new();
     headers.insert(
         reqwest::header::CONTENT_TYPE,
-        "application/json".parse().map_err(|e| e.to_string())?,
+        "application/json"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::ACCEPT,
-        "application/json, text/plain, */*".parse().map_err(|e| e.to_string())?,
+        "application/json, text/plain, */*"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::ORIGIN,
-        "https://www.trae.cn".parse().map_err(|e| e.to_string())?,
+        "https://www.trae.cn"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::REFERER,
-        "https://www.trae.cn/".parse().map_err(|e| e.to_string())?,
+        "https://www.trae.cn/"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         "x-app-type",
-        "trae".parse().map_err(|e| e.to_string())?,
+        "trae"
+            .parse::<reqwest::header::HeaderValue>()
+            .map_err(|e| e.to_string())?,
     );
     headers.insert(
         reqwest::header::AUTHORIZATION,
         format!("Bearer {}", account.access_token)
-            .parse()
+            .parse::<reqwest::header::HeaderValue>()
             .map_err(|e| e.to_string())?,
     );
 

@@ -16,7 +16,7 @@ $processes = Get-CimInstance Win32_Process -Filter "Name = 'cockpit_tools.exe'" 
   Where-Object { $_.ExecutablePath -and ($_.ExecutablePath.ToLowerInvariant() -eq $target) }
 foreach ($process in $processes) {
   Stop-Process -Id $process.ProcessId -Force
-  Write-Output ("Stopped stale Cockpit Tools debug process PID " + $process.ProcessId)
+  Write-Output ("Stopped stale ai-tools debug process PID " + $process.ProcessId)
 }
 `;
 

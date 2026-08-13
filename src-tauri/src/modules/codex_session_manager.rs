@@ -1770,7 +1770,7 @@ fn read_session_export_manifest(
     let manifest = serde_json::from_str::<SessionExportManifest>(&content)
         .map_err(|error| format!("解析会话包清单失败: {}", error))?;
     if manifest.kind != SESSION_EXPORT_KIND {
-        return Err("这不是 Cockpit Tools Codex 会话包".to_string());
+        return Err("这不是 ai-tools Codex 会话包".to_string());
     }
     if manifest.package_version == 0 || manifest.package_version > SESSION_EXPORT_VERSION {
         return Err(format!("不支持的会话包版本: {}", manifest.package_version));

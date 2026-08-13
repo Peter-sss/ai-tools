@@ -474,7 +474,7 @@ function resolveProviderApiKeyLabel(
 }
 
 const DEFAULT_PROVIDER_PREVIEW_PATHS: ProviderPreviewPaths = {
-  providerStorePath: "~/.aitool_cockpit/codex_model_providers.json",
+  providerStorePath: "~/.ai-tools/codex_model_providers.json",
   codexConfigPath: "~/.codex/config.toml",
   codexAuthPath: "~/.codex/auth.json",
 };
@@ -1042,7 +1042,7 @@ export function CodexModelProviderManager({
         const home = await homeDir();
         const [providerStorePath, codexConfigPath, codexAuthPath] =
           await Promise.all([
-            join(home, ".aitool_cockpit", "codex_model_providers.json"),
+            join(home, ".ai-tools", "codex_model_providers.json"),
             join(home, ".codex", "config.toml"),
             join(home, ".codex", "auth.json"),
           ]);

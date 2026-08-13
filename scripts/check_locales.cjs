@@ -164,7 +164,7 @@ function isAllowedEnglishReuse(key, value) {
     'OAuth',
     'Token / JSON',
     // 品牌名 / 产品名允许跨语言保持英文原文
-    'Cockpit Tools',
+    'ai-tools',
     'Cockpit Api',
     'Antigravity',
     'Antigravity IDE',

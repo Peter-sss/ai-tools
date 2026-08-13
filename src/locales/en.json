@@ -231,7 +231,7 @@
       "loginSuccess": "Login successful",
       "switchAccount": "Switch Account"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "Collapse",
     "confirmDelete": "Confirm Delete",
     "confirmDeleteTag": "Confirm Tag Deletion",
@@ -263,7 +263,7 @@
       "backToCurrent": "Back",
       "switchToThisAccount": "Switch",
       "openDetails": "Open details",
-      "openCockpitTools": "Open Cockpit Tools"
+      "openCockpitTools": "Open ai-tools"
     },
     "empty": {
       "title": "No accounts",
@@ -330,17 +330,17 @@
   },
   "sponsors": {
     "pageTitle": "Sponsors",
-    "pageDesc": "Thanks to these sponsors for supporting Cockpit Tools.",
+    "pageDesc": "Thanks to these sponsors for supporting ai-tools.",
     "loading": "Loading sponsors...",
     "emptyTitle": "No sponsors yet",
     "emptyDesc": "The remote sponsor module is currently disabled.",
     "listAriaLabel": "Sponsor list",
-    "defaultDescription": "Thanks for supporting Cockpit Tools.",
+    "defaultDescription": "Thanks for supporting ai-tools.",
     "openSponsor": "Open"
   },
   "relay": {
     "pageTitle": "Exclusive Relay",
-    "pageDesc": "A partnered API service for Cockpit Tools users that can be used with Codex API Key accounts.",
+    "pageDesc": "A partnered API service for ai-tools users that can be used with Codex API Key accounts.",
     "loading": "Loading relay...",
     "emptyTitle": "Relay disabled",
     "emptyDesc": "The remote configuration has not enabled the exclusive relay.",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "Customize your Cockpit Tools experience.",
+    "subtitle": "Customize your ai-tools experience.",
     "general": {
       "appearance": "Appearance",
       "language": "Language",
@@ -836,7 +836,7 @@
       "floatingCardStartupDesc": "Display the floating account card automatically after app launch",
       "floatingCardAlwaysOnTop": "Keep floating card on top by default",
       "floatingCardAlwaysOnTopDesc": "New floating card windows stay on top when opened",
-      "appAutoLaunch": "Launch Cockpit Tools at login",
+      "appAutoLaunch": "Launch ai-tools at login",
       "appAutoLaunchDesc": "Start the app after sign-in. If Windows shows a PowerShell error at boot, turn this off.",
       "startupWakeupDisabled": "Disabled",
       "startupWakeupImmediate": "Wake up immediately",
@@ -868,7 +868,7 @@
       "codexSyncWsl": "Sync Codex to WSL",
       "codexSyncWslDesc": "After switching the default Codex account, also write auth.json and config.toml to the WSL Codex directory.",
       "codexAppUiInjection": "Show API Service quota",
-      "codexAppUiInjectionDesc": "After restarting a Codex instance, show the Cockpit Tools API Service account count, weekly quota, and 5-hour quota below the composer. Keep Cockpit Tools running in the background; updates stop when it is fully quit or the network is unavailable.",
+      "codexAppUiInjectionDesc": "After restarting a Codex instance, show the ai-tools API Service account count, weekly quota, and 5-hour quota below the composer. Keep ai-tools running in the background; updates stop when it is fully quit or the network is unavailable.",
       "codexAppUiInjectionPoolLabel": "Accounts",
       "codexAppUiInjectionWeeklyLabel": "Week",
       "codexAppUiInjectionFiveHourLabel": "5h",
@@ -1023,7 +1023,7 @@
       "tokenKeeper": "Auth keep-alive",
       "tokenKeeperDesc": "Refresh account tokens in small batches only when authorization is close to expiry, reducing background request pressure for large account sets.",
       "autoImportFromLocal": "Auto-import local accounts",
-      "autoImportFromLocalDesc": "When enabled, Cockpit Tools immediately scans local client logins and imports them, then keeps importing when the official client switches accounts. The system keychain may prompt once; choose Always Allow.",
+      "autoImportFromLocalDesc": "When enabled, ai-tools immediately scans local client logins and imports them, then keeps importing when the official client switches accounts. The system keychain may prompt once; choose Always Allow.",
       "reducedMotion": "Reduce motion",
       "reducedMotionDesc": "Cut page fades, modal transitions, shadows, blur, and smooth scrolling; keep essential loading feedback",
       "autoImportFromLocalScanning": "Scanning local accounts… you can turn this off anytime",
@@ -1270,7 +1270,7 @@
       "proxyUrlRequired": "Proxy URL cannot be empty when global proxy is enabled."
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "Professional Account Solution",
       "author": "Author",
       "wechat": "WeChat",
@@ -2086,10 +2086,10 @@
     },
     "exportFormat": {
       "label": "Export Format",
-      "cockpitTools": "Cockpit Tools",
+      "cockpitTools": "ai-tools",
       "sub2api": "sub2api",
       "cpa": "cpa",
-      "agentIdentityCpaUnsupported": "Agent Identity accounts cannot be exported as cpa. Choose Cockpit Tools or sub2api.",
+      "agentIdentityCpaUnsupported": "Agent Identity accounts cannot be exported as cpa. Choose ai-tools or sub2api.",
       "agentIdentityPrivateKeyNotice": "This export contains an Agent Identity private key that can restore the account on another device. Protect it like a password.",
       "buildFailed": "Unable to create the export: the selected accounts include an unsupported type or incomplete credentials.",
       "downloadAll": "Download All",
@@ -2237,8 +2237,8 @@
       "testAuthFailed": "Service is reachable, but authentication failed: {{detail}}. Check the API service key or account sign-in state.",
       "testServiceUnavailable": "Service is reachable, but currently unavailable: {{detail}}. Check whether the service is enabled, the account collection is empty, or accounts are usable.",
       "gatewayErrors": {
-        "authUnavailable": "No account is currently schedulable; the account may be cooling down, unauthorized, or quota-limited. Check account status in the Cockpit Tools API Service page.",
-        "authNotFound": "No usable account is configured in the account pool. Add or enable an account in the Cockpit Tools API Service page."
+        "authUnavailable": "No account is currently schedulable; the account may be cooling down, unauthorized, or quota-limited. Check account status in the ai-tools API Service page.",
+        "authNotFound": "No usable account is configured in the account pool. Add or enable an account in the ai-tools API Service page."
       },
       "testRateLimited": "Service is reachable, but upstream is rate limited or quota is exhausted: {{detail}}.",
       "testHttpFailed": "Service is reachable, but the request returned HTTP {{status}}: {{detail}}.",

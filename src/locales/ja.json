@@ -231,7 +231,7 @@
       "desc": "このエリアは全ページの右上に固定表示され、キャンペーン情報やブランド広告の掲載に適しています。",
       "action": "詳細を見る"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "折りたたむ",
     "confirmDelete": "削除を確認",
     "confirmDeleteTag": "タグ削除の確認",
@@ -283,12 +283,12 @@
   },
   "sponsors": {
     "pageTitle": "スポンサー",
-    "pageDesc": "Cockpit Tools を支援してくださるスポンサーの皆さまに感謝します。",
+    "pageDesc": "ai-tools を支援してくださるスポンサーの皆さまに感謝します。",
     "loading": "スポンサーを読み込み中...",
     "emptyTitle": "スポンサーはまだありません",
     "emptyDesc": "リモートのスポンサーモジュールは現在無効です。",
     "listAriaLabel": "スポンサー一覧",
-    "defaultDescription": "Cockpit Tools へのご支援ありがとうございます。",
+    "defaultDescription": "ai-tools へのご支援ありがとうございます。",
     "openSponsor": "開く"
   },
   "platformLayout": {
@@ -577,7 +577,7 @@
   },
   "settings": {
     "title": "アプリ設定",
-    "subtitle": "Cockpit Tools の利用体験をカスタマイズします。",
+    "subtitle": "ai-tools の利用体験をカスタマイズします。",
     "tabs": {
       "general": "全般",
       "network": "ネットワーク設定",
@@ -660,7 +660,7 @@
       "codexSyncWsl": "Codex を WSL に同期",
       "codexSyncWslDesc": "既定の Codex アカウントを切り替えた後、auth.json と config.toml も WSL 内の Codex ディレクトリへ書き込みます。",
       "codexAppUiInjection": "API サービスのクォータ",
-      "codexAppUiInjectionDesc": "Codex インスタンスの再起動後、入力欄の下に Cockpit Tools API サービスのアカウント数、週間クォータ、5 時間クォータを表示します。Cockpit Tools をバックグラウンドで起動したままにしてください。完全に終了した場合やネットワークを利用できない場合は更新されません。",
+      "codexAppUiInjectionDesc": "Codex インスタンスの再起動後、入力欄の下に ai-tools API サービスのアカウント数、週間クォータ、5 時間クォータを表示します。ai-tools をバックグラウンドで起動したままにしてください。完全に終了した場合やネットワークを利用できない場合は更新されません。",
       "codexAppUiInjectionPoolLabel": "アカウント",
       "codexAppUiInjectionWeeklyLabel": "週",
       "codexAppUiInjectionFiveHourLabel": "5時間",
@@ -754,7 +754,7 @@
       "sideNavLayoutClassic": "クラシックレイアウト",
       "antigravityDualSwitchNoRestart": "再起動なしデュアル切替",
       "antigravityDualSwitchNoRestartDesc": "切替時にローカルのアカウントデータ書き込みと拡張機能のシームレス切替を1つのフローで実行し、Antigravity IDE を再起動しません。",
-      "appAutoLaunch": "ログイン時に Cockpit Tools を起動",
+      "appAutoLaunch": "ログイン時に ai-tools を起動",
       "appAutoLaunchDesc": "サインイン後に自動起動。Windows 起動時に PowerShell エラーが出る場合はオフにしてください。",
       "startupWakeupDisabled": "無効",
       "startupWakeupImmediate": "すぐに起動",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "グローバルプロキシを有効にする場合、プロキシ URL は必須です。"
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "プロフェッショナルなアカウント管理ソリューション",
       "author": "著者",
       "wechat": "WeChat 公衆号",
@@ -1870,10 +1870,10 @@
     },
     "exportFormat": {
       "label": "エクスポート形式",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "ai-tools​",
       "sub2api": "sub2api 形式",
       "cpa": "cpa 形式",
-      "agentIdentityCpaUnsupported": "Agent Identity アカウントは cpa 形式ではエクスポートできません。Cockpit Tools または sub2api を使用してください。",
+      "agentIdentityCpaUnsupported": "Agent Identity アカウントは cpa 形式ではエクスポートできません。ai-tools または sub2api を使用してください。",
       "agentIdentityPrivateKeyNotice": "このエクスポートには、別のデバイスでアカウントを復元できる Agent Identity 秘密鍵が含まれます。パスワードと同様に厳重に保管してください。",
       "buildFailed": "エクスポートを作成できません。選択したアカウントに未対応の種類または不完全な認証情報が含まれています。",
       "downloadAll": "すべてダウンロード",
@@ -1957,8 +1957,8 @@
       "testAuthFailed": "サービスには到達しましたが、認証に失敗しました: {{detail}}。API サービスキーまたはアカウントのログイン状態を確認してください。",
       "testServiceUnavailable": "サービスには到達しましたが、現在利用できません: {{detail}}。サービスが有効か、アカウント集合が空でないか、アカウントが利用可能かを確認してください。",
       "gatewayErrors": {
-        "authUnavailable": "現在、ルーティング可能なアカウントがありません。冷却中、認証失敗、またはクォータ制限の可能性があります。Cockpit Tools の API サービスで状態を確認してください。",
-        "authNotFound": "利用可能なアカウントがアカウントプールに設定されていません。Cockpit Tools の API サービスで追加または有効化してください。"
+        "authUnavailable": "現在、ルーティング可能なアカウントがありません。冷却中、認証失敗、またはクォータ制限の可能性があります。ai-tools の API サービスで状態を確認してください。",
+        "authNotFound": "利用可能なアカウントがアカウントプールに設定されていません。ai-tools の API サービスで追加または有効化してください。"
       },
       "testRateLimited": "サービスには到達しましたが、上流でレート制限またはクォータ不足です: {{detail}}。",
       "testHttpFailed": "サービスには到達しましたが、リクエストは HTTP {{status}} を返しました: {{detail}}。",
@@ -5107,7 +5107,7 @@
       "backToCurrent": "戻る",
       "switchToThisAccount": "切替",
       "openDetails": "詳細を開く",
-      "openCockpitTools": "Cockpit Tools を開く"
+      "openCockpitTools": "ai-tools を開く"
     },
     "empty": {
       "title": "アカウントがありません",
@@ -5237,7 +5237,7 @@
   },
   "relay": {
     "pageTitle": "専用リレー",
-    "pageDesc": "Cockpit Tools ユーザー向けの提携 API サービスで、Codex API Key アカウントに利用できます。",
+    "pageDesc": "ai-tools ユーザー向けの提携 API サービスで、Codex API Key アカウントに利用できます。",
     "loading": "リレーを読み込み中...",
     "emptyTitle": "リレーは無効です",
     "emptyDesc": "現在のリモート設定では専用リレーが有効になっていません。",

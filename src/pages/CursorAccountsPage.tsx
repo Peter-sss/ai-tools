@@ -28,7 +28,6 @@ import {
   Search,
   ArrowDownWideNarrow,
   Tag,
-  ChevronDown,
   Play,
   Eye,
   EyeOff,
@@ -88,7 +87,6 @@ import {
 } from "../components/CursorOverviewTabsHeader";
 import { CursorInstancesContent } from "./CursorInstancesPage";
 
-const CURSOR_FLOW_NOTICE_COLLAPSED_KEY = "agtools.cursor.flow_notice_collapsed";
 const CURSOR_CURRENT_ACCOUNT_ID_KEY = "agtools.cursor.current_account_id";
 const CURSOR_FILTER_PERSISTENCE_SCOPE =
   normalizeAccountsOverviewScope("Cursor");
@@ -241,7 +239,6 @@ export function CursorAccountsPage() {
   const page = useProviderAccountsPage<CursorAccount>({
     platformKey: "Cursor",
     oauthLogPrefix: "CursorOAuth",
-    flowNoticeCollapsedKey: CURSOR_FLOW_NOTICE_COLLAPSED_KEY,
     currentAccountIdKey: CURSOR_CURRENT_ACCOUNT_ID_KEY,
     exportFilePrefix: "cursor_accounts",
     exportDefaultHidden: false,
@@ -376,8 +373,6 @@ export function CursorAccountsPage() {
     handleCopyOauthUserCode,
     handleRetryOauth,
     handleOpenOauthUrl,
-    isFlowNoticeCollapsed,
-    setIsFlowNoticeCollapsed,
     currentAccountId,
     formatDate,
     normalizeTag,
@@ -1579,56 +1574,6 @@ export function CursorAccountsPage() {
   return (
     <div className="ghcp-accounts-page cursor-accounts-page">
       <CursorOverviewTabsHeader active={activeTab} onTabChange={setActiveTab} />
-      <div
-        className={`ghcp-flow-notice ${isFlowNoticeCollapsed ? "collapsed" : ""}`}
-        role="note"
-        aria-live="polite"
-      >
-        <button
-          type="button"
-          className="ghcp-flow-notice-toggle"
-          onClick={() => setIsFlowNoticeCollapsed((prev) => !prev)}
-          aria-expanded={!isFlowNoticeCollapsed}
-        >
-          <div className="ghcp-flow-notice-title">
-            <CircleAlert size={16} />
-            <span>
-              {t(
-                "cursor.flowNotice.title",
-                "Cursor 账号管理说明（点击展开/收起）",
-              )}
-            </span>
-          </div>
-          <ChevronDown
-            size={16}
-            className={`ghcp-flow-notice-arrow ${isFlowNoticeCollapsed ? "collapsed" : ""}`}
-          />
-        </button>
-        {!isFlowNoticeCollapsed && (
-          <div className="ghcp-flow-notice-body">
-            <div className="ghcp-flow-notice-desc">
-              {t(
-                "cursor.flowNotice.desc",
-                "Manage Cursor accounts by importing from local Cursor installation or pasting JWT tokens. Data is processed locally only.",
-              )}
-            </div>
-            <ul className="ghcp-flow-notice-list">
-              <li>
-                {t(
-                  "cursor.flowNotice.reason",
-                  "Permission scope: read Cursor local auth storage for account import and token injection.",
-                )}
-              </li>
-              <li>
-                {t(
-                  "cursor.flowNotice.storage",
-                  "Data scope: only Cursor auth-session related entries are read/updated; no key/token is uploaded.",
-                )}
-              </li>
-            </ul>
-          </div>
-        )}
-      </div>
 
       {activeTab === "overview" && (
         <>

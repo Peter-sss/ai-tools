@@ -231,7 +231,7 @@
       "desc": "تُثبَّت هذه المنطقة في أعلى يمين جميع الصفحات لعرض الحملات أو إعلانات العلامة التجارية.",
       "action": "عرض التفاصيل"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "طي",
     "confirmDelete": "تأكيد الحذف",
     "confirmDeleteTag": "تأكيد حذف الوسم",
@@ -262,7 +262,7 @@
       "backToCurrent": "رجوع",
       "switchToThisAccount": "تبديل",
       "openDetails": "فتح التفاصيل",
-      "openCockpitTools": "فتح Cockpit Tools"
+      "openCockpitTools": "فتح ai-tools"
     },
     "empty": {
       "title": "لا توجد حسابات",
@@ -330,12 +330,12 @@
   },
   "sponsors": {
     "pageTitle": "الرعاة",
-    "pageDesc": "شكرًا للرعاة التاليين على دعم Cockpit Tools.",
+    "pageDesc": "شكرًا للرعاة التاليين على دعم ai-tools.",
     "loading": "جارٍ تحميل الرعاة...",
     "emptyTitle": "لا يوجد رعاة حاليًا",
     "emptyDesc": "وحدة الرعاة البعيدة معطّلة حاليًا.",
     "listAriaLabel": "قائمة الرعاة",
-    "defaultDescription": "شكرًا لدعم Cockpit Tools.",
+    "defaultDescription": "شكرًا لدعم ai-tools.",
     "openSponsor": "فتح"
   },
   "platformLayout": {
@@ -624,7 +624,7 @@
   },
   "settings": {
     "title": "إعدادات التطبيق",
-    "subtitle": "قم بتخصيص تجربة Antigravity Cockpit Tools الخاصة بك.",
+    "subtitle": "قم بتخصيص تجربة ai-tools الخاصة بك.",
     "tabs": {
       "general": "عام",
       "network": "خدمات الشبكة",
@@ -703,7 +703,7 @@
       "codexSyncWsl": "مزامنة Codex مع WSL",
       "codexSyncWslDesc": "بعد تبديل حساب Codex الافتراضي، تتم كتابة auth.json و config.toml أيضًا إلى مجلد إعدادات Codex في WSL.",
       "codexAppUiInjection": "عرض حصة خدمة API",
-      "codexAppUiInjectionDesc": "بعد إعادة تشغيل مثيل Codex، اعرض عدد حسابات خدمة API في Cockpit Tools وحصتي الأسبوع و5 ساعات أسفل منطقة الكتابة. يجب إبقاء Cockpit Tools قيد التشغيل في الخلفية؛ يتوقف التحديث عند إغلاقه تمامًا أو عند عدم توفر الشبكة.",
+      "codexAppUiInjectionDesc": "بعد إعادة تشغيل مثيل Codex، اعرض عدد حسابات خدمة API في ai-tools وحصتي الأسبوع و5 ساعات أسفل منطقة الكتابة. يجب إبقاء ai-tools قيد التشغيل في الخلفية؛ يتوقف التحديث عند إغلاقه تمامًا أو عند عدم توفر الشبكة.",
       "codexAppUiInjectionPoolLabel": "الحسابات",
       "codexAppUiInjectionWeeklyLabel": "أسبوع",
       "codexAppUiInjectionFiveHourLabel": "5 س",
@@ -797,7 +797,7 @@
       "sideNavLayoutClassic": "التخطيط الكلاسيكي",
       "antigravityDualSwitchNoRestart": "تبديل ثنائي بدون إعادة تشغيل",
       "antigravityDualSwitchNoRestartDesc": "عند تبديل الحساب، يتم تنفيذ كتابة بيانات الحساب محليًا والتبديل السلس عبر الإضافة في تدفق واحد، دون إعادة تشغيل Antigravity IDE.",
-      "appAutoLaunch": "تشغيل Cockpit Tools عند تسجيل الدخول",
+      "appAutoLaunch": "تشغيل ai-tools عند تسجيل الدخول",
       "appAutoLaunchDesc": "تشغيل بعد تسجيل الدخول. إذا ظهر خطأ PowerShell عند إقلاع Windows فعطّله.",
       "startupWakeupDisabled": "معطل",
       "startupWakeupImmediate": "تنبيه فوري",
@@ -960,7 +960,7 @@
       "proxyUrlRequired": "لا يمكن أن يكون عنوان الوكيل فارغًا عند تفعيل الوكيل العام."
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "حل احترافي لإدارة الحسابات",
       "author": "المؤلف الرئيسي",
       "wechat": "حساب WeChat الرسمي",
@@ -1917,10 +1917,10 @@
     },
     "exportFormat": {
       "label": "تنسيق التصدير",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "ai-tools​",
       "sub2api": "تنسيق sub2api",
       "cpa": "تنسيق cpa",
-      "agentIdentityCpaUnsupported": "لا يمكن تصدير حسابات Agent Identity بتنسيق cpa. استخدم Cockpit Tools أو sub2api.",
+      "agentIdentityCpaUnsupported": "لا يمكن تصدير حسابات Agent Identity بتنسيق cpa. استخدم ai-tools أو sub2api.",
       "agentIdentityPrivateKeyNotice": "يتضمن هذا التصدير مفتاح Agent Identity خاصًا يمكن استخدامه لاستعادة الحساب على جهاز آخر. احفظه كما تحفظ كلمة المرور.",
       "buildFailed": "تعذر إنشاء التصدير: تتضمن الحسابات المحددة نوعًا غير مدعوم أو بيانات اعتماد غير مكتملة.",
       "downloadAll": "تنزيل الكل",
@@ -2004,8 +2004,8 @@
       "testAuthFailed": "الخدمة قابلة للوصول، لكن المصادقة فشلت: {{detail}}. تحقق من مفتاح خدمة API أو حالة تسجيل الدخول للحساب.",
       "testServiceUnavailable": "الخدمة قابلة للوصول، لكنها غير متاحة حاليًا: {{detail}}. تحقق من تفعيل الخدمة، أو من أن مجموعة الحسابات ليست فارغة، أو من صلاحية الحسابات.",
       "gatewayErrors": {
-        "authUnavailable": "لا يوجد حاليًا حساب قابل للتوجيه. قد يكون الحساب في فترة تهدئة أو بلا مصادقة أو مقيّدًا بالحصّة. تحقّق من حالته في خدمة API داخل Cockpit Tools.",
-        "authNotFound": "لا يوجد حساب صالح مُعدّ في مجموعة الحسابات. أضف حسابًا أو فعّله في خدمة API داخل Cockpit Tools."
+        "authUnavailable": "لا يوجد حاليًا حساب قابل للتوجيه. قد يكون الحساب في فترة تهدئة أو بلا مصادقة أو مقيّدًا بالحصّة. تحقّق من حالته في خدمة API داخل ai-tools.",
+        "authNotFound": "لا يوجد حساب صالح مُعدّ في مجموعة الحسابات. أضف حسابًا أو فعّله في خدمة API داخل ai-tools."
       },
       "testRateLimited": "الخدمة قابلة للوصول، لكن upstream مقيّد أو الحصة نفدت: {{detail}}.",
       "testHttpFailed": "الخدمة قابلة للوصول، لكن الطلب أعاد HTTP {{status}}: {{detail}}.",
@@ -5237,7 +5237,7 @@
   },
   "relay": {
     "pageTitle": "ترحيل حصري",
-    "pageDesc": "خدمة API شريكة لمستخدمي Cockpit Tools ويمكن استخدامها مع حسابات Codex API Key.",
+    "pageDesc": "خدمة API شريكة لمستخدمي ai-tools ويمكن استخدامها مع حسابات Codex API Key.",
     "loading": "جارٍ تحميل الترحيل...",
     "emptyTitle": "الترحيل غير مفعّل",
     "emptyDesc": "لم تفعّل الإعدادات البعيدة خدمة الترحيل الحصرية.",

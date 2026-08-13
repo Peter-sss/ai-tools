@@ -4,7 +4,7 @@ use colored::*;
 use tabled::{Table, Tabled};
 
 #[derive(Parser)]
-#[command(author, version, about = "Cockpit Tools CLI", long_about = None)]
+#[command(author, version, about = "ai-tools CLI", long_about = None)]
 struct Cli {
     #[command(subcommand)]
     command: Option<Commands>,

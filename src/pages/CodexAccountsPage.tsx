@@ -2081,7 +2081,7 @@ export function CodexAccountsPage() {
     () => [
       {
         value: "cockpit_tools",
-        label: t("codex.exportFormat.cockpitTools", "Cockpit Tools"),
+        label: t("codex.exportFormat.cockpitTools", "ai-tools"),
       },
       {
         value: "sub2api",
@@ -17377,7 +17377,7 @@ export function CodexAccountsPage() {
                         reportExportModalError(
                           t(
                             "codex.exportFormat.agentIdentityCpaUnsupported",
-                            "Agent Identity 账号不支持 cpa 格式，请使用 Cockpit Tools 或 sub2api 格式导出。",
+                            "Agent Identity 账号不支持 cpa 格式，请使用 ai-tools 或 sub2api 格式导出。",
                           ),
                         );
                         return;

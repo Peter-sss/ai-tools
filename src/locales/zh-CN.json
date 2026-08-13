@@ -231,7 +231,7 @@
       "loginSuccess": "登录成功",
       "switchAccount": "切换账号"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "收起",
     "confirmDelete": "确认删除",
     "confirmDeleteTag": "确认删除标签",
@@ -263,7 +263,7 @@
       "backToCurrent": "返回",
       "switchToThisAccount": "切换",
       "openDetails": "打开详情页",
-      "openCockpitTools": "打开 Cockpit Tools"
+      "openCockpitTools": "打开 ai-tools"
     },
     "empty": {
       "title": "暂无账号",
@@ -330,17 +330,17 @@
   },
   "sponsors": {
     "pageTitle": "赞助商",
-    "pageDesc": "感谢以下赞助商支持 Cockpit Tools。",
+    "pageDesc": "感谢以下赞助商支持 ai-tools。",
     "loading": "正在加载赞助商...",
     "emptyTitle": "暂无赞助商",
     "emptyDesc": "当前远端未开启赞助商模块。",
     "listAriaLabel": "赞助商列表",
-    "defaultDescription": "感谢支持 Cockpit Tools。",
+    "defaultDescription": "感谢支持 ai-tools。",
     "openSponsor": "查看"
   },
   "relay": {
     "pageTitle": "专属中转站",
-    "pageDesc": "为 Cockpit Tools 用户提供的合作 API 服务，可用于 Codex API Key 账号。",
+    "pageDesc": "为 ai-tools 用户提供的合作 API 服务，可用于 Codex API Key 账号。",
     "loading": "正在加载中转站...",
     "emptyTitle": "中转站未开启",
     "emptyDesc": "当前远端配置未开启专属中转站。",
@@ -776,7 +776,7 @@
   },
   "settings": {
     "title": "应用设置",
-    "subtitle": "个性化您的 Cockpit Tools 体验。",
+    "subtitle": "个性化您的 ai-tools 体验。",
     "general": {
       "appearance": "界面外观",
       "language": "显示语言",
@@ -836,7 +836,7 @@
       "floatingCardStartupDesc": "应用启动后默认展示悬浮账号卡片",
       "floatingCardAlwaysOnTop": "悬浮卡片默认置顶",
       "floatingCardAlwaysOnTopDesc": "新打开的悬浮卡片窗口默认保持置顶",
-      "appAutoLaunch": "开机自启动 Cockpit Tools",
+      "appAutoLaunch": "开机自启动 ai-tools",
       "appAutoLaunchDesc": "系统登录后自动启动应用。若 Windows 开机时出现 PowerShell 报错，请先关闭此选项。",
       "startupWakeupDisabled": "关闭",
       "startupWakeupImmediate": "立即唤醒",
@@ -868,7 +868,7 @@
       "codexSyncWsl": "同步 Codex 到 WSL",
       "codexSyncWslDesc": "切换默认 Codex 账号后，同时把 auth.json 和 config.toml 写入 WSL 的 Codex 配置目录。",
       "codexAppUiInjection": "显示 API 服务额度",
-      "codexAppUiInjectionDesc": "重启 Codex 实例后，在输入框下方显示 Cockpit Tools API 服务的账号数、周额度和 5h 额度。需保持 Cockpit Tools 在后台运行；完全退出或网络不可用时，额度不会继续刷新。",
+      "codexAppUiInjectionDesc": "重启 Codex 实例后，在输入框下方显示 ai-tools API 服务的账号数、周额度和 5h 额度。需保持 ai-tools 在后台运行；完全退出或网络不可用时，额度不会继续刷新。",
       "codexAppUiInjectionPoolLabel": "账号",
       "codexAppUiInjectionWeeklyLabel": "周",
       "codexAppUiInjectionFiveHourLabel": "5h",
@@ -1270,7 +1270,7 @@
       "proxyUrlRequired": "启用全局代理时，代理地址不能为空。"
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "专业账号管理解决方案",
       "author": "主作者",
       "wechat": "微信公众号",
@@ -2086,10 +2086,10 @@
     },
     "exportFormat": {
       "label": "导出格式",
-      "cockpitTools": "Cockpit Tools",
+      "cockpitTools": "ai-tools",
       "sub2api": "sub2api 格式",
       "cpa": "cpa 格式",
-      "agentIdentityCpaUnsupported": "Agent Identity 账号不支持 cpa 格式，请使用 Cockpit Tools 或 sub2api 格式导出。",
+      "agentIdentityCpaUnsupported": "Agent Identity 账号不支持 cpa 格式，请使用 ai-tools 或 sub2api 格式导出。",
       "agentIdentityPrivateKeyNotice": "导出内容包含 Agent Identity 私钥，可用于在其他设备恢复账号。请像密码一样妥善保管。",
       "buildFailed": "无法生成导出内容：所选账号包含不支持的类型或认证信息不完整。",
       "downloadAll": "一键下载全部",
@@ -2237,8 +2237,8 @@
       "testAuthFailed": "服务可达，但鉴权失败：{{detail}}。请检查 API 服务密钥或账号登录状态。",
       "testServiceUnavailable": "服务可达，但当前不可用：{{detail}}。请检查服务是否启用、账号集合是否为空或账号是否可用。",
       "gatewayErrors": {
-        "authUnavailable": "账号池当前没有可调度账号；账号可能正在冷却、授权失效或额度受限，请在 Cockpit Tools 的 API 服务页查看账号状态。",
-        "authNotFound": "账号池当前没有已配置的可用账号，请在 Cockpit Tools 的 API 服务页添加或启用账号。"
+        "authUnavailable": "账号池当前没有可调度账号；账号可能正在冷却、授权失效或额度受限，请在 ai-tools 的 API 服务页查看账号状态。",
+        "authNotFound": "账号池当前没有已配置的可用账号，请在 ai-tools 的 API 服务页添加或启用账号。"
       },
       "testRateLimited": "服务可达，但上游限流或额度不足：{{detail}}。",
       "testHttpFailed": "服务可达，但请求返回 HTTP {{status}}：{{detail}}。",

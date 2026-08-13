@@ -138,7 +138,7 @@ pub fn should_check_for_updates(settings: &UpdateSettings) -> bool {
 /// Get data directory for storing update settings
 fn get_data_dir() -> Result<std::path::PathBuf, String> {
     dirs::data_local_dir()
-        .map(|d| d.join("aitool-cockpit"))
+        .map(|d| d.join("ai-tools"))
         .ok_or_else(|| "Failed to get data directory".to_string())
 }
 

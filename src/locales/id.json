@@ -231,7 +231,7 @@
       "loginSuccess": "Login berhasil",
       "switchAccount": "Ganti Akun"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "Ciutkan",
     "confirmDelete": "Konfirmasi Hapus",
     "confirmDeleteTag": "Konfirmasi Hapus Tag",
@@ -263,7 +263,7 @@
       "backToCurrent": "Kembali",
       "switchToThisAccount": "Ganti",
       "openDetails": "Buka detail",
-      "openCockpitTools": "Buka Cockpit Tools"
+      "openCockpitTools": "Buka ai-tools"
     },
     "empty": {
       "title": "Belum ada akun",
@@ -330,12 +330,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponsor",
-    "pageDesc": "Terima kasih kepada sponsor berikut yang mendukung Cockpit Tools.",
+    "pageDesc": "Terima kasih kepada sponsor berikut yang mendukung ai-tools.",
     "loading": "Memuat sponsor...",
     "emptyTitle": "Belum ada sponsor",
     "emptyDesc": "Modul sponsor jarak jauh saat ini dinonaktifkan.",
     "listAriaLabel": "Daftar sponsor",
-    "defaultDescription": "Terima kasih telah mendukung Cockpit Tools.",
+    "defaultDescription": "Terima kasih telah mendukung ai-tools.",
     "openSponsor": "Buka"
   },
   "platformLayout": {
@@ -624,7 +624,7 @@
   },
   "settings": {
     "title": "Pengaturan",
-    "subtitle": "Sesuaikan pengalaman Cockpit Tools Anda.",
+    "subtitle": "Sesuaikan pengalaman ai-tools Anda.",
     "tabs": {
       "general": "Umum",
       "network": "Jaringan",
@@ -685,7 +685,7 @@
       "floatingCardStartupDesc": "Tampilkan kartu akun mengambang secara otomatis setelah aplikasi diluncurkan",
       "floatingCardAlwaysOnTop": "Kartu mengambang selalu di atas secara bawaan",
       "floatingCardAlwaysOnTopDesc": "Jendela kartu mengambang baru tetap di atas saat dibuka",
-      "appAutoLaunch": "Jalankan Cockpit Tools saat login",
+      "appAutoLaunch": "Jalankan ai-tools saat login",
       "appAutoLaunchDesc": "Mulai setelah login. Jika Windows menampilkan error PowerShell saat boot, matikan.",
       "startupWakeupDisabled": "Nonaktif",
       "startupWakeupImmediate": "Bangunkan segera",
@@ -717,7 +717,7 @@
       "codexSyncWsl": "Sinkronkan Codex ke WSL",
       "codexSyncWslDesc": "Setelah mengganti akun Codex default, auth.json dan config.toml juga ditulis ke direktori Codex di WSL.",
       "codexAppUiInjection": "Kuota layanan API",
-      "codexAppUiInjectionDesc": "Setelah instans Codex dimulai ulang, tampilkan jumlah akun serta kuota mingguan dan 5 jam layanan API Cockpit Tools di bawah composer. Cockpit Tools harus tetap berjalan di latar belakang; pembaruan berhenti jika aplikasi ditutup sepenuhnya atau jaringan tidak tersedia.",
+      "codexAppUiInjectionDesc": "Setelah instans Codex dimulai ulang, tampilkan jumlah akun serta kuota mingguan dan 5 jam layanan API ai-tools di bawah composer. ai-tools harus tetap berjalan di latar belakang; pembaruan berhenti jika aplikasi ditutup sepenuhnya atau jaringan tidak tersedia.",
       "codexAppUiInjectionPoolLabel": "Akun",
       "codexAppUiInjectionWeeklyLabel": "Minggu",
       "codexAppUiInjectionFiveHourLabel": "5 jam",
@@ -960,7 +960,7 @@
       "proxyUrlRequired": "URL Proxy tidak boleh kosong saat proxy global diaktifkan."
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "Solusi Akun Profesional",
       "author": "Pengembang",
       "wechat": "WeChat​",
@@ -1920,10 +1920,10 @@
     },
     "exportFormat": {
       "label": "Format ekspor",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "ai-tools​",
       "sub2api": "Format sub2api",
       "cpa": "Format cpa",
-      "agentIdentityCpaUnsupported": "Akun Agent Identity tidak dapat diekspor dalam format cpa. Gunakan Cockpit Tools atau sub2api.",
+      "agentIdentityCpaUnsupported": "Akun Agent Identity tidak dapat diekspor dalam format cpa. Gunakan ai-tools atau sub2api.",
       "agentIdentityPrivateKeyNotice": "Ekspor ini berisi kunci privat Agent Identity yang dapat memulihkan akun di perangkat lain. Lindungi seperti kata sandi.",
       "buildFailed": "Ekspor tidak dapat dibuat: akun yang dipilih memiliki jenis yang tidak didukung atau kredensial yang tidak lengkap.",
       "downloadAll": "Unduh semua",
@@ -2007,8 +2007,8 @@
       "testAuthFailed": "Layanan dapat dijangkau, tetapi autentikasi gagal: {{detail}}. Periksa kunci layanan API atau status masuk akun.",
       "testServiceUnavailable": "Layanan dapat dijangkau, tetapi saat ini tidak tersedia: {{detail}}. Periksa apakah layanan aktif, koleksi akun kosong, atau akun dapat digunakan.",
       "gatewayErrors": {
-        "authUnavailable": "Tidak ada akun yang dapat dirutekan saat ini. Akun mungkin sedang cooldown, tidak terautentikasi, atau dibatasi kuota. Periksa statusnya di layanan API Cockpit Tools.",
-        "authNotFound": "Tidak ada akun yang dapat digunakan di kumpulan akun. Tambahkan atau aktifkan akun di layanan API Cockpit Tools."
+        "authUnavailable": "Tidak ada akun yang dapat dirutekan saat ini. Akun mungkin sedang cooldown, tidak terautentikasi, atau dibatasi kuota. Periksa statusnya di layanan API ai-tools.",
+        "authNotFound": "Tidak ada akun yang dapat digunakan di kumpulan akun. Tambahkan atau aktifkan akun di layanan API ai-tools."
       },
       "testRateLimited": "Layanan dapat dijangkau, tetapi upstream dibatasi atau kuota habis: {{detail}}.",
       "testHttpFailed": "Layanan dapat dijangkau, tetapi permintaan mengembalikan HTTP {{status}}: {{detail}}.",
@@ -5237,7 +5237,7 @@
   },
   "relay": {
     "pageTitle": "Relay eksklusif",
-    "pageDesc": "Layanan API mitra untuk pengguna Cockpit Tools yang dapat digunakan dengan akun API Key Codex.",
+    "pageDesc": "Layanan API mitra untuk pengguna ai-tools yang dapat digunakan dengan akun API Key Codex.",
     "loading": "Memuat relay...",
     "emptyTitle": "Relay nonaktif",
     "emptyDesc": "Konfigurasi jarak jauh belum mengaktifkan relay eksklusif.",

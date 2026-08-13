@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "AITool Cockpit",
+  "productName": "ai-tools",
   "version": "1.3.16",
-  "identifier": "com.aitool.cockpit",
+  "identifier": "com.ai-tools.app",
   "build": {
     "beforeDevCommand": "node scripts/prepare-tauri.cjs && npm run dev",
     "devUrl": "http://localhost:1420",
@@ -14,7 +14,7 @@
     "windows": [
       {
         "label": "main",
-        "title": "AITool Cockpit",
+        "title": "ai-tools",
         "width": 1280,
         "height": 800,
         "minWidth": 900,
@@ -27,7 +27,7 @@
       },
       {
         "label": "floating-card",
-        "title": "AITool Cockpit",
+        "title": "ai-tools",
         "create": false,
         "width": 250,
         "height": 290,
@@ -90,7 +90,7 @@
       "../src/assets/icons/zcode.png": "native-menu-icons/zcode.png"
     },
     "macOS": {
-      "bundleName": "AITool Cockpit",
+      "bundleName": "ai-tools",
       "infoPlist": "Info.plist"
     }
   },
@@ -98,8 +98,8 @@
     "deep-link": {
       "desktop": {
         "schemes": [
-          "aitool-cockpit",
-          "aitoolcockpit",
+          "ai-tools",
+          "aitools",
           "zcode"
         ]
       }

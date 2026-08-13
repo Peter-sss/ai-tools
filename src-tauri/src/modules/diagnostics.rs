@@ -345,7 +345,7 @@ fn build_sentry_event(
     contexts.insert(
         "runtime".to_string(),
         json!({
-            "appName": "AITool Cockpit",
+            "appName": "ai-tools",
             "appVersion": env!("CARGO_PKG_VERSION"),
             "profile": profile_name(),
             "os": std::env::consts::OS,

@@ -231,7 +231,7 @@
       "desc": "Tato oblast je pevně umístěná vpravo nahoře na všech stránkách pro kampaně nebo brandové reklamy.",
       "action": "Zobrazit podrobnosti"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "Sbalit",
     "confirmDelete": "Potvrdit smazání",
     "confirmDeleteTag": "Potvrdit smazání štítku",
@@ -283,12 +283,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponzoři",
-    "pageDesc": "Děkujeme těmto sponzorům za podporu Cockpit Tools.",
+    "pageDesc": "Děkujeme těmto sponzorům za podporu ai-tools.",
     "loading": "Načítání sponzorů...",
     "emptyTitle": "Zatím žádní sponzoři",
     "emptyDesc": "Vzdálený modul sponzorů je aktuálně vypnutý.",
     "listAriaLabel": "Seznam sponzorů",
-    "defaultDescription": "Děkujeme za podporu Cockpit Tools.",
+    "defaultDescription": "Děkujeme za podporu ai-tools.",
     "openSponsor": "Otevřít"
   },
   "platformLayout": {
@@ -577,7 +577,7 @@
   },
   "settings": {
     "title": "Nastavení aplikace",
-    "subtitle": "Přizpůsobte si prostředí Cockpit Tools.",
+    "subtitle": "Přizpůsobte si prostředí ai-tools.",
     "tabs": {
       "general": "Obecné",
       "network": "Síť",
@@ -656,7 +656,7 @@
       "codexSyncWsl": "Synchronizovat Codex do WSL",
       "codexSyncWslDesc": "Po přepnutí výchozího účtu Codex se auth.json a config.toml zapíší také do adresáře Codex ve WSL.",
       "codexAppUiInjection": "Kvóta API služby",
-      "codexAppUiInjectionDesc": "Po restartování instance Codex zobrazí pod kompozitorem počet účtů API služby Cockpit Tools a kvóty za týden a 5 hodin. Cockpit Tools musí běžet na pozadí; po úplném ukončení nebo bez sítě se údaje neobnovují.",
+      "codexAppUiInjectionDesc": "Po restartování instance Codex zobrazí pod kompozitorem počet účtů API služby ai-tools a kvóty za týden a 5 hodin. ai-tools musí běžet na pozadí; po úplném ukončení nebo bez sítě se údaje neobnovují.",
       "codexAppUiInjectionPoolLabel": "Účty",
       "codexAppUiInjectionWeeklyLabel": "Týden",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -750,7 +750,7 @@
       "sideNavLayoutClassic": "Klasické rozložení",
       "antigravityDualSwitchNoRestart": "Duální přepnutí bez restartu",
       "antigravityDualSwitchNoRestartDesc": "Při přepnutí účtu se v jednom kroku zapíší lokální data účtu a provede plynulé přepnutí rozšíření bez restartu Antigravity IDE.",
-      "appAutoLaunch": "Spustit Cockpit Tools po přihlášení",
+      "appAutoLaunch": "Spustit ai-tools po přihlášení",
       "appAutoLaunchDesc": "Spustit po přihlášení. Při chybě PowerShell při startu Windows vypněte.",
       "startupWakeupDisabled": "Vypnuto",
       "startupWakeupImmediate": "Probudit okamžitě",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "Když je globální proxy zapnutá, URL proxy nesmí být prázdná."
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "Profesionální řešení pro správu účtů",
       "author": "Autor",
       "wechat": "WeChat​",
@@ -1870,10 +1870,10 @@
     },
     "exportFormat": {
       "label": "Formát exportu",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "ai-tools​",
       "sub2api": "sub2api formát",
       "cpa": "cpa formát",
-      "agentIdentityCpaUnsupported": "Účty Agent Identity nelze exportovat ve formátu cpa. Použijte Cockpit Tools nebo sub2api.",
+      "agentIdentityCpaUnsupported": "Účty Agent Identity nelze exportovat ve formátu cpa. Použijte ai-tools nebo sub2api.",
       "agentIdentityPrivateKeyNotice": "Export obsahuje soukromý klíč Agent Identity, který umožňuje obnovit účet na jiném zařízení. Chraňte jej jako heslo.",
       "buildFailed": "Export nelze vytvořit: vybrané účty obsahují nepodporovaný typ nebo neúplné přihlašovací údaje.",
       "downloadAll": "Stáhnout vše",
@@ -1957,8 +1957,8 @@
       "testAuthFailed": "Služba je dosažitelná, ale ověření selhalo: {{detail}}. Zkontrolujte klíč API služby nebo stav přihlášení účtu.",
       "testServiceUnavailable": "Služba je dosažitelná, ale momentálně není dostupná: {{detail}}. Zkontrolujte, zda je služba zapnutá, kolekce účtů není prázdná a účty jsou použitelné.",
       "gatewayErrors": {
-        "authUnavailable": "Momentálně není k dispozici žádný účet pro směrování. Účet může být v čekací lhůtě, bez ověření nebo omezený kvótou. Zkontrolujte jeho stav v API službě Cockpit Tools.",
-        "authNotFound": "V kolekci účtů není nastaven žádný použitelný účet. Přidejte nebo aktivujte účet v API službě Cockpit Tools."
+        "authUnavailable": "Momentálně není k dispozici žádný účet pro směrování. Účet může být v čekací lhůtě, bez ověření nebo omezený kvótou. Zkontrolujte jeho stav v API službě ai-tools.",
+        "authNotFound": "V kolekci účtů není nastaven žádný použitelný účet. Přidejte nebo aktivujte účet v API službě ai-tools."
       },
       "testRateLimited": "Služba je dosažitelná, ale upstream je omezen nebo kvóta vyčerpána: {{detail}}.",
       "testHttpFailed": "Služba je dosažitelná, ale požadavek vrátil HTTP {{status}}: {{detail}}.",
@@ -5107,7 +5107,7 @@
       "backToCurrent": "Zpět",
       "switchToThisAccount": "Přepnout",
       "openDetails": "Otevřít detail",
-      "openCockpitTools": "Otevřít Cockpit Tools"
+      "openCockpitTools": "Otevřít ai-tools"
     },
     "empty": {
       "title": "Žádné účty",
@@ -5237,7 +5237,7 @@
   },
   "relay": {
     "pageTitle": "Exkluzivní relay",
-    "pageDesc": "Partnerská API služba pro uživatele Cockpit Tools použitelná s účty Codex API Key.",
+    "pageDesc": "Partnerská API služba pro uživatele ai-tools použitelná s účty Codex API Key.",
     "loading": "Načítání relay...",
     "emptyTitle": "Relay vypnutý",
     "emptyDesc": "Vzdálená konfigurace exkluzivní relay nepovolila.",

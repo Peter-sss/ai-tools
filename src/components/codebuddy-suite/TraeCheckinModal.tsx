@@ -4,8 +4,8 @@
  * 基于 CodebuddySuiteCheckinModal 模式，适配 Trae 的签到 API。
  */
 
-import { useState, useCallback, useEffect } from 'react';
-import { useTranslation } from 'react-i18next';
+import { useState, useCallback, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import {
   X,
   ChevronLeft,
@@ -18,15 +18,22 @@ import {
   Flame,
   Trophy,
   Ban,
-  Settings,
-  Clock,
-} from 'lucide-react';
-import { TraeAccount } from '../../types/trae';
-import { TraeCheckinStatusResult, getTraeCheckinStatus, claimTraeCheckin } from '../../services/traeService';
-import { useEscClose } from '../../hooks/useEscClose';
-import { getTraeAccountDisplayEmail } from '../../types/trae';
+} from "lucide-react";
+import { TraeAccount } from "../../types/trae";
+import {
+  TraeCheckinStatusResult,
+  getTraeCheckinStatus,
+  claimTraeCheckin,
+} from "../../services/traeService";
+import { useEscClose } from "../../hooks/useEscClose";
+import { getTraeAccountDisplayEmail } from "../../types/trae";
 
-type CheckinUiState = 'loading' | 'available' | 'claimed' | 'inactive' | 'error';
+type CheckinUiState =
+  | "loading"
+  | "available"
+  | "claimed"
+  | "inactive"
+  | "error";
 
 interface AccountCheckinState {
   status: TraeCheckinStatusResult | null;
@@ -35,17 +42,21 @@ interface AccountCheckinState {
   error: string | null;
 }
 
-function resolveUiState(status: TraeCheckinStatusResult | null): CheckinUiState {
+function resolveUiState(
+  status: TraeCheckinStatusResult | null,
+): CheckinUiState {
   if (!status) {
-    return 'inactive';
+    return "inactive";
   }
   if (status.checked_in) {
-    return 'claimed';
+    return "claimed";
   }
-  return 'available';
+  return "available";
 }
 
-function emptyAccountState(uiState: CheckinUiState = 'loading'): AccountCheckinState {
+function emptyAccountState(
+  uiState: CheckinUiState = "loading",
+): AccountCheckinState {
   return {
     status: null,
     uiState,
@@ -67,7 +78,9 @@ export function TraeCheckinModal({
 }: TraeCheckinModalProps) {
   const { t } = useTranslation();
   useEscClose(true, onClose);
-  const [accountStates, setAccountStates] = useState<Record<string, AccountCheckinState>>({});
+  const [accountStates, setAccountStates] = useState<
+    Record<string, AccountCheckinState>
+  >({});
   const [checkAllLoading, setCheckAllLoading] = useState(false);
   const [refreshLoading, setRefreshLoading] = useState(false);
 
@@ -83,7 +96,7 @@ export function TraeCheckinModal({
 
   const fetchStatus = useCallback(
     async (accountId: string) => {
-      updateAccountState(accountId, { error: null, uiState: 'loading' });
+      updateAccountState(accountId, { error: null, uiState: "loading" });
       try {
         const status = await getTraeCheckinStatus(accountId);
         const uiState = resolveUiState(status);
@@ -92,7 +105,7 @@ export function TraeCheckinModal({
         const errMsg = err instanceof Error ? err.message : String(err);
         updateAccountState(accountId, {
           status: null,
-          uiState: 'error',
+          uiState: "error",
           error: errMsg,
         });
       }
@@ -113,7 +126,7 @@ export function TraeCheckinModal({
         const result = await claimTraeCheckin(accountId);
         updateAccountState(accountId, {
           status: result,
-          uiState: 'claimed',
+          uiState: "claimed",
           checkingIn: false,
           error: null,
         });
@@ -128,7 +141,7 @@ export function TraeCheckinModal({
             status,
             uiState,
             checkingIn: false,
-            error: uiState === 'claimed' ? null : errMsg,
+            error: uiState === "claimed" ? null : errMsg,
           });
         } catch {
           updateAccountState(accountId, {
@@ -145,7 +158,7 @@ export function TraeCheckinModal({
     setCheckAllLoading(true);
     const availableAccounts = accounts.filter((account) => {
       const state = accountStates[account.id];
-      return state?.uiState === 'available';
+      return state?.uiState === "available";
     });
     for (const account of availableAccounts) {
       await handleCheck(account.id);
@@ -159,17 +172,17 @@ export function TraeCheckinModal({
 
   const claimedCount = accounts.filter((account) => {
     const state = accountStates[account.id];
-    return state?.uiState === 'claimed';
+    return state?.uiState === "claimed";
   }).length;
 
   const availableCount = accounts.filter((account) => {
     const state = accountStates[account.id];
-    return state?.uiState === 'available';
+    return state?.uiState === "available";
   }).length;
 
   const errorCount = accounts.filter((account) => {
     const state = accountStates[account.id];
-    return state?.uiState === 'error';
+    return state?.uiState === "error";
   }).length;
 
   const getDisplayEmail = useCallback(
@@ -179,18 +192,22 @@ export function TraeCheckinModal({
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content checkin-modal" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-content checkin-modal"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="modal-header">
           <button
             className="btn btn-secondary icon-only"
             onClick={onClose}
-            title={t('common.back', '返回')}
-            aria-label={t('common.back', '返回')}
+            title={t("common.back", "返回")}
+            aria-label={t("common.back", "返回")}
           >
             <ChevronLeft size={14} />
           </button>
           <h2>
-            <CalendarCheck size={20} /> {t('trae.checkin.modalTitle', 'TRAE SOLO CN 每日签到')}
+            <CalendarCheck size={20} />{" "}
+            {t("trae.checkin.modalTitle", "TRAE SOLO CN 每日签到")}
           </h2>
           <button className="modal-close" onClick={onClose}>
             <X size={18} />
@@ -200,14 +217,17 @@ export function TraeCheckinModal({
         <div className="checkin-modal-toolbar">
           <div className="checkin-summary">
             <span className="checkin-stat checked">
-              <CheckCircle size={14} /> {claimedCount} {t('workbuddy.checkin.checkedIn', '已签到')}
+              <CheckCircle size={14} /> {claimedCount}{" "}
+              {t("workbuddy.checkin.checkedIn", "已签到")}
             </span>
             <span className="checkin-stat unchecked">
-              <XCircle size={14} /> {availableCount} {t('workbuddy.checkin.notCheckedIn', '未签到')}
+              <XCircle size={14} /> {availableCount}{" "}
+              {t("workbuddy.checkin.notCheckedIn", "未签到")}
             </span>
             {errorCount > 0 && (
               <span className="checkin-stat error">
-                <Ban size={14} /> {errorCount} {t('workbuddy.checkin.errors', '异常')}
+                <Ban size={14} /> {errorCount}{" "}
+                {t("workbuddy.checkin.errors", "异常")}
               </span>
             )}
           </div>
@@ -222,7 +242,7 @@ export function TraeCheckinModal({
               ) : (
                 <RefreshCw size={14} />
               )}
-              {t('workbuddy.checkin.refreshStatus', '刷新状态')}
+              {t("workbuddy.checkin.refreshStatus", "刷新状态")}
             </button>
             <button
               className="btn btn-primary btn-sm"
@@ -234,7 +254,7 @@ export function TraeCheckinModal({
               ) : (
                 <Gift size={14} />
               )}
-              {t('workbuddy.checkin.checkAll', '一键签到')}
+              {t("workbuddy.checkin.checkAll", "一键签到")}
             </button>
           </div>
         </div>
@@ -251,7 +271,7 @@ export function TraeCheckinModal({
                   {state.status && (
                     <span className="checkin-account-streak">
                       <Flame size={12} />
-                      {t('workbuddy.checkin.streakDays', '连续 {{days}} 天', {
+                      {t("workbuddy.checkin.streakDays", "连续 {{days}} 天", {
                         days: state.status.consecutive_days,
                       })}
                     </span>
@@ -259,7 +279,7 @@ export function TraeCheckinModal({
                   {state.status && state.status.total_credits > 0 && (
                     <span className="checkin-account-credits">
                       <Trophy size={12} />
-                      {t('workbuddy.checkin.totalCredits', '{{credits}} 积分', {
+                      {t("workbuddy.checkin.totalCredits", "{{credits}} 积分", {
                         credits: state.status.total_credits,
                       })}
                     </span>
@@ -267,27 +287,30 @@ export function TraeCheckinModal({
                 </div>
 
                 <div className="checkin-account-action">
-                  {state.uiState === 'loading' && (
+                  {state.uiState === "loading" && (
                     <Loader2 size={16} className="animate-spin" />
                   )}
-                  {state.uiState === 'error' && (
-                    <span className="checkin-error-text" title={state.error || ''}>
-                      {t('workbuddy.checkin.error', '查询失败')}
+                  {state.uiState === "error" && (
+                    <span
+                      className="checkin-error-text"
+                      title={state.error || ""}
+                    >
+                      {t("workbuddy.checkin.error", "查询失败")}
                     </span>
                   )}
-                  {state.uiState === 'inactive' && (
+                  {state.uiState === "inactive" && (
                     <span className="checkin-inactive">
                       <Ban size={14} />
-                      {t('workbuddy.checkin.inactive', '不可用')}
+                      {t("workbuddy.checkin.inactive", "不可用")}
                     </span>
                   )}
-                  {state.uiState === 'claimed' && (
+                  {state.uiState === "claimed" && (
                     <span className="checkin-claimed">
                       <CheckCircle size={14} />
-                      {t('workbuddy.checkin.claimed', '已领取')}
+                      {t("workbuddy.checkin.claimed", "已领取")}
                     </span>
                   )}
-                  {state.uiState === 'available' && (
+                  {state.uiState === "available" && (
                     <button
                       className="btn btn-primary btn-sm"
                       onClick={() => void handleCheck(account.id)}
@@ -298,7 +321,7 @@ export function TraeCheckinModal({
                       ) : (
                         <Gift size={14} />
                       )}
-                      {t('workbuddy.checkin.checkin', '签到')}
+                      {t("workbuddy.checkin.checkin", "签到")}
                     </button>
                   )}
                 </div>
@@ -309,7 +332,7 @@ export function TraeCheckinModal({
 
         {accounts.length === 0 && (
           <div className="checkin-empty">
-            <p>{t('workbuddy.checkin.noAccounts', '暂无账号')}</p>
+            <p>{t("workbuddy.checkin.noAccounts", "暂无账号")}</p>
           </div>
         )}
       </div>

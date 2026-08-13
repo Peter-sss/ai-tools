@@ -231,7 +231,7 @@
       "desc": "Bu alan tüm sayfalarda sağ üstte sabitlenir ve kampanya ya da marka reklamları için uygundur.",
       "action": "Ayrıntıları görüntüle"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "Daralt",
     "confirmDelete": "Silmeyi Onayla",
     "confirmDeleteTag": "Etiket Silmeyi Onayla",
@@ -283,12 +283,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponsorlar",
-    "pageDesc": "Cockpit Tools'u destekleyen sponsorlara teşekkür ederiz.",
+    "pageDesc": "ai-tools'u destekleyen sponsorlara teşekkür ederiz.",
     "loading": "Sponsorlar yükleniyor...",
     "emptyTitle": "Henüz sponsor yok",
     "emptyDesc": "Uzak sponsor modülü şu anda devre dışı.",
     "listAriaLabel": "Sponsor listesi",
-    "defaultDescription": "Cockpit Tools'u desteklediğiniz için teşekkürler.",
+    "defaultDescription": "ai-tools'u desteklediğiniz için teşekkürler.",
     "openSponsor": "Aç"
   },
   "platformLayout": {
@@ -577,7 +577,7 @@
   },
   "settings": {
     "title": "Uygulama Ayarları",
-    "subtitle": "Cockpit Tools deneyiminizi özelleştirin.",
+    "subtitle": "ai-tools deneyiminizi özelleştirin.",
     "tabs": {
       "general": "Genel",
       "network": "Ağ",
@@ -660,7 +660,7 @@
       "codexSyncWsl": "Codex'i WSL ile eşitle",
       "codexSyncWslDesc": "Varsayılan Codex hesabı değiştirildikten sonra auth.json ve config.toml WSL içindeki Codex dizinine de yazılır.",
       "codexAppUiInjection": "API hizmeti kotası",
-      "codexAppUiInjectionDesc": "Codex örneği yeniden başlatıldıktan sonra Cockpit Tools API hizmetinin hesap sayısını, haftalık ve 5 saatlik kotasını oluşturucunun altında gösterir. Cockpit Tools arka planda çalışmaya devam etmelidir; uygulama tamamen kapatıldığında veya ağ kullanılamadığında güncellemeler durur.",
+      "codexAppUiInjectionDesc": "Codex örneği yeniden başlatıldıktan sonra ai-tools API hizmetinin hesap sayısını, haftalık ve 5 saatlik kotasını oluşturucunun altında gösterir. ai-tools arka planda çalışmaya devam etmelidir; uygulama tamamen kapatıldığında veya ağ kullanılamadığında güncellemeler durur.",
       "codexAppUiInjectionPoolLabel": "Hesaplar",
       "codexAppUiInjectionWeeklyLabel": "Hafta",
       "codexAppUiInjectionFiveHourLabel": "5 sa",
@@ -754,7 +754,7 @@
       "sideNavLayoutClassic": "Klasik Düzen",
       "antigravityDualSwitchNoRestart": "Yeniden başlatmadan çift geçiş",
       "antigravityDualSwitchNoRestartDesc": "Hesap değiştirirken yerel hesap verisi yazımı ve eklentinin kesintisiz geçişi tek akışta yürütülür; Antigravity IDE yeniden başlatılmaz.",
-      "appAutoLaunch": "Oturum açıldığında Cockpit Tools'u başlat",
+      "appAutoLaunch": "Oturum açıldığında ai-tools'u başlat",
       "appAutoLaunchDesc": "Oturum açınca başlat. Windows açılışında PowerShell hatası görürseniz kapatın.",
       "startupWakeupDisabled": "Devre dışı",
       "startupWakeupImmediate": "Hemen uyandır",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "Genel proxy etkin olduğunda proxy URL boş olamaz."
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "Profesyonel Hesap Yönetimi Çözümü",
       "author": "Yazar",
       "wechat": "WeChat​",
@@ -1870,10 +1870,10 @@
     },
     "exportFormat": {
       "label": "Dışa aktarma biçimi",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "ai-tools​",
       "sub2api": "sub2api biçimi",
       "cpa": "cpa biçimi",
-      "agentIdentityCpaUnsupported": "Agent Identity hesapları cpa biçiminde dışa aktarılamaz. Cockpit Tools veya sub2api kullanın.",
+      "agentIdentityCpaUnsupported": "Agent Identity hesapları cpa biçiminde dışa aktarılamaz. ai-tools veya sub2api kullanın.",
       "agentIdentityPrivateKeyNotice": "Bu dışa aktarım, hesabı başka bir cihazda geri yükleyebilen bir Agent Identity özel anahtarı içerir. Parola gibi koruyun.",
       "buildFailed": "Dışa aktarım oluşturulamıyor: seçilen hesaplarda desteklenmeyen bir tür veya eksik kimlik bilgileri var.",
       "downloadAll": "Tümünü indir",
@@ -1957,8 +1957,8 @@
       "testAuthFailed": "Hizmete erişiliyor ancak kimlik doğrulama başarısız: {{detail}}. API hizmeti anahtarını veya hesap oturum durumunu kontrol edin.",
       "testServiceUnavailable": "Hizmete erişiliyor ancak şu anda kullanılamıyor: {{detail}}. Hizmetin etkin olup olmadığını, hesap koleksiyonunun boş olup olmadığını veya hesapların kullanılabilirliğini kontrol edin.",
       "gatewayErrors": {
-        "authUnavailable": "Şu anda yönlendirilebilir hesap yok. Hesap beklemede, yetkisiz veya kota sınırlı olabilir. Cockpit Tools API hizmetinde durumunu kontrol edin.",
-        "authNotFound": "Hesap havuzunda kullanılabilir hesap yapılandırılmamış. Cockpit Tools API hizmetinde hesap ekleyin veya etkinleştirin."
+        "authUnavailable": "Şu anda yönlendirilebilir hesap yok. Hesap beklemede, yetkisiz veya kota sınırlı olabilir. ai-tools API hizmetinde durumunu kontrol edin.",
+        "authNotFound": "Hesap havuzunda kullanılabilir hesap yapılandırılmamış. ai-tools API hizmetinde hesap ekleyin veya etkinleştirin."
       },
       "testRateLimited": "Hizmete erişiliyor ancak upstream hız sınırında veya kota tükendi: {{detail}}.",
       "testHttpFailed": "Hizmete erişiliyor ancak istek HTTP {{status}} döndürdü: {{detail}}.",
@@ -5107,7 +5107,7 @@
       "backToCurrent": "Geri",
       "switchToThisAccount": "Geç",
       "openDetails": "Ayrıntıları aç",
-      "openCockpitTools": "Cockpit Tools'u aç"
+      "openCockpitTools": "ai-tools'u aç"
     },
     "empty": {
       "title": "Hesap yok",
@@ -5237,7 +5237,7 @@
   },
   "relay": {
     "pageTitle": "Özel aktarım",
-    "pageDesc": "Cockpit Tools kullanıcıları için Codex API Key hesaplarıyla kullanılabilen iş ortaklığı API servisi.",
+    "pageDesc": "ai-tools kullanıcıları için Codex API Key hesaplarıyla kullanılabilen iş ortaklığı API servisi.",
     "loading": "Aktarım yükleniyor...",
     "emptyTitle": "Aktarım kapalı",
     "emptyDesc": "Uzak yapılandırma özel aktarımı etkinleştirmedi.",

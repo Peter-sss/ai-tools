@@ -231,7 +231,7 @@
       "desc": "Cette zone est fixée en haut à droite sur toutes les pages pour les campagnes ou publicités de marque.",
       "action": "Voir les détails"
     },
-    "appName": "AITool Cockpit",
+    "appName": "ai-tools",
     "collapse": "Réduire",
     "confirmDelete": "Confirmer la suppression",
     "confirmDeleteTag": "Confirmer la suppression du tag",
@@ -283,12 +283,12 @@
   },
   "sponsors": {
     "pageTitle": "Sponsors​",
-    "pageDesc": "Merci à ces sponsors de soutenir Cockpit Tools.",
+    "pageDesc": "Merci à ces sponsors de soutenir ai-tools.",
     "loading": "Chargement des sponsors...",
     "emptyTitle": "Aucun sponsor pour le moment",
     "emptyDesc": "Le module distant des sponsors est actuellement désactivé.",
     "listAriaLabel": "Liste des sponsors",
-    "defaultDescription": "Merci de soutenir Cockpit Tools.",
+    "defaultDescription": "Merci de soutenir ai-tools.",
     "openSponsor": "Ouvrir"
   },
   "platformLayout": {
@@ -577,7 +577,7 @@
   },
   "settings": {
     "title": "Paramètres de l'application",
-    "subtitle": "Personnalisez votre expérience Cockpit Tools.",
+    "subtitle": "Personnalisez votre expérience ai-tools.",
     "tabs": {
       "general": "Général",
       "network": "Réseau",
@@ -656,7 +656,7 @@
       "codexSyncWsl": "Synchroniser Codex vers WSL",
       "codexSyncWslDesc": "Après le changement du compte Codex par défaut, auth.json et config.toml sont aussi écrits dans le dossier Codex de WSL.",
       "codexAppUiInjection": "Quota du service API",
-      "codexAppUiInjectionDesc": "Après le redémarrage d’une instance Codex, afficher sous le compositeur le nombre de comptes et les quotas hebdomadaire et de 5 heures du service API Cockpit Tools. Cockpit Tools doit rester actif en arrière-plan ; les mises à jour s’arrêtent après sa fermeture complète ou si le réseau est indisponible.",
+      "codexAppUiInjectionDesc": "Après le redémarrage d’une instance Codex, afficher sous le compositeur le nombre de comptes et les quotas hebdomadaire et de 5 heures du service API ai-tools. ai-tools doit rester actif en arrière-plan ; les mises à jour s’arrêtent après sa fermeture complète ou si le réseau est indisponible.",
       "codexAppUiInjectionPoolLabel": "Comptes",
       "codexAppUiInjectionWeeklyLabel": "Semaine",
       "codexAppUiInjectionFiveHourLabel": "5 h",
@@ -750,7 +750,7 @@
       "sideNavLayoutClassic": "Disposition classique",
       "antigravityDualSwitchNoRestart": "Bascule double sans redémarrage",
       "antigravityDualSwitchNoRestartDesc": "Lors du changement de compte, les données locales sont écrites et la bascule fluide de l’extension est exécutée dans un seul flux, sans redémarrer Antigravity IDE.",
-      "appAutoLaunch": "Lancer Cockpit Tools à la connexion",
+      "appAutoLaunch": "Lancer ai-tools à la connexion",
       "appAutoLaunchDesc": "Démarrer après connexion. Si PowerShell échoue au boot Windows, désactivez.",
       "startupWakeupDisabled": "Désactivé",
       "startupWakeupImmediate": "Réveiller immédiatement",
@@ -913,7 +913,7 @@
       "proxyUrlRequired": "L'URL du proxy ne peut pas être vide lorsque le proxy global est activé."
     },
     "about": {
-      "appName": "AITool Cockpit",
+      "appName": "ai-tools",
       "slogan": "Solution professionnelle de gestion de comptes",
       "author": "Auteur",
       "wechat": "WeChat​",
@@ -1870,10 +1870,10 @@
     },
     "exportFormat": {
       "label": "Format d’export",
-      "cockpitTools": "Cockpit Tools​",
+      "cockpitTools": "ai-tools​",
       "sub2api": "Format sub2api",
       "cpa": "Format cpa",
-      "agentIdentityCpaUnsupported": "Les comptes Agent Identity ne peuvent pas être exportés au format cpa. Utilisez Cockpit Tools ou sub2api.",
+      "agentIdentityCpaUnsupported": "Les comptes Agent Identity ne peuvent pas être exportés au format cpa. Utilisez ai-tools ou sub2api.",
       "agentIdentityPrivateKeyNotice": "Cet export contient une clé privée Agent Identity permettant de restaurer le compte sur un autre appareil. Protégez-la comme un mot de passe.",
       "buildFailed": "Impossible de créer l’export : les comptes sélectionnés contiennent un type non pris en charge ou des identifiants incomplets.",
       "downloadAll": "Tout télécharger",
@@ -1957,8 +1957,8 @@
       "testAuthFailed": "Service joignable, mais authentification échouée : {{detail}}. Vérifiez la clé du service API ou l’état de connexion du compte.",
       "testServiceUnavailable": "Service joignable, mais actuellement indisponible : {{detail}}. Vérifiez si le service est activé, si la collection de comptes est vide ou si les comptes sont utilisables.",
       "gatewayErrors": {
-        "authUnavailable": "Aucun compte du pool n’est actuellement utilisable. Le compte peut être en refroidissement, non autorisé ou limité par son quota. Vérifiez son état dans le service API de Cockpit Tools.",
-        "authNotFound": "Aucun compte utilisable n’est configuré dans le pool. Ajoutez ou activez un compte dans le service API de Cockpit Tools."
+        "authUnavailable": "Aucun compte du pool n’est actuellement utilisable. Le compte peut être en refroidissement, non autorisé ou limité par son quota. Vérifiez son état dans le service API de ai-tools.",
+        "authNotFound": "Aucun compte utilisable n’est configuré dans le pool. Ajoutez ou activez un compte dans le service API de ai-tools."
       },
       "testRateLimited": "Service joignable, mais l’amont est limité ou le quota est épuisé : {{detail}}.",
       "testHttpFailed": "Service joignable, mais la requête a renvoyé HTTP {{status}} : {{detail}}.",
@@ -5107,7 +5107,7 @@
       "backToCurrent": "Retour",
       "switchToThisAccount": "Passer",
       "openDetails": "Ouvrir les détails",
-      "openCockpitTools": "Ouvrir Cockpit Tools"
+      "openCockpitTools": "Ouvrir ai-tools"
     },
     "empty": {
       "title": "Aucun compte",
@@ -5237,7 +5237,7 @@
   },
   "relay": {
     "pageTitle": "Relais exclusif",
-    "pageDesc": "Service API partenaire pour les utilisateurs de Cockpit Tools, utilisable avec les comptes API Key Codex.",
+    "pageDesc": "Service API partenaire pour les utilisateurs de ai-tools, utilisable avec les comptes API Key Codex.",
     "loading": "Chargement du relais...",
     "emptyTitle": "Relais désactivé",
     "emptyDesc": "La configuration distante n’a pas activé le relais exclusif.",
