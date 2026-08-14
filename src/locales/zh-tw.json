@@ -4244,6 +4244,11 @@
     "quota": {
       "onDemand": "按需使用"
     },
+    "copyTokenLine": {
+      "success": "已複製 {{email}} 的 Token 行",
+      "missing": "缺少 access token，無法複製 {{email}}",
+      "hint": "點擊複製 email----user_id::token"
+    },
     "title": "Cursor 帳號管理",
     "instances": {
       "unsupported": {

@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "Předplatné",
     "injectToCursor": "Přepnout na Cursor",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Otevřít v anonymním Chrome",
+    "openInChromeSuccess": "Panel Cursor otevřen v anonymním Chrome",
+    "openInChromeFailed": "Chrome se nepodařilo otevřít: {{error}}",
     "quota": {
       "onDemand": "Na vyžádání"
+    },
+    "copyTokenLine": {
+      "success": "Řádek tokenu pro {{email}} zkopírován",
+      "missing": "Chybí access token, nelze zkopírovat {{email}}",
+      "hint": "Kliknutím zkopírujete email----user_id::token"
     },
     "title": "Správa účtů Cursor",
     "instances": {

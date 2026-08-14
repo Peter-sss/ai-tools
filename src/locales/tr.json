@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "Abonelik",
     "injectToCursor": "Cursor'a geç",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Chrome Gizli'de aç",
+    "openInChromeSuccess": "Cursor panosu Chrome Gizli'de açıldı",
+    "openInChromeFailed": "Chrome açılamadı: {{error}}",
     "quota": {
       "onDemand": "İsteğe bağlı"
+    },
+    "copyTokenLine": {
+      "success": "{{email}} için token satırı kopyalandı",
+      "missing": "Access token yok, {{email}} kopyalanamıyor",
+      "hint": "Kopyalamak için tıklayın: email----user_id::token"
     },
     "title": "Cursor Hesap Yönetimi",
     "instances": {

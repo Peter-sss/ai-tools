@@ -4549,6 +4549,11 @@
     "quota": {
       "onDemand": "On-Demand"
     },
+    "copyTokenLine": {
+      "success": "Copied token line for {{email}}",
+      "missing": "Missing access token, cannot copy {{email}}",
+      "hint": "Click to copy email----user_id::token"
+    },
     "title": "Cursor Account",
     "instances": {
       "unsupported": {

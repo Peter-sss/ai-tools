@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "구독",
     "injectToCursor": "Cursor로 전환",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Chrome 시크릿 모드에서 열기",
+    "openInChromeSuccess": "Chrome 시크릿 모드에서 Cursor 대시보드를 열었습니다",
+    "openInChromeFailed": "Chrome을 열지 못했습니다: {{error}}",
     "quota": {
       "onDemand": "온디맨드"
+    },
+    "copyTokenLine": {
+      "success": "{{email}}의 토큰 줄을 복사했습니다",
+      "missing": "access token이 없어 {{email}}을(를) 복사할 수 없습니다",
+      "hint": "클릭하여 email----user_id::token 복사"
     },
     "title": "Cursor 계정 관리",
     "instances": {

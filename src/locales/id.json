@@ -4391,11 +4391,16 @@
   "cursor": {
     "subscription": "Subscription​",
     "injectToCursor": "Switch to Cursor​",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Buka di Chrome Incognito",
+    "openInChromeSuccess": "Dasbor Cursor dibuka di Chrome Incognito",
+    "openInChromeFailed": "Gagal membuka Chrome: {{error}}",
     "quota": {
       "onDemand": "Sesuai permintaan"
+    },
+    "copyTokenLine": {
+      "success": "Baris token {{email}} disalin",
+      "missing": "Access token tidak ada, tidak dapat menyalin {{email}}",
+      "hint": "Klik untuk menyalin email----user_id::token"
     },
     "title": "Cursor Account​",
     "instances": {

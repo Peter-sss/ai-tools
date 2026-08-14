@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "Gói đăng ký",
     "injectToCursor": "Chuyển sang Cursor",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Mở trong Chrome ẩn danh",
+    "openInChromeSuccess": "Đã mở bảng Cursor trong Chrome ẩn danh",
+    "openInChromeFailed": "Không mở được Chrome: {{error}}",
     "quota": {
       "onDemand": "Theo yêu cầu"
+    },
+    "copyTokenLine": {
+      "success": "Đã sao chép dòng token của {{email}}",
+      "missing": "Thiếu access token, không thể sao chép {{email}}",
+      "hint": "Nhấp để sao chép email----user_id::token"
     },
     "title": "Quản lý tài khoản Cursor",
     "instances": {

@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "Подписка",
     "injectToCursor": "Переключиться на Cursor",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Открыть в Chrome инкогнито",
+    "openInChromeSuccess": "Панель Cursor открыта в Chrome инкогнито",
+    "openInChromeFailed": "Не удалось открыть Chrome: {{error}}",
     "quota": {
       "onDemand": "По запросу"
+    },
+    "copyTokenLine": {
+      "success": "Строка токена скопирована для {{email}}",
+      "missing": "Нет access token, нельзя скопировать {{email}}",
+      "hint": "Нажмите, чтобы скопировать email----user_id::token"
     },
     "title": "Управление аккаунтами Cursor",
     "instances": {

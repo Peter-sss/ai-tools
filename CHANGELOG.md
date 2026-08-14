@@ -7,6 +7,18 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.3.18] - 2026-08-14
+
+### Fixed
+
+- **Cursor add-account now defaults to Token / JSON**: the add-account button no longer opens the OAuth tab first.
+- **Cursor imported accounts refresh quota automatically**: Token / JSON, JSON file, and local imports refresh the new account after success, so a manual refresh is no longer required.
+
+### Changed
+
+- **This release ships Windows and macOS installers only**: Linux artifacts are not built or uploaded for now.
+
+---
 ## [1.3.17] - 2026-08-13
 
 ### Changed

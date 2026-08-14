@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "サブスクリプション",
     "injectToCursor": "Cursor に切り替え",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Chrome シークレットで開く",
+    "openInChromeSuccess": "Chrome シークレットで Cursor ダッシュボードを開きました",
+    "openInChromeFailed": "Chrome を開けませんでした: {{error}}",
     "quota": {
       "onDemand": "オンデマンド"
+    },
+    "copyTokenLine": {
+      "success": "{{email}} のトークン行をコピーしました",
+      "missing": "access token がないため {{email}} をコピーできません",
+      "hint": "クリックして email----user_id::token をコピー"
     },
     "title": "Cursor アカウント管理",
     "instances": {

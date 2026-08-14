@@ -4238,11 +4238,16 @@
   "cursor": {
     "subscription": "Assinatura",
     "injectToCursor": "Alternar para Cursor",
-    "openInChrome": "Open in Chrome Incognito",
-    "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
-    "openInChromeFailed": "Failed to open Chrome: {{error}}",
+    "openInChrome": "Abrir no Chrome anônimo",
+    "openInChromeSuccess": "Painel do Cursor aberto no Chrome anônimo",
+    "openInChromeFailed": "Falha ao abrir o Chrome: {{error}}",
     "quota": {
       "onDemand": "Sob demanda"
+    },
+    "copyTokenLine": {
+      "success": "Linha de token copiada para {{email}}",
+      "missing": "Access token ausente, não é possível copiar {{email}}",
+      "hint": "Clique para copiar email----user_id::token"
     },
     "title": "Gerenciamento de contas Cursor",
     "instances": {

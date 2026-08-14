@@ -7,6 +7,18 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
 ---
+## [1.3.18] - 2026-08-14
+
+### 修复
+
+- **Cursor 添加账号默认打开 Token / JSON**：点击「添加账号」不再默认进入 OAuth。
+- **Cursor 导入账号后自动刷新配额**：Token / JSON、JSON 文件和本地导入成功后会自动刷新刚导入的账号，无需再手动点刷新。
+
+### 变更
+
+- **本次发版仅提供 Windows 与 macOS 安装包**：暂不构建或上传 Linux 产物。
+
+---
 ## [1.3.17] - 2026-08-13
 
 ### 变更
