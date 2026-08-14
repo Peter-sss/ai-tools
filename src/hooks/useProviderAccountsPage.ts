@@ -178,6 +178,8 @@ export interface ProviderPageConfig<TAccount extends ProviderAccountBase> {
   resolveOauthSuccessMessage?: () => string;
   /** 外部浏览器导入完成后的扩展处理（可选） */
   onExternalImportCompleted?: (accountIds: string[]) => void | Promise<void>;
+  /** 导入成功后自动刷新导入账号的配额；默认 false */
+  refreshAfterImport?: boolean;
   /** 首次渲染时使用的搜索内容 */
   initialSearchQuery?: string;
   defaultSortBy?: string;
@@ -842,6 +844,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     initialSearchQuery: initialSearchQueryConfig,
     defaultSortBy: defaultSortByConfig,
     onExternalImportCompleted,
+    refreshAfterImport = false,
   } = config;
   const defaultSortBy = defaultSortByConfig?.trim() || DEFAULT_SORT_BY;
 
@@ -1340,6 +1343,20 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     [refreshToken],
   );
 
+  const refreshImportedAccounts = useCallback(
+    (imported: unknown) => {
+      if (!refreshAfterImport) return;
+      const ids = [...new Set(collectImportedAccountIds(imported))];
+      if (ids.length === 0) return;
+      void (async () => {
+        for (const id of ids) {
+          await handleRefresh(id);
+        }
+      })();
+    },
+    [handleRefresh, refreshAfterImport],
+  );
+
   const handleRefreshAll = useCallback(async () => {
     setRefreshingAll(true);
     try {
@@ -1471,21 +1488,27 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       setMessage(null);
       setWebviewing(accountId);
       const account = accounts.find((item) => item.id === accountId);
-      const displayEmail = account ? config.getDisplayEmail(account) : accountId;
+      const displayEmail = account
+        ? config.getDisplayEmail(account)
+        : accountId;
       try {
         await openFn(accountId);
         setMessage({
-          text: t('workbuddy.webview.opened', '已打开网页会话：{{email}}', {
+          text: t("workbuddy.webview.opened", "已打开网页会话：{{email}}", {
             email: maskAccountText(displayEmail),
           }),
-          tone: 'success',
+          tone: "success",
         });
       } catch (e: unknown) {
         setMessage({
-          text: t('workbuddy.webview.openFailed', '打开网页会话失败：{{error}}', {
-            error: String(e) || t('common.failed', 'Failed'),
-          }),
-          tone: 'error',
+          text: t(
+            "workbuddy.webview.openFailed",
+            "打开网页会话失败：{{error}}",
+            {
+              error: String(e) || t("common.failed", "Failed"),
+            },
+          ),
+          tone: "error",
         });
       }
       setWebviewing(null);
@@ -2010,6 +2033,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           setShowAddModal(false);
           resetAddModalState();
         }, 1200);
+        refreshImportedAccounts(imported);
       } catch (e) {
         setAddStatus("error");
         const errorMsg = String(e).replace(/^Error:\s*/, "");
@@ -2023,7 +2047,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
       setImporting(false);
     },
-    [dataService, fetchAccounts, platformId, resetAddModalState, t],
+    [
+      dataService,
+      fetchAccounts,
+      platformId,
+      refreshImportedAccounts,
+      resetAddModalState,
+      t,
+    ],
   );
 
   const handleImportFromLocal = useMemo(() => {
@@ -2056,6 +2087,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           setShowAddModal(false);
           resetAddModalState();
         }, 1200);
+        refreshImportedAccounts(imported);
       } catch (e) {
         setAddStatus("error");
         const errorMsg = String(e).replace(/^Error:\s*/, "");
@@ -2072,6 +2104,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     dataService.importFromLocal,
     fetchAccounts,
     platformId,
+    refreshImportedAccounts,
     resetAddModalState,
     t,
   ]);
@@ -2089,6 +2122,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     setAddMessage(t("common.shared.token.importing", "正在导入..."));
 
     try {
+      let imported: unknown = [];
       let importedCount = 0;
       // 「粘贴 JSON」页签只走 JSON 导入；Token/API Key 页签仍兼容 JSON 与纯 token
       const preferJsonOnly = addTab === "paste";
@@ -2097,14 +2131,14 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         trimmed.startsWith("{") ||
         trimmed.startsWith("[")
       ) {
-        const imported = await dataService.importFromJson(trimmed);
-        importedCount = imported.length;
+        imported = await dataService.importFromJson(trimmed);
+        importedCount = Array.isArray(imported) ? imported.length : 1;
       } else if (dataService.addWithToken) {
-        const result = await dataService.addWithToken(trimmed);
-        importedCount = Array.isArray(result) ? result.length : 1;
+        imported = await dataService.addWithToken(trimmed);
+        importedCount = Array.isArray(imported) ? imported.length : 1;
       } else {
-        const imported = await dataService.importFromJson(trimmed);
-        importedCount = imported.length;
+        imported = await dataService.importFromJson(trimmed);
+        importedCount = Array.isArray(imported) ? imported.length : 1;
       }
       await fetchAccounts();
       if (platformId) {
@@ -2124,6 +2158,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         setShowAddModal(false);
         resetAddModalState();
       }, 1200);
+      refreshImportedAccounts(imported);
     } catch (e) {
       setAddStatus("error");
       const errorMsg = String(e).replace(/^Error:\s*/, "");
@@ -2140,6 +2175,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     dataService,
     fetchAccounts,
     platformId,
+    refreshImportedAccounts,
     resetAddModalState,
     t,
     tokenInput,

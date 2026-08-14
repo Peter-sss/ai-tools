@@ -278,6 +278,7 @@ export function CursorAccountsPage() {
       injectToVSCode: cursorService.injectCursorAccount,
     },
     getDisplayEmail: (account) => getCursorAccountDisplayEmail(account),
+    refreshAfterImport: true,
   });
 
   const {
@@ -1774,7 +1775,7 @@ export function CursorAccountsPage() {
             <div className="toolbar-right">
               <button
                 className="btn btn-primary icon-only"
-                onClick={() => openAddModal("oauth")}
+                onClick={() => openAddModal("token")}
                 title={t("common.shared.addAccount", "添加账号")}
                 aria-label={t("common.shared.addAccount", "添加账号")}
               >
@@ -1883,7 +1884,7 @@ export function CursorAccountsPage() {
               >
                 <button
                   className="btn btn-primary"
-                  onClick={() => openAddModal("oauth")}
+                  onClick={() => openAddModal("token")}
                 >
                   <Plus size={16} />
                   {t("common.shared.addAccount", "添加账号")}
