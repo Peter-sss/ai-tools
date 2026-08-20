@@ -598,6 +598,7 @@ export function CursorAccountsPage() {
     (account: CursorAccount) => {
       const usage = getCursorUsage(account);
       const onDemand = getCursorOnDemandSummary(usage);
+      const usedText = formatCursorUsageDollars(onDemand.usedCents);
 
       if (onDemand.isDisabled) {
         return {
@@ -605,9 +606,10 @@ export function CursorAccountsPage() {
           quotaClass: "normal",
           valueText:
             onDemand.usedCents > 0
-              ? formatCursorUsageDollars(onDemand.usedCents)
+              ? usedText
               : t("common.disabled", "Disabled"),
           costText: null as string | null,
+          usedText,
           disabled: true,
         };
       }
@@ -617,7 +619,8 @@ export function CursorAccountsPage() {
           percentage: 0,
           quotaClass: "normal",
           valueText: "Unlimited",
-          costText: formatCursorUsageDollars(onDemand.usedCents),
+          costText: usedText,
+          usedText,
           disabled: false,
         };
       }
@@ -627,12 +630,13 @@ export function CursorAccountsPage() {
           ? (onDemand.usedCents / onDemand.limitCents) * 100
           : 0;
       const fixed = normalizeCursorPercent(rawPct);
-      const costText = `${formatCursorUsageDollars(onDemand.usedCents)} / ${formatCursorUsageDollars(onDemand.limitCents)}`;
+      const costText = `${usedText} / ${formatCursorUsageDollars(onDemand.limitCents)}`;
       return {
         percentage: fixed.bar,
         quotaClass: getCursorQuotaClass(fixed.display),
         valueText: `${fixed.display}%`,
         costText,
+        usedText,
         disabled: false,
       };
     },
@@ -1427,32 +1431,24 @@ export function CursorAccountsPage() {
           </td>
           <td>
             {hasQuotaData ? (
-              <div
-                className="quota-item windsurf-table-credit-item cursor-table-quota cursor-table-quota--total"
+              <span
+                className={`quota-value cursor-table-total-pct ${total.quotaClass}`}
                 title={
-                  resetText
-                    ? t("common.shared.quota.resetAt", {
-                        time: resetText,
-                        defaultValue: "Reset: {{time}}",
-                      })
-                    : undefined
+                  [
+                    total.costText,
+                    resetText
+                      ? t("common.shared.quota.resetAt", {
+                          time: resetText,
+                          defaultValue: "Reset: {{time}}",
+                        })
+                      : null,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ") || undefined
                 }
               >
-                <div className="quota-header">
-                  <span className="quota-name">
-                    {total.costText || "Total Usage"}
-                  </span>
-                  <span className={`quota-value ${total.quotaClass}`}>
-                    {total.valueText}
-                  </span>
-                </div>
-                <div className="quota-progress-track">
-                  <div
-                    className={`quota-progress-bar ${total.quotaClass}`}
-                    style={{ width: `${Math.min(total.percentage, 100)}%` }}
-                  />
-                </div>
-              </div>
+                {total.valueText}
+              </span>
             ) : (
               <div className="quota-empty">
                 {t("common.shared.quota.noData", "暂无配额数据")}
@@ -1461,58 +1457,31 @@ export function CursorAccountsPage() {
           </td>
           <td>
             {hasQuotaData ? (
-              <div className="cursor-table-quota-stack">
-                <div className="quota-item windsurf-table-credit-item cursor-table-quota">
-                  <div className="quota-header">
-                    <span className="quota-name">Auto + Composer</span>
-                    <span className={`quota-value ${auto.quotaClass}`}>
-                      {auto.valueText}
-                    </span>
-                  </div>
-                  <div className="quota-progress-track">
-                    <div
-                      className={`quota-progress-bar ${auto.quotaClass}`}
-                      style={{ width: `${Math.min(auto.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="quota-item windsurf-table-credit-item cursor-table-quota">
-                  <div className="quota-header">
-                    <span className="quota-name">API</span>
-                    <span className={`quota-value ${api.quotaClass}`}>
-                      {api.valueText}
-                    </span>
-                  </div>
-                  <div className="quota-progress-track">
-                    <div
-                      className={`quota-progress-bar ${api.quotaClass}`}
-                      style={{ width: `${Math.min(api.percentage, 100)}%` }}
-                    />
-                  </div>
-                </div>
-                <div className="quota-item windsurf-table-credit-item cursor-table-quota">
-                  <div className="quota-header">
-                    <span className="quota-name cursor-table-quota-label">
-                      <span>{t("cursor.quota.onDemand", "On-Demand")}</span>
-                      {onDemand.costText && (
-                        <span className="quota-inline-cost">
-                          {onDemand.costText}
-                        </span>
-                      )}
-                    </span>
-                    <span className={`quota-value ${onDemand.quotaClass}`}>
-                      {onDemand.valueText}
-                    </span>
-                  </div>
-                  <div className="quota-progress-track">
-                    <div
-                      className={`quota-progress-bar ${onDemand.quotaClass}`}
-                      style={{
-                        width: `${Math.min(onDemand.percentage, 100)}%`,
-                      }}
-                    />
-                  </div>
-                </div>
+              <div className="cursor-table-quota-inline">
+                <span className="cursor-table-quota-piece">
+                  <span className="quota-name">Auto</span>
+                  <span
+                    className={`quota-value cursor-table-pct ${auto.quotaClass}`}
+                  >
+                    {auto.valueText}
+                  </span>
+                </span>
+                <span className="cursor-table-quota-piece">
+                  <span className="quota-name">API</span>
+                  <span
+                    className={`quota-value cursor-table-pct ${api.quotaClass}`}
+                  >
+                    {api.valueText}
+                  </span>
+                </span>
+                <span className="cursor-table-quota-piece">
+                  <span className="quota-name">
+                    {t("cursor.quota.onDemandShort", "按需")}
+                  </span>
+                  <span className={`quota-value ${onDemand.quotaClass}`}>
+                    {onDemand.usedText}
+                  </span>
+                </span>
               </div>
             ) : (
               <div className="quota-empty">
@@ -1955,7 +1924,7 @@ export function CursorAccountsPage() {
                     <th style={{ width: 120 }}>
                       {t("common.shared.columns.plan", "计划")}
                     </th>
-                    <th>Total Usage</th>
+                    <th style={{ width: 56 }}>Usage</th>
                     <th>Usage Details</th>
                     <th className="sticky-action-header table-action-header">
                       {t("common.shared.columns.actions", "操作")}
@@ -2003,7 +1972,7 @@ export function CursorAccountsPage() {
                     <th style={{ width: 120 }}>
                       {t("common.shared.columns.plan", "计划")}
                     </th>
-                    <th>Total Usage</th>
+                    <th style={{ width: 56 }}>Usage</th>
                     <th>Usage Details</th>
                     <th className="sticky-action-header table-action-header">
                       {t("common.shared.columns.actions", "操作")}

@@ -4547,7 +4547,8 @@
     "openInChromeSuccess": "已在 Chrome 无痕窗口打开",
     "openInChromeFailed": "打开 Chrome 失败: {{error}}",
     "quota": {
-      "onDemand": "按需使用"
+      "onDemand": "按需使用",
+      "onDemandShort": "按需"
     },
     "copyTokenLine": {
       "success": "已复制 {{email}} 的 Token 行",
