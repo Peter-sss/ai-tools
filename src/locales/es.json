@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Panel de Cursor abierto en Chrome de incógnito",
     "openInChromeFailed": "Error al abrir Chrome: {{error}}",
     "quota": {
-      "onDemand": "Bajo demanda"
+      "onDemand": "Bajo demanda",
+      "onDemandShort": "Bajo demanda"
     },
     "copyTokenLine": {
       "success": "Línea de token copiada para {{email}}",

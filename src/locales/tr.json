@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Cursor panosu Chrome Gizli'de açıldı",
     "openInChromeFailed": "Chrome açılamadı: {{error}}",
     "quota": {
-      "onDemand": "İsteğe bağlı"
+      "onDemand": "İsteğe bağlı",
+      "onDemandShort": "İsteğe bağlı"
     },
     "copyTokenLine": {
       "success": "{{email}} için token satırı kopyalandı",

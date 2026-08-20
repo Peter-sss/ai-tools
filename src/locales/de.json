@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Cursor-Dashboard im Chrome-Inkognito-Fenster geöffnet",
     "openInChromeFailed": "Chrome konnte nicht geöffnet werden: {{error}}",
     "quota": {
-      "onDemand": "On-Demand​"
+      "onDemand": "On-Demand​",
+      "onDemandShort": "On-Demand"
     },
     "copyTokenLine": {
       "success": "Token-Zeile für {{email}} kopiert",

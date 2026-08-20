@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Tableau de bord Cursor ouvert dans Chrome navigation privée",
     "openInChromeFailed": "Échec de l'ouverture de Chrome : {{error}}",
     "quota": {
-      "onDemand": "À la demande"
+      "onDemand": "À la demande",
+      "onDemandShort": "À la demande"
     },
     "copyTokenLine": {
       "success": "Ligne de token copiée pour {{email}}",

@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Otwarto panel Cursor w Chrome w trybie incognito",
     "openInChromeFailed": "Nie udało się otworzyć Chrome: {{error}}",
     "quota": {
-      "onDemand": "Na żądanie"
+      "onDemand": "Na żądanie",
+      "onDemandShort": "Na żądanie"
     },
     "copyTokenLine": {
       "success": "Skopiowano linię tokenu dla {{email}}",

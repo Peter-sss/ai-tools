@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Панель Cursor открыта в Chrome инкогнито",
     "openInChromeFailed": "Не удалось открыть Chrome: {{error}}",
     "quota": {
-      "onDemand": "По запросу"
+      "onDemand": "По запросу",
+      "onDemandShort": "По запросу"
     },
     "copyTokenLine": {
       "success": "Строка токена скопирована для {{email}}",

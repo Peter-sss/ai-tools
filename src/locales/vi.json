@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Đã mở bảng Cursor trong Chrome ẩn danh",
     "openInChromeFailed": "Không mở được Chrome: {{error}}",
     "quota": {
-      "onDemand": "Theo yêu cầu"
+      "onDemand": "Theo yêu cầu",
+      "onDemandShort": "Theo yêu cầu"
     },
     "copyTokenLine": {
       "success": "Đã sao chép dòng token của {{email}}",

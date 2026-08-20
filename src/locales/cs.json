@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Panel Cursor otevřen v anonymním Chrome",
     "openInChromeFailed": "Chrome se nepodařilo otevřít: {{error}}",
     "quota": {
-      "onDemand": "Na vyžádání"
+      "onDemand": "Na vyžádání",
+      "onDemandShort": "Na vyžádání"
     },
     "copyTokenLine": {
       "success": "Řádek tokenu pro {{email}} zkopírován",

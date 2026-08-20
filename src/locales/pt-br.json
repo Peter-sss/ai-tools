@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Painel do Cursor aberto no Chrome anônimo",
     "openInChromeFailed": "Falha ao abrir o Chrome: {{error}}",
     "quota": {
-      "onDemand": "Sob demanda"
+      "onDemand": "Sob demanda",
+      "onDemandShort": "Sob demanda"
     },
     "copyTokenLine": {
       "success": "Linha de token copiada para {{email}}",

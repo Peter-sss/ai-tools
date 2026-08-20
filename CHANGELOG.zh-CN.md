@@ -7,6 +7,16 @@
 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)。
 
 ---
+## [1.3.19] - 2026-08-20
+
+### 变更
+
+- **Cursor 额度展示更紧凑**：On-demand 用量改为行内展示，并补充已用文本，账号列表更易扫读。
+- **Cursor 切号注入默认实例时恢复窗口**：启动默认 Cursor 时会恢复已有窗口，并清理空的 restored windows，减少切号后空白窗口。
+- **简化 Cursor 当前账号解析**：不再用 last used 账号推断当前账号 ID；后端返回空值时前端可正确清空当前账号。
+- **账号页非错误提示会自动消失**：`useProviderAccountsPage` 对非错误消息增加超时清理。
+
+---
 ## [1.3.18] - 2026-08-14
 
 ### 修复

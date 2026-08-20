@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "已在 Chrome 無痕視窗開啟",
     "openInChromeFailed": "開啟 Chrome 失敗: {{error}}",
     "quota": {
-      "onDemand": "按需使用"
+      "onDemand": "按需使用",
+      "onDemandShort": "按需"
     },
     "copyTokenLine": {
       "success": "已複製 {{email}} 的 Token 行",

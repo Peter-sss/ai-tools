@@ -4547,7 +4547,8 @@
     "openInChromeSuccess": "Opened Cursor dashboard in Chrome Incognito",
     "openInChromeFailed": "Failed to open Chrome: {{error}}",
     "quota": {
-      "onDemand": "On-Demand"
+      "onDemand": "On-Demand",
+      "onDemandShort": "On-Demand"
     },
     "copyTokenLine": {
       "success": "Copied token line for {{email}}",

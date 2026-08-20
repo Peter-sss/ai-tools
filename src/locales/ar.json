@@ -4289,7 +4289,8 @@
     "openInChromeSuccess": "تم فتح لوحة Cursor في Chrome للتصفح المتخفي",
     "openInChromeFailed": "فشل فتح Chrome: {{error}}",
     "quota": {
-      "onDemand": "حسب الطلب"
+      "onDemand": "حسب الطلب",
+      "onDemandShort": "حسب الطلب"
     },
     "copyTokenLine": {
       "success": "تم نسخ سطر الرمز لـ {{email}}",

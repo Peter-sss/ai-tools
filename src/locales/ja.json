@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Chrome シークレットで Cursor ダッシュボードを開きました",
     "openInChromeFailed": "Chrome を開けませんでした: {{error}}",
     "quota": {
-      "onDemand": "オンデマンド"
+      "onDemand": "オンデマンド",
+      "onDemandShort": "オンデマンド"
     },
     "copyTokenLine": {
       "success": "{{email}} のトークン行をコピーしました",

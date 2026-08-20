@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Dashboard Cursor aperta in Chrome in incognito",
     "openInChromeFailed": "Impossibile aprire Chrome: {{error}}",
     "quota": {
-      "onDemand": "Su richiesta"
+      "onDemand": "Su richiesta",
+      "onDemandShort": "Su richiesta"
     },
     "copyTokenLine": {
       "success": "Riga token copiata per {{email}}",

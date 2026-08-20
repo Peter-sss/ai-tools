@@ -4242,7 +4242,8 @@
     "openInChromeSuccess": "Chrome 시크릿 모드에서 Cursor 대시보드를 열었습니다",
     "openInChromeFailed": "Chrome을 열지 못했습니다: {{error}}",
     "quota": {
-      "onDemand": "온디맨드"
+      "onDemand": "온디맨드",
+      "onDemandShort": "온디맨드"
     },
     "copyTokenLine": {
       "success": "{{email}}의 토큰 줄을 복사했습니다",

@@ -7,6 +7,16 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.3.19] - 2026-08-20
+
+### Changed
+
+- **Cursor quota display is more compact**: on-demand usage is shown inline with used-amount text so account lists are easier to scan.
+- **Cursor account injection restores windows on the default instance**: switching/injecting the default Cursor instance restores existing windows and strips empty restored windows.
+- **Cursor current-account resolution is simpler**: last-used account ID is no longer used as a fallback; the UI can clear the current account when the backend returns empty.
+- **Non-error account-page messages auto-dismiss**: `useProviderAccountsPage` now times out non-error messages.
+
+---
 ## [1.3.18] - 2026-08-14
 
 ### Fixed

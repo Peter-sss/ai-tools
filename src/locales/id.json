@@ -4395,7 +4395,8 @@
     "openInChromeSuccess": "Dasbor Cursor dibuka di Chrome Incognito",
     "openInChromeFailed": "Gagal membuka Chrome: {{error}}",
     "quota": {
-      "onDemand": "Sesuai permintaan"
+      "onDemand": "Sesuai permintaan",
+      "onDemandShort": "Sesuai permintaan"
     },
     "copyTokenLine": {
       "success": "Baris token {{email}} disalin",
