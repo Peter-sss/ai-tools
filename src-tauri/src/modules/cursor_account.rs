@@ -21,6 +21,7 @@ const ACCOUNTS_INDEX_FILE: &str = "cursor_accounts.json";
 const ACCOUNTS_DIR: &str = "cursor_accounts";
 const CURSOR_QUOTA_ALERT_COOLDOWN_SECONDS: i64 = 10 * 60;
 const CURSOR_ACCESS_TOKEN_REFRESH_THRESHOLD_SECONDS: i64 = 5 * 60;
+const CURSOR_AUTH_VSCDB_RAW_KEY: &str = "_vscdb";
 
 lazy_static::lazy_static! {
     static ref CURSOR_ACCOUNT_INDEX_LOCK: Mutex<()> = Mutex::new(());
@@ -1383,6 +1384,49 @@ fn read_vscdb_item(conn: &Connection, key: &str) -> Option<String> {
     })
 }
 
+fn read_all_cursor_auth_vscdb_rows(
+    conn: &Connection,
+) -> Result<serde_json::Map<String, Value>, String> {
+    let mut stmt = conn
+        .prepare("SELECT key, value FROM ItemTable WHERE key LIKE 'cursorAuth/%'")
+        .map_err(|e| format!("读取 cursorAuth 快照失败: {}", e))?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| format!("读取 cursorAuth 快照失败: {}", e))?;
+    let mut map = serde_json::Map::new();
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| format!("读取 cursorAuth 快照失败: {}", e))?
+    {
+        let key: String = row
+            .get(0)
+            .map_err(|e| format!("读取 cursorAuth 快照失败: {}", e))?;
+        let value: String = row
+            .get(1)
+            .map_err(|e| format!("读取 cursorAuth 快照失败: {}", e))?;
+        map.insert(key, Value::String(value));
+    }
+    Ok(map)
+}
+
+fn extract_vscdb_auth_rows(raw: Option<&Value>) -> Vec<(String, String)> {
+    let Some(obj) = raw
+        .and_then(Value::as_object)
+        .and_then(|map| map.get(CURSOR_AUTH_VSCDB_RAW_KEY))
+        .and_then(Value::as_object)
+    else {
+        return Vec::new();
+    };
+
+    obj.iter()
+        .filter_map(|(key, value)| {
+            value
+                .as_str()
+                .map(|text| (key.clone(), text.to_string()))
+        })
+        .collect()
+}
+
 pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
     let db_path = get_default_cursor_state_db_path()?;
     if !db_path.exists() {
@@ -1437,6 +1481,11 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
         auth_raw.insert("cachedSignUpType".to_string(), Value::String(st.clone()));
     }
 
+    let vscdb_rows = read_all_cursor_auth_vscdb_rows(&conn)?;
+    if !vscdb_rows.is_empty() {
+        auth_raw.insert(CURSOR_AUTH_VSCDB_RAW_KEY.to_string(), Value::Object(vscdb_rows));
+    }
+
     Ok(Some(CursorImportPayload {
         email,
         auth_id,
@@ -1479,6 +1528,84 @@ fn upsert_vscdb_item(conn: &Connection, key: &str, value: &str) -> Result<(), St
     Ok(())
 }
 
+fn upsert_vscdb_item_if_present(
+    conn: &Connection,
+    key: &str,
+    value: Option<&str>,
+) -> Result<(), String> {
+    match value.map(str::trim).filter(|item| !item.is_empty()) {
+        Some(item) => upsert_vscdb_item(conn, key, item),
+        None => Ok(()),
+    }
+}
+
+fn inject_account_into_conn(conn: &Connection, account: &CursorAccount) -> Result<(), String> {
+    conn.execute("DELETE FROM ItemTable WHERE key LIKE 'cursorAuth/%'", [])
+        .map_err(|e| format!("清除 cursorAuth 失败: {}", e))?;
+
+    let mut restored_keys = HashSet::new();
+    for (key, value) in extract_vscdb_auth_rows(account.cursor_auth_raw.as_ref()) {
+        if !key.starts_with("cursorAuth/") {
+            continue;
+        }
+        upsert_vscdb_item(conn, &key, &value)?;
+        restored_keys.insert(key);
+    }
+
+    upsert_vscdb_item(conn, "cursorAuth/accessToken", &account.access_token)?;
+
+    let refresh_token = account
+        .refresh_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(account.access_token.as_str());
+    upsert_vscdb_item(conn, "cursorAuth/refreshToken", refresh_token)?;
+
+    upsert_vscdb_item(conn, "cursorAuth/cachedEmail", &account.email)?;
+
+    let sign_up_type = account
+        .sign_up_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Auth_0");
+    upsert_vscdb_item(conn, "cursorAuth/cachedSignUpType", sign_up_type)?;
+
+    upsert_vscdb_item_if_present(
+        conn,
+        "cursorAuth/stripeMembershipType",
+        account.membership_type.as_deref(),
+    )?;
+    upsert_vscdb_item_if_present(
+        conn,
+        "cursorAuth/stripeSubscriptionStatus",
+        account.subscription_status.as_deref(),
+    )?;
+
+    if let Some(jwt_sub) = extract_auth_id_from_access_token(&account.access_token) {
+        if !restored_keys.contains("cursorAuth/stripeMembershipAuthId") {
+            upsert_vscdb_item(conn, "cursorAuth/stripeMembershipAuthId", &jwt_sub)?;
+        }
+        if !restored_keys.contains("cursorAuth/userId") {
+            if let Some(user_id) = normalize_workos_user_id(&jwt_sub) {
+                upsert_vscdb_item(conn, "cursorAuth/userId", &user_id)?;
+            }
+        }
+    }
+
+    upsert_vscdb_item(conn, "cursor.accessToken", &account.access_token)?;
+    upsert_vscdb_item(conn, "cursor.email", &account.email)?;
+
+    if let Err(err) = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);") {
+        logger::log_warn(&format!(
+            "[Cursor Account] WAL checkpoint 失败: id={}, email={}, error={}",
+            account.id, account.email, err
+        ));
+    }
+    Ok(())
+}
+
 pub fn inject_to_cursor(account_id: &str) -> Result<(), String> {
     let account =
         load_account(account_id).ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
@@ -1489,21 +1616,7 @@ pub fn inject_to_cursor(account_id: &str) -> Result<(), String> {
 
     let conn =
         Connection::open(&db_path).map_err(|e| format!("打开 Cursor 本地数据库失败: {}", e))?;
-
-    upsert_vscdb_item(&conn, "cursorAuth/accessToken", &account.access_token)?;
-    if let Some(ref rt) = account.refresh_token {
-        upsert_vscdb_item(&conn, "cursorAuth/refreshToken", rt)?;
-    }
-    upsert_vscdb_item(&conn, "cursorAuth/cachedEmail", &account.email)?;
-    if let Some(ref mt) = account.membership_type {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeMembershipType", mt)?;
-    }
-    if let Some(ref ss) = account.subscription_status {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeSubscriptionStatus", ss)?;
-    }
-
-    upsert_vscdb_item(&conn, "cursor.accessToken", &account.access_token)?;
-    upsert_vscdb_item(&conn, "cursor.email", &account.email)?;
+    inject_account_into_conn(&conn, &account)?;
 
     logger::log_info(&format!(
         "[Cursor Account] 注入成功: id={}, email={}",
@@ -1521,21 +1634,7 @@ pub fn inject_to_cursor_at_path(db_path: &std::path::Path, account_id: &str) -> 
 
     let conn =
         Connection::open(db_path).map_err(|e| format!("打开 Cursor 本地数据库失败: {}", e))?;
-
-    upsert_vscdb_item(&conn, "cursorAuth/accessToken", &account.access_token)?;
-    if let Some(ref rt) = account.refresh_token {
-        upsert_vscdb_item(&conn, "cursorAuth/refreshToken", rt)?;
-    }
-    upsert_vscdb_item(&conn, "cursorAuth/cachedEmail", &account.email)?;
-    if let Some(ref mt) = account.membership_type {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeMembershipType", mt)?;
-    }
-    if let Some(ref ss) = account.subscription_status {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeSubscriptionStatus", ss)?;
-    }
-
-    upsert_vscdb_item(&conn, "cursor.accessToken", &account.access_token)?;
-    upsert_vscdb_item(&conn, "cursor.email", &account.email)?;
+    inject_account_into_conn(&conn, &account)?;
 
     logger::log_info(&format!(
         "[Cursor Account] 注入成功(自定义路径): id={}, email={}, path={}",

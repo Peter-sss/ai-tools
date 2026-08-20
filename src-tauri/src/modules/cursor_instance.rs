@@ -1160,11 +1160,11 @@ fn spawn_cursor_windows(
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    cmd.arg("--user-data-dir").arg(user_data_dir.trim());
+    if attach_user_data_dir(use_new_window, extra_args) {
+        cmd.arg("--user-data-dir").arg(user_data_dir.trim());
+    }
     if use_new_window {
         cmd.arg("--new-window");
-    } else {
-        cmd.arg("--reuse-window");
     }
     for arg in extra_args {
         if !arg.trim().is_empty() {
@@ -1185,27 +1185,40 @@ fn spawn_cursor_macos_open(
 ) -> Result<u32, String> {
     let app_root = normalize_macos_app_root(launch_path).ok_or("APP_PATH_NOT_FOUND:cursor")?;
     let target = user_data_dir.trim();
+    let attach_profile = attach_user_data_dir(use_new_window, extra_args);
+    let extra: Vec<&str> = extra_args
+        .iter()
+        .map(|arg| arg.trim())
+        .filter(|arg| !arg.is_empty())
+        .collect();
 
     let mut cmd = Command::new("open");
     sanitize_macos_gui_launch_env(&mut cmd);
     crate::modules::process::append_managed_proxy_env_to_open_args(&mut cmd);
-    cmd.arg("-n").arg("-a").arg(&app_root);
-    cmd.arg("--args");
-    cmd.arg("--user-data-dir").arg(target);
     if use_new_window {
-        cmd.arg("--new-window");
-    } else {
-        cmd.arg("--reuse-window");
+        cmd.arg("-n");
     }
-    for arg in extra_args {
-        if !arg.trim().is_empty() {
-            cmd.arg(arg.trim());
+    cmd.arg("-a").arg(&app_root);
+    if attach_profile || use_new_window || !extra.is_empty() {
+        cmd.arg("--args");
+        if attach_profile {
+            cmd.arg("--user-data-dir").arg(target);
+        }
+        if use_new_window {
+            cmd.arg("--new-window");
+        }
+        for arg in extra {
+            cmd.arg(arg);
         }
     }
 
     let child =
         spawn_command_with_trace(&mut cmd).map_err(|e| format!("启动 Cursor 失败: {}", e))?;
-    modules::logger::log_info("Cursor 启动命令已发送（open -n -a）");
+    modules::logger::log_info(if use_new_window {
+        "Cursor 启动命令已发送（open -n -a）"
+    } else {
+        "Cursor 启动命令已发送（open -a，恢复上次窗口）"
+    });
     let probe_started = std::time::Instant::now();
     let timeout = std::time::Duration::from_secs(6);
     while probe_started.elapsed() < timeout {
@@ -1234,11 +1247,11 @@ fn spawn_cursor_unix(
     cmd.stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
-    cmd.arg("--user-data-dir").arg(user_data_dir.trim());
+    if attach_user_data_dir(use_new_window, extra_args) {
+        cmd.arg("--user-data-dir").arg(user_data_dir.trim());
+    }
     if use_new_window {
         cmd.arg("--new-window");
-    } else {
-        cmd.arg("--reuse-window");
     }
     for arg in extra_args {
         if !arg.trim().is_empty() {
@@ -1248,6 +1261,10 @@ fn spawn_cursor_unix(
     let child =
         spawn_command_with_trace(&mut cmd).map_err(|e| format!("启动 Cursor 失败: {}", e))?;
     Ok(child.id())
+}
+
+fn attach_user_data_dir(use_new_window: bool, extra_args: &[String]) -> bool {
+    use_new_window || extra_args.iter().any(|arg| !arg.trim().is_empty())
 }
 
 pub fn start_cursor_with_args_with_new_window(
@@ -1349,6 +1366,52 @@ pub fn close_cursor(user_data_dirs: &[String], timeout_secs: u64) -> Result<(), 
         ));
     }
 
+    Ok(())
+}
+
+pub fn strip_empty_restored_windows() -> Result<(), String> {
+    let storage_path = get_default_cursor_user_data_dir()?
+        .join("User")
+        .join("globalStorage")
+        .join("storage.json");
+    if !storage_path.exists() {
+        return Ok(());
+    }
+
+    let raw = fs::read_to_string(&storage_path)
+        .map_err(|e| format!("读取 Cursor storage.json 失败: {}", e))?;
+    let mut value: serde_json::Value = serde_json::from_str(&raw)
+        .map_err(|e| format!("解析 Cursor storage.json 失败: {}", e))?;
+
+    let removed = {
+        let Some(opened) = value
+            .pointer_mut("/windowsState/openedWindows")
+            .and_then(|item| item.as_array_mut())
+        else {
+            return Ok(());
+        };
+        let before = opened.len();
+        opened.retain(|window| {
+            window
+                .get("folder")
+                .and_then(|item| item.as_str())
+                .map(|folder| !folder.trim().is_empty())
+                .unwrap_or(false)
+        });
+        before.saturating_sub(opened.len())
+    };
+    if removed == 0 {
+        return Ok(());
+    }
+
+    let serialized = serde_json::to_string_pretty(&value)
+        .map_err(|e| format!("序列化 Cursor storage.json 失败: {}", e))?;
+    fs::write(&storage_path, serialized)
+        .map_err(|e| format!("写入 Cursor storage.json 失败: {}", e))?;
+    modules::logger::log_info(&format!(
+        "[Cursor Switch] 已去掉 {} 个空恢复窗口",
+        removed
+    ));
     Ok(())
 }
 

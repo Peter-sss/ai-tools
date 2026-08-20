@@ -2,7 +2,7 @@ use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use crate::models::cursor::CursorAccount;
-use crate::modules::{cursor_account, cursor_oauth, logger};
+use crate::modules::{cursor_account, cursor_instance, cursor_oauth, logger, process};
 
 #[tauri::command]
 pub fn list_cursor_accounts() -> Result<Vec<CursorAccount>, String> {
@@ -193,13 +193,19 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
     let account = cursor_account::load_account(&account_id)
         .ok_or_else(|| format!("Cursor account not found: {}", account_id))?;
 
+    let default_dir = cursor_instance::get_default_cursor_user_data_dir()?;
+    cursor_instance::close_cursor(&[default_dir.to_string_lossy().to_string()], 20)?;
+
     cursor_account::inject_to_cursor(&account_id)?;
+    if let Err(err) = cursor_instance::strip_empty_restored_windows() {
+        logger::log_warn(&format!("清理 Cursor 空恢复窗口失败: {}", err));
+    }
     crate::modules::provider_current_state::set_current_account_id(
         "cursor",
         Some(account_id.as_str()),
     )?;
 
-    if let Err(err) = crate::modules::cursor_instance::update_default_settings(
+    if let Err(err) = cursor_instance::update_default_settings(
         Some(Some(account_id.clone())),
         None,
         Some(false),
@@ -207,27 +213,23 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
         logger::log_warn(&format!("更新 Cursor 默认实例绑定账号失败: {}", err));
     }
 
-    let launch_warning =
-        match crate::commands::cursor_instance::cursor_start_instance("__default__".to_string())
-            .await
-        {
-            Ok(_) => None,
-            Err(err) => {
-                if err.starts_with("APP_PATH_NOT_FOUND:") || err.contains("启动 Cursor 失败") {
-                    logger::log_warn(&format!("Cursor 默认实例启动失败: {}", err));
-                    if err.starts_with("APP_PATH_NOT_FOUND:") || err.contains("APP_PATH_NOT_FOUND:")
-                    {
-                        let _ = app.emit(
-                            "app:path_missing",
-                            serde_json::json!({ "app": "cursor", "retry": { "kind": "default" } }),
-                        );
-                    }
-                    Some(err)
-                } else {
-                    return Err(err);
+    let launch_warning = match relaunch_default_cursor_restoring_windows() {
+        Ok(()) => None,
+        Err(err) => {
+            if err.starts_with("APP_PATH_NOT_FOUND:") || err.contains("启动 Cursor 失败") {
+                logger::log_warn(&format!("Cursor 默认实例启动失败: {}", err));
+                if err.starts_with("APP_PATH_NOT_FOUND:") || err.contains("APP_PATH_NOT_FOUND:") {
+                    let _ = app.emit(
+                        "app:path_missing",
+                        serde_json::json!({ "app": "cursor", "retry": { "kind": "default" } }),
+                    );
                 }
+                Some(err)
+            } else {
+                return Err(err);
             }
-        };
+        }
+    };
 
     let _ = crate::modules::tray::update_tray_menu(&app);
 
@@ -249,4 +251,13 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
         ));
         Ok(format!("切换完成: {}", account.email))
     }
+}
+
+fn relaunch_default_cursor_restoring_windows() -> Result<(), String> {
+    cursor_instance::ensure_cursor_launch_path_configured()?;
+    let default_settings = cursor_instance::load_default_settings()?;
+    let extra_args = process::parse_extra_args(&default_settings.extra_args);
+    let pid = cursor_instance::start_cursor_default_with_args_with_new_window(&extra_args, false)?;
+    let _ = cursor_instance::update_default_pid(Some(pid))?;
+    Ok(())
 }
