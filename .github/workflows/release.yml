@@ -994,7 +994,7 @@ jobs:
           base: main
           delete-branch: true
 
-      - name: 🚀 Enable auto-merge for cask PR
+      - name: 🚀 Merge cask PR
         if: ${{ steps.create_cask_pr.outputs.pull-request-number != '' }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -1007,4 +1007,8 @@ jobs:
             echo "Unexpected PR branch: ${PR_BRANCH}"
             exit 1
           fi
-          gh pr merge "${PR_NUMBER}" --auto --squash --delete-branch
+          if ! gh pr merge "${PR_NUMBER}" --squash --delete-branch; then
+            echo "Failed to squash-merge cask PR #${PR_NUMBER}"
+            gh pr view "${PR_NUMBER}" --json number,state,mergeable,mergeStateStatus,reviewDecision,statusCheckRollup,url
+            exit 1
+          fi
