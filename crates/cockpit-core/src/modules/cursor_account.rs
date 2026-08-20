@@ -1916,10 +1916,7 @@ pub(crate) fn resolve_current_account_id(accounts: &[CursorAccount]) -> Option<S
         }
     }
 
-    accounts
-        .iter()
-        .max_by_key(|account| account.last_used)
-        .map(|account| account.id.clone())
+    None
 }
 
 fn pick_quota_alert_recommendation(

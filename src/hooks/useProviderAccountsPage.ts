@@ -1298,6 +1298,15 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     text: string;
     tone?: "error" | "success";
   } | null>(null);
+
+  useEffect(() => {
+    if (!message || message.tone === "error") return;
+    const timer = window.setTimeout(() => {
+      setMessage(null);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [message]);
+
   const setDeleteConfirm = useCallback(
     (value: { ids: string[]; message: string } | null) => {
       setDeleteConfirmError(null);

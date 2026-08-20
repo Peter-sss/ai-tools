@@ -3,13 +3,13 @@ import {
   getCursorAccountDisplayEmail,
   getCursorPlanBadge,
   getCursorUsage,
-} from '../types/cursor';
-import * as cursorService from '../services/cursorService';
-import { getProviderCurrentAccountId } from '../services/providerCurrentAccountService';
-import { createProviderAccountStore } from './createProviderAccountStore';
+} from "../types/cursor";
+import * as cursorService from "../services/cursorService";
+import { getProviderCurrentAccountId } from "../services/providerCurrentAccountService";
+import { createProviderAccountStore } from "./createProviderAccountStore";
 
-const CURSOR_ACCOUNTS_CACHE_KEY = 'agtools.cursor.accounts.cache';
-const CURSOR_CURRENT_ACCOUNT_ID_KEY = 'agtools.cursor.current_account_id';
+const CURSOR_ACCOUNTS_CACHE_KEY = "agtools.cursor.accounts.cache";
+const CURSOR_CURRENT_ACCOUNT_ID_KEY = "agtools.cursor.current_account_id";
 
 export const useCursorAccountStore = createProviderAccountStore<CursorAccount>(
   CURSOR_ACCOUNTS_CACHE_KEY,
@@ -30,8 +30,10 @@ export const useCursorAccountStore = createProviderAccountStore<CursorAccount>(
     getUsage: getCursorUsage,
   },
   {
-    platformId: 'cursor',
+    platformId: "cursor",
     currentAccountIdKey: CURSOR_CURRENT_ACCOUNT_ID_KEY,
-    resolveCurrentAccountId: () => getProviderCurrentAccountId('cursor'),
+    resolveCurrentAccountId: () => getProviderCurrentAccountId("cursor"),
+    // 未应用任何账号时后端会返回 null；刷新不得把 last_used 账号当成「当前」。
+    acceptEmptyCurrentAccountId: true,
   },
 );
