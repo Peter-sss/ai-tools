@@ -1682,13 +1682,17 @@
   margin-top: auto;
 }
 
-.cursor-accounts-page .ghcp-account-card .card-footer {
-  justify-content: flex-end;
-}
-
 .ghcp-account-card .card-date {
   font-size: 11px;
   color: var(--text-secondary);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.cursor-accounts-page .ghcp-account-card .card-date {
+  font-size: 13px;
+  color: var(--text-primary);
+  opacity: 0.8;
 }
 
 .ghcp-account-card .card-actions {

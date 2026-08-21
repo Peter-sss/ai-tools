@@ -318,7 +318,6 @@ export function CursorAccountsPage() {
     deletingTag,
     requestDeleteTag,
     confirmDeleteTag,
-    openTagModal,
     handleSaveTags,
     refreshing,
     refreshingAll,
@@ -661,6 +660,26 @@ export function CursorAccountsPage() {
         }) +
         " " +
         d.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" })
+      );
+    },
+    [locale],
+  );
+
+  const formatAddedTime = useCallback(
+    (timestamp: number) => {
+      const d = new Date(timestamp > 1e12 ? timestamp : timestamp * 1000);
+      if (Number.isNaN(d.getTime())) return "";
+      return (
+        d.toLocaleDateString(locale, {
+          month: "2-digit",
+          day: "2-digit",
+        }) +
+        " " +
+        d.toLocaleTimeString(locale, {
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: false,
+        })
       );
     },
     [locale],
@@ -1238,6 +1257,9 @@ export function CursorAccountsPage() {
           </div>
 
           <div className="card-footer">
+            <span className="card-date">
+              {formatAddedTime(account.created_at)}
+            </span>
             <div className="card-actions">
               <button
                 className="card-action-btn success"
@@ -1254,13 +1276,6 @@ export function CursorAccountsPage() {
                 ) : (
                   <Play size={14} />
                 )}
-              </button>
-              <button
-                className="card-action-btn"
-                onClick={() => openTagModal(account.id)}
-                title={t("accounts.editTags", "编辑标签")}
-              >
-                <Tag size={14} />
               </button>
               <button
                 className="card-action-btn"
@@ -1506,13 +1521,6 @@ export function CursorAccountsPage() {
                 ) : (
                   <Play size={14} />
                 )}
-              </button>
-              <button
-                className="action-btn"
-                onClick={() => openTagModal(account.id)}
-                title={t("accounts.editTags", "编辑标签")}
-              >
-                <Tag size={14} />
               </button>
               <button
                 className="action-btn"

@@ -4,7 +4,8 @@ use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::sync::Mutex;
 
 use crate::models::cursor::{CursorAccount, CursorAccountIndex, CursorImportPayload};
@@ -14,6 +15,7 @@ const ACCOUNTS_INDEX_FILE: &str = "cursor_accounts.json";
 const ACCOUNTS_DIR: &str = "cursor_accounts";
 const CURSOR_QUOTA_ALERT_COOLDOWN_SECONDS: i64 = 10 * 60;
 const CURSOR_ACCESS_TOKEN_REFRESH_THRESHOLD_SECONDS: i64 = 5 * 60;
+const CURSOR_AUTH_VSCDB_RAW_KEY: &str = "_vscdb";
 
 lazy_static::lazy_static! {
     static ref CURSOR_ACCOUNT_INDEX_LOCK: Mutex<()> = Mutex::new(());
@@ -1116,6 +1118,112 @@ fn read_vscdb_item(conn: &Connection, key: &str) -> Option<String> {
     })
 }
 
+const CURSOR_IDENTITY_EXACT_KEYS: &[&str] = &[
+    "cursor.accessToken",
+    "cursor.email",
+    "glass.lastSignedInAuthId",
+    "adminSettings.cachedAuthId",
+];
+
+const CURSOR_STALE_ACCOUNT_CACHE_KEYS: &[&str] = &[
+    "cursorAuth/cachedTeam",
+    "cursorAuth/cachedScopedProfile",
+];
+
+const CURSOR_KEYCHAIN_ACCOUNT: &str = "cursor-user";
+const CURSOR_KEYCHAIN_ACCESS_SERVICE: &str = "cursor-access-token";
+const CURSOR_KEYCHAIN_REFRESH_SERVICE: &str = "cursor-refresh-token";
+
+fn is_cursor_identity_value(value: &str) -> bool {
+    let trimmed = value.trim();
+    if trimmed.is_empty() || trimmed.starts_with("grok|") {
+        return false;
+    }
+    trimmed.starts_with("auth0|") || trimmed.starts_with("user_")
+}
+
+fn is_identity_snapshot_key(key: &str) -> bool {
+    key.starts_with("cursorAuth/") || CURSOR_IDENTITY_EXACT_KEYS.contains(&key)
+}
+
+fn should_keep_identity_row(key: &str, value: &str) -> bool {
+    if key == "adminSettings.cachedAuthId" {
+        return is_cursor_identity_value(value);
+    }
+    is_identity_snapshot_key(key)
+}
+
+fn read_identity_vscdb_rows(
+    conn: &Connection,
+) -> Result<serde_json::Map<String, Value>, String> {
+    let mut stmt = conn
+        .prepare(
+            "SELECT key, value FROM ItemTable \
+             WHERE key LIKE 'cursorAuth/%' \
+                OR key IN ( \
+                    'cursor.accessToken', \
+                    'cursor.email', \
+                    'glass.lastSignedInAuthId', \
+                    'adminSettings.cachedAuthId' \
+                )",
+        )
+        .map_err(|e| format!("读取 Cursor 登录快照失败: {}", e))?;
+    let mut rows = stmt
+        .query([])
+        .map_err(|e| format!("读取 Cursor 登录快照失败: {}", e))?;
+    let mut map = serde_json::Map::new();
+    while let Some(row) = rows
+        .next()
+        .map_err(|e| format!("读取 Cursor 登录快照失败: {}", e))?
+    {
+        let key: String = row
+            .get(0)
+            .map_err(|e| format!("读取 Cursor 登录快照失败: {}", e))?;
+        let value: String = row
+            .get(1)
+            .map_err(|e| format!("读取 Cursor 登录快照失败: {}", e))?;
+        if should_keep_identity_row(&key, &value) {
+            map.insert(key, Value::String(value));
+        }
+    }
+    Ok(map)
+}
+
+fn extract_vscdb_auth_rows(raw: Option<&Value>) -> Vec<(String, String)> {
+    let Some(obj) = raw
+        .and_then(Value::as_object)
+        .and_then(|map| map.get(CURSOR_AUTH_VSCDB_RAW_KEY))
+        .and_then(Value::as_object)
+    else {
+        return Vec::new();
+    };
+
+    obj.iter()
+        .filter_map(|(key, value)| {
+            value.as_str().and_then(|text| {
+                if should_keep_identity_row(key, text) {
+                    Some((key.clone(), text.to_string()))
+                } else {
+                    None
+                }
+            })
+        })
+        .collect()
+}
+
+fn normalize_workos_user_id(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    let user_id = trimmed.rsplit('|').next().unwrap_or(trimmed).trim();
+    if user_id.is_empty() {
+        None
+    } else {
+        Some(user_id.to_string())
+    }
+}
+
 pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
     let db_path = get_default_cursor_state_db_path()?;
     if !db_path.exists() {
@@ -1170,6 +1278,11 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
         auth_raw.insert("cachedSignUpType".to_string(), Value::String(st.clone()));
     }
 
+    let vscdb_rows = read_identity_vscdb_rows(&conn)?;
+    if !vscdb_rows.is_empty() {
+        auth_raw.insert(CURSOR_AUTH_VSCDB_RAW_KEY.to_string(), Value::Object(vscdb_rows));
+    }
+
     Ok(Some(CursorImportPayload {
         email,
         auth_id,
@@ -1212,6 +1325,157 @@ fn upsert_vscdb_item(conn: &Connection, key: &str, value: &str) -> Result<(), St
     Ok(())
 }
 
+fn delete_vscdb_item(conn: &Connection, key: &str) -> Result<(), String> {
+    conn.execute("DELETE FROM ItemTable WHERE key = ?1", [key])
+        .map_err(|e| format!("删除 {} 失败: {}", key, e))?;
+    Ok(())
+}
+
+fn inject_account_into_conn(conn: &Connection, account: &CursorAccount) -> Result<(), String> {
+    let live_rows = read_identity_vscdb_rows(conn)?;
+    let live_keys: HashSet<String> = live_rows.keys().cloned().collect();
+
+    let mut restored_keys = HashSet::new();
+    for (key, value) in extract_vscdb_auth_rows(account.cursor_auth_raw.as_ref()) {
+        upsert_vscdb_item(conn, &key, &value)?;
+        restored_keys.insert(key);
+    }
+
+    upsert_vscdb_item(conn, "cursorAuth/accessToken", &account.access_token)?;
+
+    let refresh_token = account
+        .refresh_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(account.access_token.as_str());
+    upsert_vscdb_item(conn, "cursorAuth/refreshToken", refresh_token)?;
+
+    upsert_vscdb_item(conn, "cursorAuth/cachedEmail", &account.email)?;
+
+    let sign_up_type = account
+        .sign_up_type
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("Auth_0");
+    upsert_vscdb_item(conn, "cursorAuth/cachedSignUpType", sign_up_type)?;
+
+    upsert_vscdb_item(conn, "cursor.accessToken", &account.access_token)?;
+    upsert_vscdb_item(conn, "cursor.email", &account.email)?;
+
+    if let Some(jwt_sub) = extract_auth_id_from_access_token(&account.access_token) {
+        let key_known = |key: &str| live_keys.contains(key) || restored_keys.contains(key);
+        if key_known("cursorAuth/stripeMembershipAuthId") {
+            upsert_vscdb_item(conn, "cursorAuth/stripeMembershipAuthId", &jwt_sub)?;
+        }
+        if key_known("cursorAuth/userId") {
+            if let Some(user_id) = normalize_workos_user_id(&jwt_sub) {
+                upsert_vscdb_item(conn, "cursorAuth/userId", &user_id)?;
+            }
+        }
+        if key_known("glass.lastSignedInAuthId") {
+            upsert_vscdb_item(conn, "glass.lastSignedInAuthId", &jwt_sub)?;
+        }
+        if key_known("adminSettings.cachedAuthId") {
+            upsert_vscdb_item(conn, "adminSettings.cachedAuthId", &jwt_sub)?;
+        }
+    }
+
+    apply_stale_account_cache(conn, &live_keys, &restored_keys, account)?;
+
+    if let Err(err) = conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);") {
+        logger::log_warn(&format!(
+            "[Cursor Account] WAL checkpoint 失败: id={}, email={}, error={}",
+            account.id, account.email, err
+        ));
+    }
+    Ok(())
+}
+
+fn apply_stale_account_cache(
+    conn: &Connection,
+    live_keys: &HashSet<String>,
+    restored_keys: &HashSet<String>,
+    account: &CursorAccount,
+) -> Result<(), String> {
+    apply_optional_account_cache(
+        conn,
+        live_keys,
+        restored_keys,
+        "cursorAuth/stripeMembershipType",
+        account.membership_type.as_deref(),
+    )?;
+    apply_optional_account_cache(
+        conn,
+        live_keys,
+        restored_keys,
+        "cursorAuth/stripeSubscriptionStatus",
+        account.subscription_status.as_deref(),
+    )?;
+
+    for key in CURSOR_STALE_ACCOUNT_CACHE_KEYS {
+        if !restored_keys.contains(*key) && live_keys.contains(*key) {
+            delete_vscdb_item(conn, key)?;
+        }
+    }
+    Ok(())
+}
+
+fn apply_optional_account_cache(
+    conn: &Connection,
+    live_keys: &HashSet<String>,
+    restored_keys: &HashSet<String>,
+    key: &str,
+    value: Option<&str>,
+) -> Result<(), String> {
+    if let Some(item) = value.map(str::trim).filter(|item| !item.is_empty()) {
+        upsert_vscdb_item(conn, key, item)?;
+        return Ok(());
+    }
+    if !restored_keys.contains(key) && live_keys.contains(key) {
+        delete_vscdb_item(conn, key)?;
+    }
+    Ok(())
+}
+
+fn persist_live_identity_snapshot(account_id: &str, conn: &Connection) {
+    let rows = match read_identity_vscdb_rows(conn) {
+        Ok(rows) => rows,
+        Err(err) => {
+            logger::log_warn(&format!(
+                "[Cursor Account] 回写登录快照失败: id={}, error={}",
+                account_id, err
+            ));
+            return;
+        }
+    };
+    if rows.is_empty() {
+        return;
+    }
+
+    let Some(mut account) = load_account(account_id) else {
+        return;
+    };
+    cursor_auth_raw_object_mut(&mut account)
+        .insert(CURSOR_AUTH_VSCDB_RAW_KEY.to_string(), Value::Object(rows));
+    if let Err(err) = upsert_account_record(account) {
+        logger::log_warn(&format!(
+            "[Cursor Account] 保存登录快照失败: id={}, error={}",
+            account_id, err
+        ));
+    }
+}
+
+fn inject_account_and_refresh_snapshot(
+    conn: &Connection,
+    account: &CursorAccount,
+) -> Result<(), String> {
+    inject_account_into_conn(conn, account)?;
+    persist_live_identity_snapshot(&account.id, conn);
+    Ok(())
+}
+
 pub fn inject_to_cursor(account_id: &str) -> Result<(), String> {
     let account =
         load_account(account_id).ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
@@ -1222,21 +1486,8 @@ pub fn inject_to_cursor(account_id: &str) -> Result<(), String> {
 
     let conn =
         Connection::open(&db_path).map_err(|e| format!("打开 Cursor 本地数据库失败: {}", e))?;
-
-    upsert_vscdb_item(&conn, "cursorAuth/accessToken", &account.access_token)?;
-    if let Some(ref rt) = account.refresh_token {
-        upsert_vscdb_item(&conn, "cursorAuth/refreshToken", rt)?;
-    }
-    upsert_vscdb_item(&conn, "cursorAuth/cachedEmail", &account.email)?;
-    if let Some(ref mt) = account.membership_type {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeMembershipType", mt)?;
-    }
-    if let Some(ref ss) = account.subscription_status {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeSubscriptionStatus", ss)?;
-    }
-
-    upsert_vscdb_item(&conn, "cursor.accessToken", &account.access_token)?;
-    upsert_vscdb_item(&conn, "cursor.email", &account.email)?;
+    inject_account_and_refresh_snapshot(&conn, &account)?;
+    sync_cursor_extra_auth_stores(&account);
 
     logger::log_info(&format!(
         "[Cursor Account] 注入成功: id={}, email={}",
@@ -1245,7 +1496,7 @@ pub fn inject_to_cursor(account_id: &str) -> Result<(), String> {
     Ok(())
 }
 
-pub fn inject_to_cursor_at_path(db_path: &std::path::Path, account_id: &str) -> Result<(), String> {
+pub fn inject_to_cursor_at_path(db_path: &Path, account_id: &str) -> Result<(), String> {
     let account =
         load_account(account_id).ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
     if !db_path.exists() {
@@ -1254,27 +1505,299 @@ pub fn inject_to_cursor_at_path(db_path: &std::path::Path, account_id: &str) -> 
 
     let conn =
         Connection::open(db_path).map_err(|e| format!("打开 Cursor 本地数据库失败: {}", e))?;
-
-    upsert_vscdb_item(&conn, "cursorAuth/accessToken", &account.access_token)?;
-    if let Some(ref rt) = account.refresh_token {
-        upsert_vscdb_item(&conn, "cursorAuth/refreshToken", rt)?;
+    inject_account_and_refresh_snapshot(&conn, &account)?;
+    if get_default_cursor_state_db_path()
+        .ok()
+        .is_some_and(|default_path| default_path == db_path)
+    {
+        sync_cursor_extra_auth_stores(&account);
     }
-    upsert_vscdb_item(&conn, "cursorAuth/cachedEmail", &account.email)?;
-    if let Some(ref mt) = account.membership_type {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeMembershipType", mt)?;
-    }
-    if let Some(ref ss) = account.subscription_status {
-        upsert_vscdb_item(&conn, "cursorAuth/stripeSubscriptionStatus", ss)?;
-    }
-
-    upsert_vscdb_item(&conn, "cursor.accessToken", &account.access_token)?;
-    upsert_vscdb_item(&conn, "cursor.email", &account.email)?;
 
     logger::log_info(&format!(
         "[Cursor Account] 注入成功(自定义路径): id={}, email={}, path={}",
         account.id,
         account.email,
         db_path.display()
+    ));
+    Ok(())
+}
+
+fn sync_cursor_extra_auth_stores(account: &CursorAccount) {
+    if let Err(err) = sync_cursor_secret_store_tokens(account) {
+        logger::log_warn(&format!(
+            "[Cursor Account] 探测/更新系统凭据失败: id={}, error={}",
+            account.id, err
+        ));
+    }
+    if let Err(err) = sync_cursor_cli_token_files(account) {
+        logger::log_warn(&format!(
+            "[Cursor Account] 探测/更新 Cursor CLI 凭据文件失败: id={}, error={}",
+            account.id, err
+        ));
+    }
+}
+
+fn cursor_cli_home_dir() -> Option<PathBuf> {
+    dirs::home_dir().map(|home| home.join(".cursor"))
+}
+
+fn refresh_token_for_extra_stores(account: &CursorAccount) -> &str {
+    account
+        .refresh_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(account.access_token.as_str())
+}
+
+fn sync_cursor_secret_store_tokens(account: &CursorAccount) -> Result<(), String> {
+    let refresh_token = refresh_token_for_extra_stores(account);
+    update_existing_cursor_secret(CURSOR_KEYCHAIN_ACCESS_SERVICE, &account.access_token)?;
+    update_existing_cursor_secret(CURSOR_KEYCHAIN_REFRESH_SERVICE, refresh_token)?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn cursor_secret_item_exists(service: &str) -> Result<bool, String> {
+    let output = Command::new("security")
+        .args([
+            "find-generic-password",
+            "-s",
+            service,
+            "-a",
+            CURSOR_KEYCHAIN_ACCOUNT,
+        ])
+        .output()
+        .map_err(|e| format!("调用 Keychain 失败: {}", e))?;
+    Ok(output.status.success())
+}
+
+#[cfg(target_os = "macos")]
+fn update_existing_cursor_secret(service: &str, secret: &str) -> Result<(), String> {
+    if !cursor_secret_item_exists(service)? {
+        return Ok(());
+    }
+    let output = Command::new("security")
+        .args([
+            "add-generic-password",
+            "-U",
+            "-a",
+            CURSOR_KEYCHAIN_ACCOUNT,
+            "-s",
+            service,
+            "-w",
+            secret,
+        ])
+        .output()
+        .map_err(|e| format!("更新 Keychain {} 失败: {}", service, e))?;
+    if !output.status.success() {
+        return Err(format!(
+            "更新 Keychain {} 失败: {}",
+            service,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    logger::log_info(&format!(
+        "[Cursor Account] 已更新已有 Keychain 条目: service={}",
+        service
+    ));
+    Ok(())
+}
+
+#[cfg(target_os = "windows")]
+fn cursor_secret_item_exists(service: &str) -> Result<bool, String> {
+    let output = Command::new("cmdkey")
+        .args(["/list"])
+        .output()
+        .map_err(|e| format!("调用 Credential Manager 失败: {}", e))?;
+    if !output.status.success() {
+        return Err(format!(
+            "列出 Credential Manager 失败: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    let listing = format!(
+        "{}\n{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    Ok(listing.contains(service))
+}
+
+#[cfg(target_os = "windows")]
+fn update_existing_cursor_secret(service: &str, secret: &str) -> Result<(), String> {
+    if !cursor_secret_item_exists(service)? {
+        return Ok(());
+    }
+    let generic = format!("/generic:{}", service);
+    let user = format!("/user:{}", CURSOR_KEYCHAIN_ACCOUNT);
+    let pass = format!("/pass:{}", secret);
+    let output = Command::new("cmdkey")
+        .args([generic.as_str(), user.as_str(), pass.as_str()])
+        .output()
+        .map_err(|e| format!("更新 Credential Manager {} 失败: {}", service, e))?;
+    if !output.status.success() {
+        return Err(format!(
+            "更新 Credential Manager {} 失败: {}",
+            service,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    logger::log_info(&format!(
+        "[Cursor Account] 已更新已有 Credential Manager 条目: service={}",
+        service
+    ));
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn cursor_secret_item_exists(service: &str) -> Result<bool, String> {
+    let output = Command::new("secret-tool")
+        .args([
+            "lookup",
+            "service",
+            service,
+            "account",
+            CURSOR_KEYCHAIN_ACCOUNT,
+        ])
+        .output()
+        .map_err(|e| format!("调用 secret-tool 失败: {}", e))?;
+    Ok(output.status.success())
+}
+
+#[cfg(target_os = "linux")]
+fn update_existing_cursor_secret(service: &str, secret: &str) -> Result<(), String> {
+    if !cursor_secret_item_exists(service)? {
+        return Ok(());
+    }
+    let mut child = Command::new("secret-tool")
+        .args([
+            "store",
+            "--label",
+            service,
+            "service",
+            service,
+            "account",
+            CURSOR_KEYCHAIN_ACCOUNT,
+        ])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("启动 secret-tool 失败: {}", e))?;
+    if let Some(stdin) = child.stdin.as_mut() {
+        use std::io::Write;
+        stdin
+            .write_all(secret.as_bytes())
+            .map_err(|e| format!("写入 secret-tool 失败: {}", e))?;
+    }
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("等待 secret-tool 失败: {}", e))?;
+    if !output.status.success() {
+        return Err(format!(
+            "更新 secret-tool {} 失败: {}",
+            service,
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
+    }
+    logger::log_info(&format!(
+        "[Cursor Account] 已更新已有 secret-tool 条目: service={}",
+        service
+    ));
+    Ok(())
+}
+
+#[cfg(not(any(target_os = "macos", target_os = "windows", target_os = "linux")))]
+fn update_existing_cursor_secret(_service: &str, _secret: &str) -> Result<(), String> {
+    Ok(())
+}
+
+fn sync_cursor_cli_token_files(account: &CursorAccount) -> Result<(), String> {
+    let Some(home) = cursor_cli_home_dir() else {
+        return Ok(());
+    };
+    let refresh_token = refresh_token_for_extra_stores(account);
+    update_existing_token_fields_in_file(
+        &home.join("cli-config.json"),
+        &account.access_token,
+        refresh_token,
+    )?;
+    update_existing_token_fields_in_file(
+        &home.join("auth.json"),
+        &account.access_token,
+        refresh_token,
+    )?;
+    Ok(())
+}
+
+fn looks_like_token_field(key: &str) -> Option<&'static str> {
+    let normalized = key.to_ascii_lowercase().replace(['-', '_'], "");
+    if normalized.contains("refresh") && normalized.contains("token") {
+        return Some("refresh");
+    }
+    if normalized.contains("access") && normalized.contains("token") {
+        return Some("access");
+    }
+    None
+}
+
+fn update_existing_token_fields(value: &mut Value, access_token: &str, refresh_token: &str) -> bool {
+    match value {
+        Value::Object(map) => {
+            let mut changed = false;
+            let keys: Vec<String> = map.keys().cloned().collect();
+            for key in keys {
+                let Some(kind) = looks_like_token_field(&key) else {
+                    if let Some(child) = map.get_mut(&key) {
+                        changed |= update_existing_token_fields(child, access_token, refresh_token);
+                    }
+                    continue;
+                };
+                if !matches!(map.get(&key), Some(Value::String(_))) {
+                    continue;
+                }
+                let next = if kind == "refresh" {
+                    refresh_token
+                } else {
+                    access_token
+                };
+                map.insert(key, Value::String(next.to_string()));
+                changed = true;
+            }
+            changed
+        }
+        Value::Array(items) => items.iter_mut().fold(false, |changed, item| {
+            changed | update_existing_token_fields(item, access_token, refresh_token)
+        }),
+        _ => false,
+    }
+}
+
+fn update_existing_token_fields_in_file(
+    path: &Path,
+    access_token: &str,
+    refresh_token: &str,
+) -> Result<(), String> {
+    if !path.exists() {
+        return Ok(());
+    }
+    let content = fs::read_to_string(path)
+        .map_err(|e| format!("读取 {} 失败: {}", path.display(), e))?;
+    let mut value: Value = match serde_json::from_str(&content) {
+        Ok(value) => value,
+        Err(_) => return Ok(()),
+    };
+    if !update_existing_token_fields(&mut value, access_token, refresh_token) {
+        return Ok(());
+    }
+    let serialized = serde_json::to_string_pretty(&value)
+        .map_err(|e| format!("序列化 {} 失败: {}", path.display(), e))?;
+    crate::modules::atomic_write::write_string_atomic(path, &serialized)
+        .map_err(|e| format!("写入 {} 失败: {}", path.display(), e))?;
+    logger::log_info(&format!(
+        "[Cursor Account] 已更新已有 CLI 凭据字段: path={}",
+        path.display()
     ));
     Ok(())
 }
