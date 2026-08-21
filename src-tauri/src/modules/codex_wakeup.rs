@@ -2970,8 +2970,43 @@ mod tests {
         assert!(!apply_model_preset_migrations(&mut state));
     }
 
+    struct VersionManagerEnvGuard {
+        saved: Vec<(&'static str, Option<std::ffi::OsString>)>,
+    }
+
+    impl VersionManagerEnvGuard {
+        fn clear(keys: &[&'static str]) -> Self {
+            let saved = keys
+                .iter()
+                .map(|key| (*key, std::env::var_os(key)))
+                .collect::<Vec<_>>();
+            for key in keys {
+                std::env::remove_var(key);
+            }
+            Self { saved }
+        }
+    }
+
+    impl Drop for VersionManagerEnvGuard {
+        fn drop(&mut self) {
+            for (key, value) in &self.saved {
+                match value {
+                    Some(value) => std::env::set_var(key, value),
+                    None => std::env::remove_var(key),
+                }
+            }
+        }
+    }
+
     #[test]
     fn version_manager_cli_dirs_include_nvm_node_bins() {
+        let _env_guard = VersionManagerEnvGuard::clear(&[
+            "NVM_BIN",
+            "NVM_DIR",
+            "FNM_MULTISHELL_PATH",
+            "FNM_DIR",
+            "ASDF_DATA_DIR",
+        ]);
         let root = std::env::temp_dir().join(format!(
             "codex-wakeup-nvm-{}-{}",
             std::process::id(),

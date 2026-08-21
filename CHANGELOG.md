@@ -7,6 +7,15 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.3.20] - 2026-08-21
+
+### Changed
+
+- **Cursor account cards show added time**: each card footer now displays the account created date and time.
+- **Cursor table quotas can be refreshed in place**: quota cells are a single clickable control that refreshes that account.
+- **Cursor switch identity snapshots are more complete**: injection reads identity-related VSCDB rows and clears stale account caches so leftover login state is less likely.
+
+---
 ## [1.3.19] - 2026-08-20
 
 ### Changed
