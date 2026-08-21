@@ -1445,64 +1445,78 @@ export function CursorAccountsPage() {
             </button>
           </td>
           <td>
-            {hasQuotaData ? (
-              <span
-                className={`quota-value cursor-table-total-pct ${total.quotaClass}`}
-                title={
-                  [
-                    total.costText,
-                    resetText
-                      ? t("common.shared.quota.resetAt", {
-                          time: resetText,
-                          defaultValue: "Reset: {{time}}",
-                        })
-                      : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ") || undefined
-                }
-              >
-                {total.valueText}
-              </span>
-            ) : (
-              <div className="quota-empty">
-                {t("common.shared.quota.noData", "暂无配额数据")}
-              </div>
-            )}
+            <button
+              type="button"
+              className="cursor-table-quota-refresh"
+              onClick={() => void handleRefresh(account.id)}
+              disabled={refreshing === account.id}
+              title={[
+                t("common.shared.refreshQuota", "刷新配额"),
+                hasQuotaData ? total.costText : null,
+                hasQuotaData && resetText
+                  ? t("common.shared.quota.resetAt", {
+                      time: resetText,
+                      defaultValue: "Reset: {{time}}",
+                    })
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
+            >
+              {hasQuotaData ? (
+                <span
+                  className={`quota-value cursor-table-total-pct ${total.quotaClass}`}
+                >
+                  {total.valueText}
+                </span>
+              ) : (
+                <div className="quota-empty">
+                  {t("common.shared.quota.noData", "暂无配额数据")}
+                </div>
+              )}
+            </button>
           </td>
           <td>
-            {hasQuotaData ? (
-              <div className="cursor-table-quota-inline">
-                <span className="cursor-table-quota-piece">
-                  <span className="quota-name">Auto</span>
-                  <span
-                    className={`quota-value cursor-table-pct ${auto.quotaClass}`}
-                  >
-                    {auto.valueText}
+            <button
+              type="button"
+              className="cursor-table-quota-refresh"
+              onClick={() => void handleRefresh(account.id)}
+              disabled={refreshing === account.id}
+              title={t("common.shared.refreshQuota", "刷新配额")}
+            >
+              {hasQuotaData ? (
+                <div className="cursor-table-quota-inline">
+                  <span className="cursor-table-quota-piece">
+                    <span className="quota-name">Auto</span>
+                    <span
+                      className={`quota-value cursor-table-pct ${auto.quotaClass}`}
+                    >
+                      {auto.valueText}
+                    </span>
                   </span>
-                </span>
-                <span className="cursor-table-quota-piece">
-                  <span className="quota-name">API</span>
-                  <span
-                    className={`quota-value cursor-table-pct ${api.quotaClass}`}
-                  >
-                    {api.valueText}
+                  <span className="cursor-table-quota-piece">
+                    <span className="quota-name">API</span>
+                    <span
+                      className={`quota-value cursor-table-pct ${api.quotaClass}`}
+                    >
+                      {api.valueText}
+                    </span>
                   </span>
-                </span>
-                <span className="cursor-table-quota-piece">
-                  <span className="quota-name">
-                    {t("cursor.quota.onDemandShort", "按需")}
+                  <span className="cursor-table-quota-piece">
+                    <span className="quota-name">
+                      {t("cursor.quota.onDemandShort", "按需")}
+                    </span>
+                    <span className={`quota-value ${onDemand.quotaClass}`}>
+                      {onDemand.usedText}
+                    </span>
                   </span>
-                  <span className={`quota-value ${onDemand.quotaClass}`}>
-                    {onDemand.usedText}
-                  </span>
-                </span>
-              </div>
-            ) : (
-              <div className="quota-empty">
-                {t("common.shared.quota.noData", "暂无配额数据")}
-              </div>
-            )}
+                </div>
+              ) : (
+                <div className="quota-empty">
+                  {t("common.shared.quota.noData", "暂无配额数据")}
+                </div>
+              )}
+            </button>
           </td>
           <td className="sticky-action-cell table-action-cell">
             <div className="action-buttons">

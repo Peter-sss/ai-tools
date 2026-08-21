@@ -2171,6 +2171,87 @@
   font-variant-numeric: tabular-nums;
 }
 
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  td:has(> .cursor-table-quota-refresh) {
+  padding: 0;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 12px 16px;
+  margin: 0;
+  width: 100%;
+  min-height: 48px;
+  text-align: inherit;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  box-sizing: border-box;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh
+  .cursor-table-total-pct,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh
+  .cursor-table-quota-inline,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh
+  .quota-empty {
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:hover:not(:disabled)
+  .cursor-table-total-pct,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:hover:not(:disabled)
+  .cursor-table-quota-inline,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:hover:not(:disabled)
+  .quota-empty,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:focus-visible
+  .cursor-table-total-pct,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:focus-visible
+  .cursor-table-quota-inline,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:focus-visible
+  .quota-empty {
+  background: color-mix(in srgb, var(--bg-tertiary) 70%, transparent);
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:focus-visible {
+  outline: none;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table
+  .cursor-table-quota-refresh:disabled {
+  cursor: wait;
+  opacity: 0.75;
+}
+
 .ghcp-accounts-page.cursor-accounts-page .account-table .sticky-action-header,
 .ghcp-accounts-page.cursor-accounts-page .account-table .sticky-action-cell {
   box-shadow: none;
@@ -2219,6 +2300,13 @@
 @media (min-width: 1800px) {
   .ghcp-accounts-page .account-table th,
   .ghcp-accounts-page .account-table td {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .ghcp-accounts-page.cursor-accounts-page
+    .account-table
+    .cursor-table-quota-refresh {
     padding-left: 18px;
     padding-right: 18px;
   }
