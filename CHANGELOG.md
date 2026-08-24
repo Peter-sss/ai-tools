@@ -7,6 +7,15 @@ All notable changes to Cockpit Tools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
+## [1.3.21] - 2026-08-24
+
+### Changed
+
+- **Cursor tag editing is back**: card and table action bars include the tag button again.
+- **Cursor table shows tags in their own column**: the column sits between email and plan when any account has tags, and is hidden when none do.
+- **Cursor account export is removed from the UI**: card, table, and toolbar export actions are gone instead of only hiding the button.
+
+---
 ## [1.3.20] - 2026-08-21
 
 ### Changed
