@@ -7,10 +7,13 @@ import {
   Fragment,
   type SyntheticEvent,
 } from "react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { invoke } from "@tauri-apps/api/core";
 import {
   Plus,
   RefreshCw,
   Download,
+  Upload,
   Trash2,
   X,
   Globe,
@@ -34,6 +37,7 @@ import {
 import { useCursorAccountStore } from "../stores/useCursorAccountStore";
 import * as cursorService from "../services/cursorService";
 import { TagEditModal } from "../components/TagEditModal";
+import { ExportJsonModal } from "../components/ExportJsonModal";
 import { ModalErrorMessage } from "../components/ModalErrorMessage";
 import { MfaQuickCodeSelect } from "../components/MfaQuickCodeSelect";
 import { PaginationControls } from "../components/PaginationControls";
@@ -104,6 +108,8 @@ const CURSOR_TOKEN_JSON_EXAMPLE = `[
   {"access_token":"eyJhbGciOiJIUzI1NiIs...","email":"b@example.com"}
 ]`;
 
+type CursorExportFormat = "text" | "json";
+
 function extractWorkosUserIdFromJwt(jwt: string): string | null {
   try {
     const parts = jwt.split(".");
@@ -144,6 +150,46 @@ function formatResetDaysLeft(
   return `${days}d`;
 }
 
+function cursorAccountsJsonToTokenLines(jsonContent: string): string {
+  try {
+    const parsed = JSON.parse(jsonContent) as unknown;
+    const accounts = Array.isArray(parsed) ? parsed : [parsed];
+    return accounts
+      .map((raw) => {
+        if (!raw || typeof raw !== "object") return "";
+        const account = raw as {
+          email?: unknown;
+          auth_id?: unknown;
+          access_token?: unknown;
+        };
+        const email =
+          typeof account.email === "string" && account.email.trim()
+            ? account.email.trim()
+            : "unknown";
+        const token =
+          typeof account.access_token === "string"
+            ? account.access_token.trim()
+            : "";
+        if (!token) return "";
+        let authId =
+          typeof account.auth_id === "string" && account.auth_id.trim()
+            ? account.auth_id.trim()
+            : "";
+        if (authId.includes("|")) {
+          authId = authId.split("|").pop() || authId;
+        }
+        if (!authId) {
+          authId = extractWorkosUserIdFromJwt(token) || "unknown";
+        }
+        return `${email}----${authId}::${token}`;
+      })
+      .filter(Boolean)
+      .join("\n");
+  } catch {
+    return "";
+  }
+}
+
 function getCursorQuotaClass(percentage: number): string {
   if (percentage >= 90) return "critical";
   if (percentage >= 70) return "medium";
@@ -174,6 +220,13 @@ export function CursorAccountsPage() {
         )
       : [],
   );
+  const [exportFormat, setExportFormat] = useState<CursorExportFormat>("text");
+  const [exportFormatCopied, setExportFormatCopied] = useState(false);
+  const [exportFormatSaving, setExportFormatSaving] = useState(false);
+  const [exportFormatSavedPath, setExportFormatSavedPath] = useState<
+    string | null
+  >(null);
+  const [exportFormatPathCopied, setExportFormatPathCopied] = useState(false);
   const [copyToast, setCopyToast] = useState<{
     text: string;
     tone: "success" | "error";
@@ -282,6 +335,16 @@ export function CursorAccountsPage() {
     confirmDelete,
     message,
     setMessage,
+    exporting,
+    handleExport,
+    getScopedSelectedCount,
+    showExportModal,
+    closeExportModal,
+    exportJsonContent,
+    exportJsonHidden,
+    toggleExportJsonHidden,
+    canOpenExportSavedDirectory,
+    openExportSavedDirectory,
     showAddModal,
     addTab,
     addStatus,
@@ -313,6 +376,109 @@ export function CursorAccountsPage() {
     currentAccountId,
     normalizeTag,
   } = page;
+
+  const exportFormatOptions = useMemo(
+    () => [
+      {
+        value: "text",
+        label: t("cursor.exportFormat.text", "文本行 (email----user_id::jwt)"),
+      },
+      {
+        value: "json",
+        label: t("cursor.exportFormat.json", "JSON"),
+      },
+    ],
+    [t],
+  );
+
+  const exportDisplayContent = useMemo(() => {
+    if (!exportJsonContent) return "";
+    if (exportFormat === "json") return exportJsonContent;
+    return cursorAccountsJsonToTokenLines(exportJsonContent);
+  }, [exportFormat, exportJsonContent]);
+
+  useEffect(() => {
+    if (!showExportModal) {
+      setExportFormat("text");
+      setExportFormatCopied(false);
+      setExportFormatSaving(false);
+      setExportFormatSavedPath(null);
+      setExportFormatPathCopied(false);
+    }
+  }, [showExportModal]);
+
+  const handleCloseCursorExportModal = useCallback(() => {
+    closeExportModal();
+    setExportFormat("text");
+    setExportFormatCopied(false);
+    setExportFormatSaving(false);
+    setExportFormatSavedPath(null);
+    setExportFormatPathCopied(false);
+  }, [closeExportModal]);
+
+  const handleCopyCursorExport = useCallback(async () => {
+    if (!exportDisplayContent) return;
+    try {
+      await navigator.clipboard.writeText(exportDisplayContent);
+      setExportFormatCopied(true);
+      window.setTimeout(() => setExportFormatCopied(false), 1200);
+    } catch (error) {
+      setMessage({ text: String(error), tone: "error" });
+    }
+  }, [exportDisplayContent, setMessage]);
+
+  const handleSaveCursorExport = useCallback(async () => {
+    if (!exportDisplayContent || exportFormatSaving) return;
+    setExportFormatSaving(true);
+    try {
+      const date = new Date().toISOString().slice(0, 10);
+      const isText = exportFormat === "text";
+      const defaultFileName = isText
+        ? `cursor_accounts_${date}.txt`
+        : `cursor_accounts_${date}.json`;
+      let defaultPath = defaultFileName;
+      try {
+        const dir = await invoke<string>("get_downloads_dir");
+        if (dir) {
+          const normalized = dir.endsWith("/") ? dir.slice(0, -1) : dir;
+          defaultPath = `${normalized}/${defaultFileName}`;
+        }
+      } catch {
+        // ignore — fall back to bare filename
+      }
+      const filePath = await save({
+        defaultPath,
+        filters: isText
+          ? [
+              { name: "Text", extensions: ["txt"] },
+              { name: "JSON", extensions: ["json"] },
+            ]
+          : [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!filePath) return;
+      await invoke("save_text_file", {
+        path: filePath,
+        content: exportDisplayContent,
+      });
+      setExportFormatSavedPath(filePath);
+      setExportFormatPathCopied(false);
+    } catch (error) {
+      setMessage({ text: String(error), tone: "error" });
+    } finally {
+      setExportFormatSaving(false);
+    }
+  }, [exportDisplayContent, exportFormat, exportFormatSaving, setMessage]);
+
+  const handleCopyCursorExportSavedPath = useCallback(async () => {
+    if (!exportFormatSavedPath) return;
+    try {
+      await navigator.clipboard.writeText(exportFormatSavedPath);
+      setExportFormatPathCopied(true);
+      window.setTimeout(() => setExportFormatPathCopied(false), 1200);
+    } catch (error) {
+      setMessage({ text: String(error), tone: "error" });
+    }
+  }, [exportFormatSavedPath, setMessage]);
 
   useEffect(() => {
     if (!filterPersistenceEnabled) {
@@ -817,6 +983,12 @@ export function CursorAccountsPage() {
     tagFilter,
   ]);
 
+  const filteredIds = useMemo(
+    () => filteredAccounts.map((account) => account.id),
+    [filteredAccounts],
+  );
+  const exportSelectionCount = getScopedSelectedCount(filteredIds);
+
   const pagination = usePagination({
     items: filteredAccounts,
     storageKey: buildPaginationPageSizeStorageKey("Cursor"),
@@ -1233,7 +1405,7 @@ export function CursorAccountsPage() {
           </td>
           {showTagsColumn && (
             <td className="account-tags-cell">
-              {accountTags.length > 0 ? (
+              {accountTags.length > 0 && (
                 <div className="account-tags-column">
                   {visibleTags.map((tag, idx) => (
                     <span
@@ -1253,8 +1425,6 @@ export function CursorAccountsPage() {
                     </span>
                   )}
                 </div>
-              ) : (
-                <span className="account-tags-empty">—</span>
               )}
             </td>
           )}
@@ -1632,6 +1802,23 @@ export function CursorAccountsPage() {
                 aria-label={t("common.shared.import.label", "导入")}
               >
                 <Download size={14} />
+              </button>
+              <button
+                className="btn btn-secondary export-btn icon-only"
+                onClick={() => void handleExport(filteredIds)}
+                disabled={exporting || filteredIds.length === 0}
+                title={
+                  exportSelectionCount > 0
+                    ? `${t("common.shared.export.title", "导出")} (${exportSelectionCount})`
+                    : t("common.shared.export.title", "导出")
+                }
+                aria-label={
+                  exportSelectionCount > 0
+                    ? `${t("common.shared.export.title", "导出")} (${exportSelectionCount})`
+                    : t("common.shared.export.title", "导出")
+                }
+              >
+                <Upload size={14} />
               </button>
               <QuickSettingsPopover type="cursor" />
             </div>
@@ -2261,6 +2448,45 @@ export function CursorAccountsPage() {
               </div>
             </div>
           )}
+
+          <ExportJsonModal
+            isOpen={showExportModal}
+            title={
+              exportFormat === "text"
+                ? t("cursor.export.titleText", "导出文本行")
+                : t("cursor.export.titleJson", "导出 JSON")
+            }
+            jsonContent={exportDisplayContent}
+            hidden={exportJsonHidden}
+            copied={exportFormatCopied}
+            saving={exportFormatSaving}
+            savedPath={exportFormatSavedPath}
+            canOpenSavedDirectory={canOpenExportSavedDirectory}
+            pathCopied={exportFormatPathCopied}
+            toolbarContent={
+              <>
+                <span className="export-json-toolbar-label">
+                  {t("cursor.exportFormat.label", "导出格式")}
+                </span>
+                <div className="export-json-toolbar-dropdown">
+                  <SingleSelectFilterDropdown
+                    value={exportFormat}
+                    options={exportFormatOptions}
+                    ariaLabel={t("cursor.exportFormat.label", "导出格式")}
+                    onChange={(value) =>
+                      setExportFormat(value as CursorExportFormat)
+                    }
+                  />
+                </div>
+              </>
+            }
+            onClose={handleCloseCursorExportModal}
+            onToggleHidden={toggleExportJsonHidden}
+            onCopyJson={handleCopyCursorExport}
+            onSaveJson={handleSaveCursorExport}
+            onOpenSavedDirectory={openExportSavedDirectory}
+            onCopySavedPath={handleCopyCursorExportSavedPath}
+          />
 
           <TagEditModal
             isOpen={!!showTagModal}

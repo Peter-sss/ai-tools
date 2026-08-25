@@ -4577,6 +4577,15 @@
       "singleExample": "单条示例（JWT）",
       "batchExample": "批量示例（JSON）"
     },
+    "export": {
+      "titleText": "导出文本行",
+      "titleJson": "导出 JSON"
+    },
+    "exportFormat": {
+      "label": "导出格式",
+      "text": "文本行 (email----user_id::jwt)",
+      "json": "JSON"
+    },
     "import": {
       "localDesc": "支持从本机 Cursor 客户端或 JSON 文件导入账号数据。",
       "localClient": "从本机 Cursor 导入"
