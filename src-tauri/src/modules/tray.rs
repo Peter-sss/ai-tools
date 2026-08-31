@@ -1304,6 +1304,15 @@ fn build_cursor_display_info(lang: &str) -> AccountDisplayInfo {
         ));
     }
 
+    if let Some(bot_used) = usage.bot_used_percent {
+        quota_lines.push(format_quota_line(
+            lang,
+            "Bot",
+            &format_percent_text(bot_used),
+            None,
+        ));
+    }
+
     if let Some(on_demand_text) = usage.on_demand_text {
         quota_lines.push(format!("On-Demand: {}", on_demand_text));
     }
@@ -2264,6 +2273,7 @@ struct CursorTrayUsage {
     total_used_percent: Option<i32>,
     auto_used_percent: Option<i32>,
     api_used_percent: Option<i32>,
+    bot_used_percent: Option<i32>,
     reset_ts: Option<i64>,
     on_demand_text: Option<String>,
 }
@@ -2360,6 +2370,48 @@ fn read_cursor_tray_usage(account: &crate::models::cursor::CursorAccount) -> Cur
     let total_direct = pick_cursor_number(plan, &["totalPercentUsed", "total_percent_used"]);
     let auto_direct = pick_cursor_number(plan, &["autoPercentUsed", "auto_percent_used"]);
     let api_direct = pick_cursor_number(plan, &["apiPercentUsed", "api_percent_used"]);
+    let grok_bot = raw_obj
+        .get("grokBot")
+        .or_else(|| raw_obj.get("grok_bot"))
+        .or_else(|| raw_obj.get("sandUsage"))
+        .or_else(|| raw_obj.get("sand_usage"))
+        .or_else(|| {
+            raw_obj
+                .get("individualUsage")
+                .and_then(|value| value.as_object())
+                .and_then(|value| value.get("bot"))
+        })
+        .or_else(|| {
+            raw_obj
+                .get("individual_usage")
+                .and_then(|value| value.as_object())
+                .and_then(|value| value.get("bot"))
+        });
+    let bot_ineligible = pick_cursor_bool(
+        grok_bot,
+        &["usesPooledEnterpriseAllowance", "uses_pooled_enterprise_allowance"],
+    ) == Some(true)
+        || pick_cursor_bool(grok_bot, &["includedLimitZero", "included_limit_zero"]) == Some(true)
+        || pick_cursor_bool(
+            grok_bot,
+            &["hasNonZeroIncludedLimit", "has_non_zero_included_limit"],
+        ) == Some(false);
+    let bot_direct = if bot_ineligible {
+        None
+    } else {
+        pick_cursor_number(
+            grok_bot,
+            &[
+                "usagePercent",
+                "usage_percent",
+                "usedPercent",
+                "used_percent",
+                "botPercentUsed",
+                "bot_percent_used",
+            ],
+        )
+        .or_else(|| pick_cursor_number(plan, &["botPercentUsed", "bot_percent_used"]))
+    };
 
     let plan_used = pick_cursor_number(plan, &["used", "totalSpend", "total_spend"]);
     let plan_limit = pick_cursor_number(plan, &["limit"]);
@@ -2470,6 +2522,7 @@ fn read_cursor_tray_usage(account: &crate::models::cursor::CursorAccount) -> Cur
         total_used_percent: total_direct.or(total_ratio).map(clamp_cursor_percent),
         auto_used_percent: auto_direct.map(clamp_cursor_percent),
         api_used_percent: api_direct.map(clamp_cursor_percent),
+        bot_used_percent: bot_direct.map(clamp_cursor_percent),
         reset_ts,
         on_demand_text,
     }

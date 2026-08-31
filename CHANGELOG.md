@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.23] - 2026-08-31
+
+### Fixed
+
+- **Cursor import no longer creates duplicate accounts**: `grok|user_01...` and `user_01...` are treated as the same identity, and the same email is merged on the next list load.
+
+### Changed
+
+- **Cursor Bot quota is visible**: account list, cards, tray, and the macOS menu show Bot usage when the account has it.
+
+---
+
 ## [1.3.22] - 2026-08-25
 
 ### Changed

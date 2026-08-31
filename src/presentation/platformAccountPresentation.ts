@@ -458,7 +458,6 @@ export function buildCreditMetrics(
   };
 }
 
-
 export function getAntigravityGroupResetTimestamp(
   account: Account,
   group: DisplayGroup,
@@ -496,80 +495,95 @@ export function getAntigravityQuotaDisplayItems(
 
   // Claude 5h
   // Claude 5h
-  let claude5h = models.find(m => m.name === '3p-5h' || m.name === 'claude:5h');
+  let claude5h = models.find(
+    (m) => m.name === "3p-5h" || m.name === "claude:5h",
+  );
   if (!claude5h) {
-    claude5h = models.find(m => {
+    claude5h = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('claude') && (name.includes('high') || !name.includes('low'));
+      return (
+        name.includes("claude") &&
+        (name.includes("high") || !name.includes("low"))
+      );
     });
   }
   if (!claude5h) {
-    claude5h = models.find(m => m.name.toLowerCase().includes('claude'));
+    claude5h = models.find((m) => m.name.toLowerCase().includes("claude"));
   }
 
   // Claude Weekly
-  let claudeWeekly = models.find(m => m.name === '3p-weekly' || m.name === 'claude:weekly');
+  let claudeWeekly = models.find(
+    (m) => m.name === "3p-weekly" || m.name === "claude:weekly",
+  );
   if (!claudeWeekly) {
-    claudeWeekly = models.find(m => {
+    claudeWeekly = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('claude') && name.includes('low');
+      return name.includes("claude") && name.includes("low");
     });
   }
 
   // Gemini 5h
-  let gemini5h = models.find(m => m.name === 'gemini-5h' || m.name === 'gemini:5h');
+  let gemini5h = models.find(
+    (m) => m.name === "gemini-5h" || m.name === "gemini:5h",
+  );
   if (!gemini5h) {
-    gemini5h = models.find(m => {
+    gemini5h = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('gemini') && name.includes('pro') && name.includes('high');
+      return (
+        name.includes("gemini") && name.includes("pro") && name.includes("high")
+      );
     });
   }
   if (!gemini5h) {
-    gemini5h = models.find(m => {
+    gemini5h = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('gemini') && name.includes('high');
+      return name.includes("gemini") && name.includes("high");
     });
   }
   if (!gemini5h) {
-    gemini5h = models.find(m => {
+    gemini5h = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('gemini') && name.includes('flash');
+      return name.includes("gemini") && name.includes("flash");
     });
   }
   if (!gemini5h) {
-    gemini5h = models.find(m => {
+    gemini5h = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('gemini') && !name.includes('low');
+      return name.includes("gemini") && !name.includes("low");
     });
   }
 
   // Gemini Weekly
-  let geminiWeekly = models.find(m => m.name === 'gemini-weekly' || m.name === 'gemini:weekly');
+  let geminiWeekly = models.find(
+    (m) => m.name === "gemini-weekly" || m.name === "gemini:weekly",
+  );
   if (!geminiWeekly) {
-    geminiWeekly = models.find(m => {
+    geminiWeekly = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('gemini') && name.includes('pro') && name.includes('low');
+      return (
+        name.includes("gemini") && name.includes("pro") && name.includes("low")
+      );
     });
   }
   if (!geminiWeekly) {
-    geminiWeekly = models.find(m => {
+    geminiWeekly = models.find((m) => {
       const name = m.name.toLowerCase();
-      return name.includes('gemini') && name.includes('low');
+      return name.includes("gemini") && name.includes("low");
     });
   }
 
   if (claude5h) {
     result.push({
-      key: 'claude:5h',
-      label: 'Claude (5h)',
+      key: "claude:5h",
+      label: "Claude (5h)",
       percentage: claude5h.percentage,
       resetTime: claude5h.reset_time,
     });
   }
   if (claudeWeekly) {
     result.push({
-      key: 'claude:weekly',
-      label: 'Claude (Weekly)',
+      key: "claude:weekly",
+      label: "Claude (Weekly)",
       percentage: claudeWeekly.percentage,
       resetTime: claudeWeekly.reset_time,
     });
@@ -587,22 +601,22 @@ export function getAntigravityQuotaDisplayItems(
         // We override the 5h display remaining to 100% and clear the reset time.
         if (diffHours > 5) {
           percentage = 100;
-          resetTime = '';
+          resetTime = "";
         }
       }
     }
 
     result.push({
-      key: 'gemini:5h',
-      label: 'Gemini (5h)',
+      key: "gemini:5h",
+      label: "Gemini (5h)",
       percentage,
       resetTime,
     });
   }
   if (geminiWeekly) {
     result.push({
-      key: 'gemini:weekly',
-      label: 'Gemini (Weekly)',
+      key: "gemini:weekly",
+      label: "Gemini (Weekly)",
       percentage: geminiWeekly.percentage,
       resetTime: geminiWeekly.reset_time,
     });
@@ -703,7 +717,7 @@ export function buildCodexAccountPresentation(
       ? apiKeyDisplayName
       : isCodexNewApiAccount(account)
         ? "Codex API"
-      : account.email;
+        : account.email;
   const effectiveQuota = getCodexEffectiveQuotaPercentages(account.quota);
   const weeklyBlocksHourlyHint = effectiveQuota.weeklyBlocksHourly
     ? t("codex.quota.weeklyBlocksHourly", "周额度为 0，5小时额度已不可用")
@@ -711,10 +725,11 @@ export function buildCodexAccountPresentation(
   const newApiQuotaItems = isCodexNewApiAccount(account)
     ? buildCodexNewApiQuotaItems(account, t)
     : [];
-  const quotaItems: UnifiedQuotaMetric[] =
-    isCodexChatCompletionsApiKeyAccount(account)
-      ? []
-      : newApiQuotaItems.length > 0
+  const quotaItems: UnifiedQuotaMetric[] = isCodexChatCompletionsApiKeyAccount(
+    account,
+  )
+    ? []
+    : newApiQuotaItems.length > 0
       ? newApiQuotaItems
       : getCodexQuotaWindows(account.quota).map((window) => ({
           key: window.id,
@@ -731,28 +746,27 @@ export function buildCodexAccountPresentation(
               ? weeklyBlocksHourlyHint
               : undefined,
         }));
-  const additionalQuotaItems =
-    !isCodexChatCompletionsApiKeyAccount(account)
-      ? getCodexAdditionalQuotaWindows(account.quota).map((window) => {
-          const hintText = [window.limitName, window.meteredFeature]
-            .filter(Boolean)
-            .join(" · ");
-          const limitLabel =
-            window.limitLabel || t("codex.quota.additional", "额外额度");
-          return {
-            key: window.id,
-            label: `${limitLabel} ${window.label}`,
-            percentage: window.percentage,
-            quotaClass: getCodexQuotaClass(window.percentage),
-            valueText: `${window.percentage}%`,
-            resetText: window.resetTime
-              ? formatCodexResetTime(window.resetTime, t)
-              : "",
-            resetAt: window.resetTime,
-            hintText: hintText || undefined,
-          };
-        })
-      : [];
+  const additionalQuotaItems = !isCodexChatCompletionsApiKeyAccount(account)
+    ? getCodexAdditionalQuotaWindows(account.quota).map((window) => {
+        const hintText = [window.limitName, window.meteredFeature]
+          .filter(Boolean)
+          .join(" · ");
+        const limitLabel =
+          window.limitLabel || t("codex.quota.additional", "额外额度");
+        return {
+          key: window.id,
+          label: `${limitLabel} ${window.label}`,
+          percentage: window.percentage,
+          quotaClass: getCodexQuotaClass(window.percentage),
+          valueText: `${window.percentage}%`,
+          resetText: window.resetTime
+            ? formatCodexResetTime(window.resetTime, t)
+            : "",
+          resetAt: window.resetTime,
+          hintText: hintText || undefined,
+        };
+      })
+    : [];
   quotaItems.push(...additionalQuotaItems);
   const codeReviewMetric = getCodexCodeReviewQuotaMetric(account.quota);
   if (codeReviewMetric) {
@@ -823,7 +837,9 @@ export function buildClaudeAccountPresentation(
   return {
     id: account.id,
     displayName: getClaudeAccountDisplayEmail(account),
-    planLabel: getClaudePlanBadge(account) || t("claude.desktopOAuth.planUnknown", "订阅未知"),
+    planLabel:
+      getClaudePlanBadge(account) ||
+      t("claude.desktopOAuth.planUnknown", "订阅未知"),
     planClass: getClaudePlanBadgeClass(account),
     quotaItems,
     sublineText: account.quota_error?.message,
@@ -1607,6 +1623,7 @@ export function buildCursorAccountPresentation(
   );
   const autoPercent = normalizeCursorUsagePercent(usage.autoPercentUsed);
   const apiPercent = normalizeCursorUsagePercent(usage.apiPercentUsed);
+  const botPercent = normalizeCursorUsagePercent(usage.botPercentUsed);
   const quotaItems: UnifiedQuotaMetric[] = [];
 
   if (totalPercent != null) {
@@ -1640,6 +1657,20 @@ export function buildCursorAccountPresentation(
       percentage: apiPercent,
       quotaClass: getCursorUsageQuotaClass(apiPercent),
       valueText: `${apiPercent}%`,
+    });
+  }
+
+  if (botPercent != null) {
+    quotaItems.push({
+      key: "bot",
+      label: "Bot",
+      percentage: botPercent,
+      quotaClass: getCursorUsageQuotaClass(botPercent),
+      valueText: `${botPercent}%`,
+      resetAt: usage.botResetAt,
+      resetText: usage.botResetAt
+        ? formatCodexResetTime(usage.botResetAt, t)
+        : "",
     });
   }
 
@@ -1685,43 +1716,47 @@ export function buildCursorAccountPresentation(
   };
 }
 
-
 export function buildGrokAccountPresentation(
   account: GrokAccount,
   t: Translate,
 ): UnifiedAccountPresentation {
-  const quotaItems: UnifiedQuotaMetric[] = getGrokQuotaSummaryItems(account, t).map(
-    (item) => {
-      const usedPercent = clampPercent(item.percentage);
-      const remaining = clampPercent(100 - usedPercent);
-      const amountText = formatGrokQuotaUsedTotal(item.used, item.total);
-      const left =
-        item.used != null && item.total != null
-          ? Math.max(0, item.total - item.used)
-          : null;
-      // 与 Gemini 一致：文案与进度条均为剩余%（额度越少条越短）；颜色按已用比例
-      const remainingText = t("common.shared.quota.leftPercent", "{{value}}% left", {
+  const quotaItems: UnifiedQuotaMetric[] = getGrokQuotaSummaryItems(
+    account,
+    t,
+  ).map((item) => {
+    const usedPercent = clampPercent(item.percentage);
+    const remaining = clampPercent(100 - usedPercent);
+    const amountText = formatGrokQuotaUsedTotal(item.used, item.total);
+    const left =
+      item.used != null && item.total != null
+        ? Math.max(0, item.total - item.used)
+        : null;
+    // 与 Gemini 一致：文案与进度条均为剩余%（额度越少条越短）；颜色按已用比例
+    const remainingText = t(
+      "common.shared.quota.leftPercent",
+      "{{value}}% left",
+      {
         value: Math.round(remaining),
-      });
-      const valueText = amountText
-        ? `${amountText} · ${remainingText}`
-        : remainingText;
-      return {
-        key: item.key,
-        label: item.label,
-        percentage: remaining,
-        progressPercent: remaining,
-        quotaClass: getGrokQuotaClass(usedPercent),
-        valueText,
-        resetAt: item.resetAtMs,
-        resetText: formatMetricResetText(item.resetAtMs, t),
-        used: item.used ?? usedPercent,
-        total: item.total ?? 100,
-        left: left ?? remaining,
-        showProgress: true,
-      };
-    },
-  );
+      },
+    );
+    const valueText = amountText
+      ? `${amountText} · ${remainingText}`
+      : remainingText;
+    return {
+      key: item.key,
+      label: item.label,
+      percentage: remaining,
+      progressPercent: remaining,
+      quotaClass: getGrokQuotaClass(usedPercent),
+      valueText,
+      resetAt: item.resetAtMs,
+      resetText: formatMetricResetText(item.resetAtMs, t),
+      used: item.used ?? usedPercent,
+      total: item.total ?? 100,
+      left: left ?? remaining,
+      showProgress: true,
+    };
+  });
 
   const planBadge = getGrokPlanBadge(account);
   return {

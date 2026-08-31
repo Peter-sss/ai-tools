@@ -36,24 +36,26 @@ export interface CursorQuota {
 }
 
 export type CursorPlanBadge =
-  | 'FREE'
-  | 'PRO'
-  | 'PRO_PLUS'
-  | 'ENTERPRISE'
-  | 'FREE_TRIAL'
-  | 'ULTRA'
-  | 'UNKNOWN';
+  | "FREE"
+  | "PRO"
+  | "PRO_PLUS"
+  | "ENTERPRISE"
+  | "FREE_TRIAL"
+  | "ULTRA"
+  | "UNKNOWN";
 
 function normalizeCursorMembershipType(membershipType?: string | null): string {
-  const normalized = (membershipType || '').toLowerCase().trim();
-  if (!normalized) return '';
-  if (normalized === 'pro_student') return 'pro';
-  if (normalized === 'business' || normalized === 'team') return 'enterprise';
+  const normalized = (membershipType || "").toLowerCase().trim();
+  if (!normalized) return "";
+  if (normalized === "pro_student") return "pro";
+  if (normalized === "business" || normalized === "team") return "enterprise";
   return normalized;
 }
 
-function getCursorAuthRawObject(account: CursorAccount): Record<string, unknown> | null {
-  if (!account.cursor_auth_raw || typeof account.cursor_auth_raw !== 'object') {
+function getCursorAuthRawObject(
+  account: CursorAccount,
+): Record<string, unknown> | null {
+  if (!account.cursor_auth_raw || typeof account.cursor_auth_raw !== "object") {
     return null;
   }
   return account.cursor_auth_raw as Record<string, unknown>;
@@ -67,7 +69,7 @@ function getCursorAuthRawString(
   if (!raw) return null;
   for (const key of keys) {
     const value = raw[key];
-    if (typeof value === 'string') {
+    if (typeof value === "string") {
       const trimmed = value.trim();
       if (trimmed) return trimmed;
     }
@@ -76,11 +78,11 @@ function getCursorAuthRawString(
 }
 
 function parseBoolLike(value: unknown): boolean | null {
-  if (typeof value === 'boolean') return value;
-  if (typeof value === 'string') {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "string") {
     const normalized = value.toLowerCase().trim();
-    if (normalized === 'true') return true;
-    if (normalized === 'false') return false;
+    if (normalized === "true") return true;
+    if (normalized === "false") return false;
   }
   return null;
 }
@@ -101,8 +103,8 @@ function getCursorAuthRawBool(
 function isCursorEnterpriseAccount(account: CursorAccount): boolean {
   const explicitEnterprise = getCursorAuthRawBool(
     account,
-    'isEnterprise',
-    'is_enterprise',
+    "isEnterprise",
+    "is_enterprise",
   );
   if (explicitEnterprise !== null) {
     return explicitEnterprise;
@@ -110,17 +112,17 @@ function isCursorEnterpriseAccount(account: CursorAccount): boolean {
 
   const teamMembershipType = getCursorAuthRawString(
     account,
-    'teamMembershipType',
-    'team_membership_type',
+    "teamMembershipType",
+    "team_membership_type",
   );
   if (teamMembershipType) {
     const normalizedTeam = teamMembershipType.toLowerCase();
-    if (normalizedTeam.includes('enterprise')) {
+    if (normalizedTeam.includes("enterprise")) {
       return true;
     }
     if (
-      normalizedTeam.includes('self_serve') ||
-      normalizedTeam.includes('selfserve')
+      normalizedTeam.includes("self_serve") ||
+      normalizedTeam.includes("selfserve")
     ) {
       return false;
     }
@@ -128,8 +130,8 @@ function isCursorEnterpriseAccount(account: CursorAccount): boolean {
 
   const isTeamMember = getCursorAuthRawBool(
     account,
-    'isTeamMember',
-    'is_team_member',
+    "isTeamMember",
+    "is_team_member",
   );
   if (isTeamMember !== null) {
     return !isTeamMember;
@@ -140,46 +142,48 @@ function isCursorEnterpriseAccount(account: CursorAccount): boolean {
 
 function resolveCursorPlanLabel(account: CursorAccount): string {
   const plan = getCursorPlanBadge(account);
-  const subscriptionStatus = (account.subscription_status || '')
+  const subscriptionStatus = (account.subscription_status || "")
     .toLowerCase()
     .trim();
-  const isTrialing = subscriptionStatus === 'trialing';
+  const isTrialing = subscriptionStatus === "trialing";
 
   switch (plan) {
-    case 'ENTERPRISE':
-      return isCursorEnterpriseAccount(account) ? 'Enterprise' : 'Team';
-    case 'ULTRA':
-      return 'Ultra';
-    case 'PRO_PLUS':
-      return isTrialing ? 'Pro+ Trial' : 'Pro+';
-    case 'PRO':
-      return isTrialing ? 'Pro Trial' : 'Pro';
-    case 'FREE_TRIAL':
-      return 'Pro Trial';
-    case 'FREE':
-      return 'Free';
+    case "ENTERPRISE":
+      return isCursorEnterpriseAccount(account) ? "Enterprise" : "Team";
+    case "ULTRA":
+      return "Ultra";
+    case "PRO_PLUS":
+      return isTrialing ? "Pro+ Trial" : "Pro+";
+    case "PRO":
+      return isTrialing ? "Pro Trial" : "Pro";
+    case "FREE_TRIAL":
+      return "Pro Trial";
+    case "FREE":
+      return "Free";
     default:
-      return 'Unknown';
+      return "Unknown";
   }
 }
 
 export function getCursorPlanBadge(account: CursorAccount): CursorPlanBadge {
   const membership = normalizeCursorMembershipType(account.membership_type);
   switch (membership) {
-    case 'free':
-      return 'FREE';
-    case 'pro':
-      return 'PRO';
-    case 'pro_plus':
-      return 'PRO_PLUS';
-    case 'enterprise':
-      return 'ENTERPRISE';
-    case 'free_trial':
-      return 'FREE_TRIAL';
-    case 'ultra':
-      return 'ULTRA';
+    case "free":
+      return "FREE";
+    case "pro":
+      return "PRO";
+    case "pro_plus":
+      return "PRO_PLUS";
+    case "enterprise":
+      return "ENTERPRISE";
+    case "free_trial":
+      return "FREE_TRIAL";
+    case "ultra":
+      return "ULTRA";
     default:
-      return membership ? (membership.toUpperCase() as CursorPlanBadge) : 'UNKNOWN';
+      return membership
+        ? (membership.toUpperCase() as CursorPlanBadge)
+        : "UNKNOWN";
   }
 }
 
@@ -193,19 +197,21 @@ export function getCursorPlanBadgeClass(
 ): string {
   const normalized = normalizeCursorMembershipType(planType);
   switch (normalized) {
-    case 'ultra':
-      return 'ultra';
-    case 'enterprise':
-      return account && !isCursorEnterpriseAccount(account) ? 'team' : 'enterprise';
-    case 'pro_plus':
-      return 'plus';
-    case 'pro':
-    case 'free_trial':
-      return 'pro';
-    case 'free':
-      return 'free';
+    case "ultra":
+      return "ultra";
+    case "enterprise":
+      return account && !isCursorEnterpriseAccount(account)
+        ? "team"
+        : "enterprise";
+    case "pro_plus":
+      return "plus";
+    case "pro":
+    case "free_trial":
+      return "pro";
+    case "free":
+      return "free";
     default:
-      return 'unknown';
+      return "unknown";
   }
 }
 
@@ -226,6 +232,8 @@ export type CursorUsage = {
   totalPercentUsed?: number | null;
   autoPercentUsed?: number | null;
   apiPercentUsed?: number | null;
+  botPercentUsed?: number | null;
+  botResetAt?: number | null;
   onDemandUsedCents?: number | null;
   onDemandLimitCents?: number | null;
   teamOnDemandUsedCents?: number | null;
@@ -247,7 +255,7 @@ export type CursorOnDemandSummary = {
 function getPath(obj: unknown, ...keys: string[]): unknown {
   let cur: unknown = obj;
   for (const k of keys) {
-    if (cur == null || typeof cur !== 'object') return undefined;
+    if (cur == null || typeof cur !== "object") return undefined;
     cur = (cur as Record<string, unknown>)[k];
   }
   return cur;
@@ -255,28 +263,105 @@ function getPath(obj: unknown, ...keys: string[]): unknown {
 
 /** 从对象中取数字，支持多 key（camelCase + snake_case），API 可能返回任一种 */
 function pickNumber(obj: unknown, ...candidateKeys: string[]): number | null {
-  if (obj == null || typeof obj !== 'object') return null;
+  if (obj == null || typeof obj !== "object") return null;
   const o = obj as Record<string, unknown>;
   for (const key of candidateKeys) {
     const val = o[key];
     if (val !== undefined && val !== null) {
-      const n = typeof val === 'number' ? val : Number(val);
+      const n = typeof val === "number" ? val : Number(val);
       if (Number.isFinite(n)) return n;
     }
   }
   return null;
 }
 
+function getGrokBotRaw(raw: unknown): unknown {
+  return (
+    getPath(raw, "grokBot") ??
+    getPath(raw, "grok_bot") ??
+    getPath(raw, "sandUsage") ??
+    getPath(raw, "sand_usage") ??
+    getPath(raw, "individualUsage", "bot") ??
+    getPath(raw, "individual_usage", "bot")
+  );
+}
+
+function parseResetTimestamp(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+    return value > 1e12 ? Math.floor(value / 1000) : Math.floor(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric) && numeric > 0) {
+      return numeric > 1e12 ? Math.floor(numeric / 1000) : Math.floor(numeric);
+    }
+    const ts = new Date(value).getTime();
+    if (Number.isFinite(ts)) return Math.floor(ts / 1000);
+  }
+  return null;
+}
+
+function readGrokBotResetAt(raw: unknown): number | null {
+  const grokBot = getGrokBotRaw(raw);
+  if (!grokBot || typeof grokBot !== "object") return null;
+  const obj = grokBot as Record<string, unknown>;
+  return parseResetTimestamp(
+    obj.nextResetTimestampUtc ??
+      obj.next_reset_timestamp_utc ??
+      obj.resetAt ??
+      obj.reset_at,
+  );
+}
+
+function readGrokBotPercent(raw: unknown, plan: unknown): number | null {
+  const grokBot = getGrokBotRaw(raw);
+
+  if (grokBot && typeof grokBot === "object") {
+    const pooled = pickBoolean(
+      grokBot,
+      "usesPooledEnterpriseAllowance",
+      "uses_pooled_enterprise_allowance",
+    );
+    const includedZero = pickBoolean(
+      grokBot,
+      "includedLimitZero",
+      "included_limit_zero",
+    );
+    const hasAllowance = pickBoolean(
+      grokBot,
+      "hasNonZeroIncludedLimit",
+      "has_non_zero_included_limit",
+    );
+    if (pooled === true || includedZero === true || hasAllowance === false) {
+      return null;
+    }
+    const percent = pickNumber(
+      grokBot,
+      "usagePercent",
+      "usage_percent",
+      "usedPercent",
+      "used_percent",
+      "botPercentUsed",
+      "bot_percent_used",
+    );
+    if (percent != null) {
+      return percent;
+    }
+  }
+
+  return pickNumber(plan, "botPercentUsed", "bot_percent_used");
+}
+
 function pickBoolean(obj: unknown, ...candidateKeys: string[]): boolean | null {
-  if (obj == null || typeof obj !== 'object') return null;
+  if (obj == null || typeof obj !== "object") return null;
   const o = obj as Record<string, unknown>;
   for (const key of candidateKeys) {
     const val = o[key];
-    if (typeof val === 'boolean') return val;
-    if (typeof val === 'string') {
+    if (typeof val === "boolean") return val;
+    if (typeof val === "string") {
       const normalized = val.toLowerCase().trim();
-      if (normalized === 'true') return true;
-      if (normalized === 'false') return false;
+      if (normalized === "true") return true;
+      if (normalized === "false") return false;
     }
   }
   return null;
@@ -284,84 +369,86 @@ function pickBoolean(obj: unknown, ...candidateKeys: string[]): boolean | null {
 
 export function getCursorUsage(account: CursorAccount): CursorUsage {
   const raw = account.cursor_usage_raw;
-  if (!raw || typeof raw !== 'object') {
-    return { inlineSuggestionsUsedPercent: null, chatMessagesUsedPercent: null };
+  if (!raw || typeof raw !== "object") {
+    return {
+      inlineSuggestionsUsedPercent: null,
+      chatMessagesUsedPercent: null,
+    };
   }
 
   const plan =
-    getPath(raw, 'individualUsage', 'plan') ??
-    getPath(raw, 'individual_usage', 'plan') ??
-    getPath(raw, 'planUsage') ??
-    getPath(raw, 'plan_usage');
+    getPath(raw, "individualUsage", "plan") ??
+    getPath(raw, "individual_usage", "plan") ??
+    getPath(raw, "planUsage") ??
+    getPath(raw, "plan_usage");
   const individualOnDemand =
-    getPath(raw, 'individualUsage', 'onDemand') ??
-    getPath(raw, 'individual_usage', 'onDemand');
+    getPath(raw, "individualUsage", "onDemand") ??
+    getPath(raw, "individual_usage", "onDemand");
   const teamOnDemand =
-    getPath(raw, 'teamUsage', 'onDemand') ??
-    getPath(raw, 'team_usage', 'onDemand');
+    getPath(raw, "teamUsage", "onDemand") ??
+    getPath(raw, "team_usage", "onDemand");
   const spendLimitUsage =
-    getPath(raw, 'spendLimitUsage') ??
-    getPath(raw, 'spend_limit_usage');
+    getPath(raw, "spendLimitUsage") ?? getPath(raw, "spend_limit_usage");
   const onDemand = individualOnDemand ?? spendLimitUsage;
 
-  const totalPct = pickNumber(plan, 'totalPercentUsed', 'total_percent_used');
-  const autoPct = pickNumber(plan, 'autoPercentUsed', 'auto_percent_used');
-  const apiPct = pickNumber(plan, 'apiPercentUsed', 'api_percent_used');
-  const planUsed = pickNumber(plan, 'used', 'totalSpend', 'total_spend');
-  const planLimit = pickNumber(plan, 'limit');
+  const totalPct = pickNumber(plan, "totalPercentUsed", "total_percent_used");
+  const autoPct = pickNumber(plan, "autoPercentUsed", "auto_percent_used");
+  const apiPct = pickNumber(plan, "apiPercentUsed", "api_percent_used");
+  const botPct = readGrokBotPercent(raw, plan);
+  const planUsed = pickNumber(plan, "used", "totalSpend", "total_spend");
+  const planLimit = pickNumber(plan, "limit");
   const odUsed = pickNumber(
     onDemand,
-    'used',
-    'totalSpend',
-    'total_spend',
-    'individualUsed',
-    'individual_used',
+    "used",
+    "totalSpend",
+    "total_spend",
+    "individualUsed",
+    "individual_used",
   );
   const odLimit = pickNumber(
     onDemand,
-    'limit',
-    'individualLimit',
-    'individual_limit',
-    'pooledLimit',
-    'pooled_limit',
+    "limit",
+    "individualLimit",
+    "individual_limit",
+    "pooledLimit",
+    "pooled_limit",
   );
   const teamOdUsed =
-    pickNumber(teamOnDemand, 'used') ??
+    pickNumber(teamOnDemand, "used") ??
     pickNumber(
       spendLimitUsage,
-      'pooledUsed',
-      'pooled_used',
-      'overallUsed',
-      'overall_used',
+      "pooledUsed",
+      "pooled_used",
+      "overallUsed",
+      "overall_used",
     );
   const teamOdLimit =
-    pickNumber(teamOnDemand, 'limit') ??
+    pickNumber(teamOnDemand, "limit") ??
     pickNumber(
       spendLimitUsage,
-      'pooledLimit',
-      'pooled_limit',
-      'overallLimit',
-      'overall_limit',
+      "pooledLimit",
+      "pooled_limit",
+      "overallLimit",
+      "overall_limit",
     );
-  const odEnabled = pickBoolean(individualOnDemand, 'enabled');
+  const odEnabled = pickBoolean(individualOnDemand, "enabled");
   const rawObj = raw as Record<string, unknown>;
   const isUnlimited =
     rawObj.isUnlimited === true || rawObj.is_unlimited === true;
   const limitTypeRaw =
     rawObj.limitType ??
     rawObj.limit_type ??
-    (spendLimitUsage && typeof spendLimitUsage === 'object'
-      ? (spendLimitUsage as Record<string, unknown>).limitType ??
-        (spendLimitUsage as Record<string, unknown>).limit_type
+    (spendLimitUsage && typeof spendLimitUsage === "object"
+      ? ((spendLimitUsage as Record<string, unknown>).limitType ??
+        (spendLimitUsage as Record<string, unknown>).limit_type)
       : undefined);
   const onDemandLimitType =
-    typeof limitTypeRaw === 'string' && limitTypeRaw.trim()
+    typeof limitTypeRaw === "string" && limitTypeRaw.trim()
       ? limitTypeRaw.trim().toLowerCase()
       : null;
-  const billingEndRaw =
-    rawObj.billingCycleEnd ?? rawObj.billing_cycle_end;
+  const billingEndRaw = rawObj.billingCycleEnd ?? rawObj.billing_cycle_end;
   let resetAt: number | null = null;
-  if (typeof billingEndRaw === 'string' && billingEndRaw) {
+  if (typeof billingEndRaw === "string" && billingEndRaw) {
     const ts = new Date(billingEndRaw).getTime();
     if (Number.isFinite(ts)) resetAt = Math.floor(ts / 1000);
   }
@@ -387,6 +474,8 @@ export function getCursorUsage(account: CursorAccount): CursorUsage {
     totalPercentUsed: totalPct,
     autoPercentUsed: autoPct,
     apiPercentUsed: apiPct,
+    botPercentUsed: botPct,
+    botResetAt: readGrokBotResetAt(raw),
     onDemandUsedCents: odUsed,
     onDemandLimitCents: odLimit,
     teamOnDemandUsedCents: teamOdUsed,
@@ -397,9 +486,11 @@ export function getCursorUsage(account: CursorAccount): CursorUsage {
   };
 }
 
-export function getCursorOnDemandSummary(usage: CursorUsage): CursorOnDemandSummary {
-  const limitType = (usage.onDemandLimitType || '').toLowerCase();
-  const isTeamLimit = limitType === 'team';
+export function getCursorOnDemandSummary(
+  usage: CursorUsage,
+): CursorOnDemandSummary {
+  const limitType = (usage.onDemandLimitType || "").toLowerCase();
+  const isTeamLimit = limitType === "team";
   // Team accounts must stay on one quota scope. Prefer team metrics and only
   // fall back to the normalized shared fields when the team-specific field is absent.
   const usedCents = isTeamLimit
@@ -409,7 +500,8 @@ export function getCursorOnDemandSummary(usage: CursorUsage): CursorOnDemandSumm
     ? (usage.teamOnDemandLimitCents ?? usage.onDemandLimitCents ?? null)
     : (usage.onDemandLimitCents ?? null);
   const hasFixedLimit = limitCents != null && limitCents > 0;
-  const isUnlimited = !hasFixedLimit && usage.onDemandEnabled === true && !isTeamLimit;
+  const isUnlimited =
+    !hasFixedLimit && usage.onDemandEnabled === true && !isTeamLimit;
   const isDisabled = !hasFixedLimit && !isUnlimited;
 
   return {
@@ -422,16 +514,23 @@ export function getCursorOnDemandSummary(usage: CursorUsage): CursorOnDemandSumm
   };
 }
 
-export function formatCursorUsageDollars(cents: number | null | undefined): string {
-  if (cents == null) return '—';
+export function formatCursorUsageDollars(
+  cents: number | null | undefined,
+): string {
+  if (cents == null) return "—";
   return `$${(cents / 100).toFixed(2)}`;
 }
 
 export function isCursorAccountBanned(account: CursorAccount): boolean {
-  const status = (account.status || '').toLowerCase();
-  const reason = (account.status_reason || '').toLowerCase();
-  return status === 'banned' || status === 'forbidden' ||
-    reason.includes('banned') || reason.includes('suspended') || reason.includes('disabled');
+  const status = (account.status || "").toLowerCase();
+  const reason = (account.status_reason || "").toLowerCase();
+  return (
+    status === "banned" ||
+    status === "forbidden" ||
+    reason.includes("banned") ||
+    reason.includes("suspended") ||
+    reason.includes("disabled")
+  );
 }
 
 export function hasCursorQuotaData(account: CursorAccount): boolean {

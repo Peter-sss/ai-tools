@@ -324,7 +324,7 @@ fn normalize_token_identity(value: Option<&str>) -> Option<String> {
 }
 
 fn normalize_auth_identity(value: Option<&str>) -> Option<String> {
-    normalize_non_empty(value)
+    normalize_non_empty(value).and_then(|raw| normalize_workos_user_id(&raw))
 }
 
 fn decode_access_token_payload(access_token: &str) -> Option<serde_json::Value> {
@@ -378,13 +378,48 @@ fn extract_auth_id_from_raw_value(raw: Option<&Value>) -> Option<String> {
 fn resolve_payload_auth_id(payload: &CursorImportPayload) -> Option<String> {
     normalize_auth_identity(payload.auth_id.as_deref())
         .or_else(|| extract_auth_id_from_raw_value(payload.cursor_auth_raw.as_ref()))
-        .or_else(|| extract_auth_id_from_access_token(payload.access_token.as_str()))
+        .or_else(|| {
+            normalize_auth_identity(
+                extract_auth_id_from_access_token(payload.access_token.as_str()).as_deref(),
+            )
+        })
 }
 
 fn resolve_account_auth_id(account: &CursorAccount) -> Option<String> {
     normalize_auth_identity(account.auth_id.as_deref())
         .or_else(|| extract_auth_id_from_raw_value(account.cursor_auth_raw.as_ref()))
-        .or_else(|| extract_auth_id_from_access_token(account.access_token.as_str()))
+        .or_else(|| {
+            normalize_auth_identity(
+                extract_auth_id_from_access_token(account.access_token.as_str()).as_deref(),
+            )
+        })
+}
+
+fn cursor_identities_match(
+    left_auth_id: Option<&str>,
+    right_auth_id: Option<&str>,
+    left_email: Option<&str>,
+    right_email: Option<&str>,
+    left_token: Option<&str>,
+    right_token: Option<&str>,
+) -> bool {
+    if let (Some(left), Some(right)) = (left_auth_id, right_auth_id) {
+        if left == right {
+            return true;
+        }
+    }
+
+    if let (Some(left), Some(right)) = (left_email, right_email) {
+        if left == right {
+            return true;
+        }
+        return false;
+    }
+
+    matches!(
+        (left_token, right_token),
+        (Some(left), Some(right)) if left == right
+    )
 }
 
 fn cursor_auth_raw_object_mut(account: &mut CursorAccount) -> &mut serde_json::Map<String, Value> {
@@ -426,36 +461,19 @@ fn normalize_cursor_sign_up_type(value: Option<&str>) -> Option<String> {
 fn accounts_are_duplicates(left: &CursorAccount, right: &CursorAccount) -> bool {
     let left_auth_id = resolve_account_auth_id(left);
     let right_auth_id = resolve_account_auth_id(right);
-    if let (Some(left_auth), Some(right_auth)) = (left_auth_id.as_ref(), right_auth_id.as_ref()) {
-        return left_auth == right_auth;
-    }
-    if left_auth_id.is_some() || right_auth_id.is_some() {
-        return false;
-    }
-
     let left_email = normalize_email_identity(Some(left.email.as_str()));
     let right_email = normalize_email_identity(Some(right.email.as_str()));
     let left_token = normalize_token_identity(Some(left.access_token.as_str()));
     let right_token = normalize_token_identity(Some(right.access_token.as_str()));
 
-    let email_conflict = matches!(
-        (left_email.as_ref(), right_email.as_ref()),
-        (Some(l), Some(r)) if l != r
-    );
-    if email_conflict {
-        return false;
-    }
-
-    let email_match = matches!(
-        (left_email.as_ref(), right_email.as_ref()),
-        (Some(l), Some(r)) if l == r
-    );
-    let token_match = matches!(
-        (left_token.as_ref(), right_token.as_ref()),
-        (Some(l), Some(r)) if l == r
-    );
-
-    email_match || token_match
+    cursor_identities_match(
+        left_auth_id.as_deref(),
+        right_auth_id.as_deref(),
+        left_email.as_deref(),
+        right_email.as_deref(),
+        left_token.as_deref(),
+        right_token.as_deref(),
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -851,28 +869,16 @@ pub fn upsert_account(payload: CursorImportPayload) -> Result<CursorAccount, Str
         .filter_map(|item| load_account(&item.id))
         .find(|account| {
             let existing_auth_id = resolve_account_auth_id(account);
-            if let (Some(existing), Some(incoming)) =
-                (existing_auth_id.as_ref(), incoming_auth_id.as_ref())
-            {
-                return existing == incoming;
-            }
-            if existing_auth_id.is_some() || incoming_auth_id.is_some() {
-                return false;
-            }
-
             let existing_email = normalize_email_identity(Some(account.email.as_str()));
             let existing_token = normalize_token_identity(Some(account.access_token.as_str()));
-            if let (Some(ex), Some(inc)) = (existing_email.as_ref(), incoming_email.as_ref()) {
-                if ex == inc {
-                    return true;
-                }
-            }
-            if let (Some(ex), Some(inc)) = (existing_token.as_ref(), incoming_token.as_ref()) {
-                if ex == inc {
-                    return true;
-                }
-            }
-            false
+            cursor_identities_match(
+                existing_auth_id.as_deref(),
+                incoming_auth_id.as_deref(),
+                existing_email.as_deref(),
+                incoming_email.as_deref(),
+                existing_token.as_deref(),
+                incoming_token.as_deref(),
+            )
         })
         .map(|account| account.id)
         .unwrap_or(generated_id);
@@ -1227,9 +1233,12 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
         .or_else(|| clone_object_value(obj.get("cursorAuthRaw")));
     let cursor_usage_raw = clone_object_value(obj.get("cursor_usage_raw"))
         .or_else(|| clone_object_value(obj.get("cursorUsageRaw")));
-    let auth_id = extract_string(obj, &["auth_id", "authId", "workos_id", "workosId"])
-        .or_else(|| extract_auth_id_from_raw_value(cursor_auth_raw.as_ref()))
-        .or_else(|| extract_auth_id_from_access_token(access_token.as_str()));
+    let auth_id = normalize_auth_identity(
+        extract_string(obj, &["auth_id", "authId", "workos_id", "workosId"])
+            .or_else(|| extract_auth_id_from_raw_value(cursor_auth_raw.as_ref()))
+            .or_else(|| extract_auth_id_from_access_token(access_token.as_str()))
+            .as_deref(),
+    );
 
     Ok(CursorImportPayload {
         email,
@@ -1497,8 +1506,11 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
     }
 
     let refresh_token = read_vscdb_item(&conn, "cursorAuth/refreshToken");
-    let auth_id = read_vscdb_item(&conn, "cursorAuth/authId")
-        .or_else(|| extract_auth_id_from_access_token(access_token.as_str()));
+    let auth_id = normalize_auth_identity(
+        read_vscdb_item(&conn, "cursorAuth/authId")
+            .or_else(|| extract_auth_id_from_access_token(access_token.as_str()))
+            .as_deref(),
+    );
     let membership_type = read_vscdb_item(&conn, "cursorAuth/stripeMembershipType");
     let subscription_status = read_vscdb_item(&conn, "cursorAuth/stripeSubscriptionStatus");
     let sign_up_type = read_vscdb_item(&conn, "cursorAuth/cachedSignUpType");
@@ -2060,6 +2072,10 @@ fn update_existing_token_fields_in_file(
 // ---------------------------------------------------------------------------
 
 const CURSOR_USAGE_SUMMARY_URL: &str = "https://cursor.com/api/usage-summary";
+const CURSOR_SAND_USAGE_RPC_URL: &str =
+    "https://api2.cursor.sh/aiserver.v1.DashboardService/GetSandUsageStatus";
+const CURSOR_SAND_USAGE_DASHBOARD_URL: &str =
+    "https://cursor.com/api/dashboard/get-sand-usage-status";
 const CURSOR_GET_USER_META_URL: &str = "https://api2.cursor.sh/aiserver.v1.AuthService/GetUserMeta";
 const CURSOR_FULL_STRIPE_PROFILE_URL: &str = "https://api2.cursor.sh/auth/full_stripe_profile";
 const CURSOR_STRIPE_PROFILE_URL: &str = "https://api2.cursor.sh/auth/stripe_profile";
@@ -2713,6 +2729,113 @@ async fn fetch_usage_summary_with_client(
         .map_err(|e| format!("解析 Cursor usage JSON 失败: {}", e))
 }
 
+fn sand_usage_looks_valid(value: &Value) -> bool {
+    let Some(obj) = value.as_object() else {
+        return false;
+    };
+    [
+        "usagePercent",
+        "usage_percent",
+        "usedPercent",
+        "used_percent",
+        "hasNonZeroIncludedLimit",
+        "has_non_zero_included_limit",
+        "nextResetTimestampUtc",
+        "next_reset_timestamp_utc",
+    ]
+    .iter()
+    .any(|key| obj.contains_key(*key))
+}
+
+fn parse_json_object_body(body: &str, context: &str) -> Result<Value, String> {
+    let value = serde_json::from_str::<Value>(body)
+        .map_err(|e| format!("解析 {} JSON 失败: {}", context, e))?;
+    if value.is_object() {
+        Ok(value)
+    } else {
+        Err(format!("{} 响应不是对象", context))
+    }
+}
+
+async fn fetch_sand_usage_status_with_client(
+    client: &reqwest::Client,
+    access_token: &str,
+) -> Result<Value, String> {
+    let rpc_response = client
+        .post(CURSOR_SAND_USAGE_RPC_URL)
+        .header("Authorization", format!("Bearer {}", access_token))
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json")
+        .header("Connect-Protocol-Version", "1")
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .map_err(|e| {
+            format!(
+                "请求 Cursor Grok Bot 用量接口失败: {}",
+                format_reqwest_error(&e)
+            )
+        })?;
+
+    let rpc_status = rpc_response.status().as_u16();
+    if rpc_status == 200 {
+        let body = rpc_response.text().await.map_err(|e| {
+            format!(
+                "读取 Cursor Grok Bot 用量响应失败: {}",
+                format_reqwest_error(&e)
+            )
+        })?;
+        if let Ok(value) = parse_json_object_body(&body, "Cursor Grok Bot 用量") {
+            if sand_usage_looks_valid(&value) {
+                return Ok(value);
+            }
+        }
+    } else if rpc_status == 401 || rpc_status == 403 {
+        return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
+    }
+
+    let cookie = build_session_cookie(access_token)
+        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+    let dashboard_response = client
+        .post(CURSOR_SAND_USAGE_DASHBOARD_URL)
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json")
+        .header("Cookie", &cookie)
+        .header("Origin", "https://cursor.com")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        )
+        .json(&serde_json::json!({}))
+        .send()
+        .await
+        .map_err(|e| {
+            format!(
+                "请求 Cursor Grok Bot dashboard 用量失败: {}",
+                format_reqwest_error(&e)
+            )
+        })?;
+
+    let dashboard_status = dashboard_response.status().as_u16();
+    if dashboard_status == 401 || dashboard_status == 403 {
+        return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
+    }
+    if dashboard_status != 200 {
+        return Err(format!(
+            "Cursor Grok Bot 用量接口返回异常状态码: rpc={}, dashboard={}",
+            rpc_status, dashboard_status
+        ));
+    }
+
+    let body = dashboard_response.text().await.map_err(|e| {
+        format!(
+            "读取 Cursor Grok Bot dashboard 用量响应失败: {}",
+            format_reqwest_error(&e)
+        )
+    })?;
+    parse_json_object_body(&body, "Cursor Grok Bot dashboard 用量")
+}
+
 // ---------------------------------------------------------------------------
 // Refresh (updates our own account storage + fetches usage from official APIs)
 // ---------------------------------------------------------------------------
@@ -2760,7 +2883,9 @@ async fn refresh_account_async_once(account_id: &str) -> Result<CursorAccount, S
 
             upsert_cursor_auth_raw_string(&mut account, "workosId", meta.workos_id.clone());
             if account.auth_id.is_none() {
-                account.auth_id = normalize_non_empty(meta.workos_id.as_deref());
+                account.auth_id = normalize_auth_identity(meta.workos_id.as_deref());
+            } else if let Some(canonical) = normalize_auth_identity(account.auth_id.as_deref()) {
+                account.auth_id = Some(canonical);
             }
 
             logger::log_info(&format!(
@@ -2825,10 +2950,27 @@ async fn refresh_account_async_once(account_id: &str) -> Result<CursorAccount, S
 
     let mut usage_refreshed = false;
     match fetch_usage_summary_with_client(&client, &account.access_token).await {
-        Ok(usage) => {
+        Ok(mut usage) => {
             if let Some(mt) = usage.get("membershipType").and_then(|v| v.as_str()) {
                 if !mt.is_empty() {
                     account.membership_type = Some(mt.to_string());
+                }
+            }
+            match fetch_sand_usage_status_with_client(&client, &account.access_token).await {
+                Ok(sand) => {
+                    if let Some(obj) = usage.as_object_mut() {
+                        obj.insert("grokBot".to_string(), sand);
+                    }
+                    logger::log_info(&format!(
+                        "[Cursor Refresh] Grok Bot 用量拉取成功: id={}",
+                        account.id
+                    ));
+                }
+                Err(err) => {
+                    logger::log_warn(&format!(
+                        "[Cursor Refresh] Grok Bot 用量拉取失败: id={}, error={}",
+                        account.id, err
+                    ));
                 }
             }
             account.cursor_usage_raw = Some(usage);
@@ -2873,18 +3015,50 @@ pub async fn refresh_account_async(account_id: &str) -> Result<CursorAccount, St
 }
 
 pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<CursorAccount, String>)>, String> {
+    use futures::future::join_all;
+    use std::sync::Arc;
+    use tokio::sync::Semaphore;
+
+    const MAX_CONCURRENT: usize = 5;
     let accounts = list_accounts();
+    let total = accounts.len();
     let active_accounts: Vec<CursorAccount> = accounts
         .into_iter()
         .filter(|account| !is_banned_account(account))
         .collect();
-
-    let mut results = Vec::with_capacity(active_accounts.len());
-    for account in active_accounts {
-        let id = account.id.clone();
-        let result = refresh_account_async(&id).await;
-        results.push((id, result));
+    let skipped_banned = total.saturating_sub(active_accounts.len());
+    if skipped_banned > 0 {
+        logger::log_info(&format!(
+            "[Cursor Refresh] 跳过封禁账号: skipped={}, total={}",
+            skipped_banned, total
+        ));
     }
+
+    let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT));
+    let tasks: Vec<_> = active_accounts
+        .into_iter()
+        .map(|account| {
+            let id = account.id;
+            let semaphore = semaphore.clone();
+            async move {
+                let _permit = semaphore
+                    .acquire_owned()
+                    .await
+                    .map_err(|e| format!("获取 Cursor 刷新并发许可失败: {}", e))?;
+                let result = refresh_account_async(&id).await;
+                Ok::<(String, Result<CursorAccount, String>), String>((id, result))
+            }
+        })
+        .collect();
+
+    let mut results = Vec::with_capacity(tasks.len());
+    for task in join_all(tasks).await {
+        match task {
+            Ok(item) => results.push(item),
+            Err(err) => return Err(err),
+        }
+    }
+
     Ok(results)
 }
 
@@ -2897,6 +3071,7 @@ struct CursorUsagePercent {
     total_used: Option<i32>,
     auto_used: Option<i32>,
     api_used: Option<i32>,
+    bot_used: Option<i32>,
 }
 
 fn clamp_percent(value: f64) -> i32 {
@@ -2910,6 +3085,78 @@ fn clamp_percent(value: f64) -> i32 {
         return 100;
     }
     value.round() as i32
+}
+
+fn grok_bot_value(raw_obj: &serde_json::Map<String, Value>) -> Option<&Value> {
+    raw_obj
+        .get("grokBot")
+        .or_else(|| raw_obj.get("grok_bot"))
+        .or_else(|| raw_obj.get("sandUsage"))
+        .or_else(|| raw_obj.get("sand_usage"))
+        .or_else(|| {
+            raw_obj
+                .get("individualUsage")
+                .and_then(|value| value.as_object())
+                .and_then(|value| value.get("bot"))
+        })
+        .or_else(|| {
+            raw_obj
+                .get("individual_usage")
+                .and_then(|value| value.as_object())
+                .and_then(|value| value.get("bot"))
+        })
+}
+
+fn grok_bot_has_personal_allowance(bot: Option<&Value>) -> bool {
+    let Some(obj) = bot.and_then(|value| value.as_object()) else {
+        return true;
+    };
+    let flag = |keys: &[&str]| -> Option<bool> {
+        for key in keys {
+            match obj.get(*key) {
+                Some(Value::Bool(value)) => return Some(*value),
+                Some(Value::String(text)) => {
+                    let normalized = text.trim().to_ascii_lowercase();
+                    if normalized == "true" {
+                        return Some(true);
+                    }
+                    if normalized == "false" {
+                        return Some(false);
+                    }
+                }
+                _ => {}
+            }
+        }
+        None
+    };
+    if flag(&["usesPooledEnterpriseAllowance", "uses_pooled_enterprise_allowance"]) == Some(true) {
+        return false;
+    }
+    if flag(&["includedLimitZero", "included_limit_zero"]) == Some(true) {
+        return false;
+    }
+    if flag(&["hasNonZeroIncludedLimit", "has_non_zero_included_limit"]) == Some(false) {
+        return false;
+    }
+    true
+}
+
+fn pick_grok_bot_percent(raw_obj: &serde_json::Map<String, Value>) -> Option<f64> {
+    let bot = grok_bot_value(raw_obj);
+    if !grok_bot_has_personal_allowance(bot) {
+        return None;
+    }
+    pick_number(
+        bot,
+        &[
+            "usagePercent",
+            "usage_percent",
+            "usedPercent",
+            "used_percent",
+            "botPercentUsed",
+            "bot_percent_used",
+        ],
+    )
 }
 
 fn pick_number(value: Option<&Value>, keys: &[&str]) -> Option<f64> {
@@ -2961,6 +3208,8 @@ fn read_usage_percent(account: &CursorAccount) -> CursorUsagePercent {
     let total_direct = pick_number(plan_value, &["totalPercentUsed", "total_percent_used"]);
     let auto_direct = pick_number(plan_value, &["autoPercentUsed", "auto_percent_used"]);
     let api_direct = pick_number(plan_value, &["apiPercentUsed", "api_percent_used"]);
+    let bot_direct = pick_grok_bot_percent(raw_obj)
+        .or_else(|| pick_number(plan_value, &["botPercentUsed", "bot_percent_used"]));
 
     let used = pick_number(plan_value, &["used", "totalSpend", "total_spend"]);
     let limit = pick_number(plan_value, &["limit"]);
@@ -2975,6 +3224,7 @@ fn read_usage_percent(account: &CursorAccount) -> CursorUsagePercent {
         total_used: total_direct.or(total_ratio).map(clamp_percent),
         auto_used: auto_direct.map(clamp_percent),
         api_used: api_direct.map(clamp_percent),
+        bot_used: bot_direct.map(clamp_percent),
     }
 }
 
@@ -2990,6 +3240,9 @@ pub(crate) fn extract_quota_metrics(account: &CursorAccount) -> Vec<(String, i32
     }
     if let Some(used) = usage.api_used {
         metrics.push(("API Usage".to_string(), 100 - used.clamp(0, 100)));
+    }
+    if let Some(used) = usage.bot_used {
+        metrics.push(("Bot".to_string(), 100 - used.clamp(0, 100)));
     }
 
     metrics
@@ -3017,32 +3270,16 @@ pub(crate) fn resolve_current_account_id(accounts: &[CursorAccount]) -> Option<S
             .iter()
             .find(|account| {
                 let existing_auth_id = resolve_account_auth_id(account);
-                if let (Some(existing), Some(incoming)) =
-                    (existing_auth_id.as_ref(), incoming_auth_id.as_ref())
-                {
-                    return existing == incoming;
-                }
-                if existing_auth_id.is_some() || incoming_auth_id.is_some() {
-                    return false;
-                }
-
                 let existing_email = normalize_email_identity(Some(account.email.as_str()));
                 let existing_token = normalize_token_identity(Some(account.access_token.as_str()));
-                if let (Some(existing), Some(incoming)) =
-                    (existing_email.as_ref(), incoming_email.as_ref())
-                {
-                    if existing == incoming {
-                        return true;
-                    }
-                }
-                if let (Some(existing), Some(incoming)) =
-                    (existing_token.as_ref(), incoming_token.as_ref())
-                {
-                    if existing == incoming {
-                        return true;
-                    }
-                }
-                false
+                cursor_identities_match(
+                    existing_auth_id.as_deref(),
+                    incoming_auth_id.as_deref(),
+                    existing_email.as_deref(),
+                    incoming_email.as_deref(),
+                    existing_token.as_deref(),
+                    incoming_token.as_deref(),
+                )
             })
             .map(|account| account.id.clone())
         {
@@ -3314,6 +3551,197 @@ mod tests {
             payload.auth_id.as_deref(),
             Some("user_01REALUSERID00000000000")
         );
+    }
+
+    fn identity_account(email: &str, auth_id: Option<&str>, jwt: &str) -> CursorAccount {
+        CursorAccount {
+            id: "acc-temp".to_string(),
+            email: email.to_string(),
+            auth_id: auth_id.map(|value| value.to_string()),
+            name: None,
+            tags: None,
+            access_token: jwt.to_string(),
+            refresh_token: None,
+            membership_type: None,
+            subscription_status: None,
+            sign_up_type: None,
+            cursor_auth_raw: None,
+            cursor_usage_raw: None,
+            status: None,
+            status_reason: None,
+            quota_query_last_error: None,
+            quota_query_last_error_at: None,
+            usage_updated_at: None,
+            created_at: 0,
+            last_used: 0,
+        }
+    }
+
+    fn sample_import_payload(email: &str, auth_id: Option<&str>, jwt: &str) -> CursorImportPayload {
+        CursorImportPayload {
+            email: email.to_string(),
+            auth_id: auth_id.map(|value| value.to_string()),
+            name: None,
+            access_token: jwt.to_string(),
+            refresh_token: None,
+            membership_type: None,
+            subscription_status: None,
+            sign_up_type: None,
+            cursor_auth_raw: None,
+            cursor_usage_raw: None,
+            status: None,
+            status_reason: None,
+        }
+    }
+
+    #[test]
+    fn normalize_auth_identity_strips_provider_prefix() {
+        assert_eq!(
+            normalize_auth_identity(Some("grok|user_01M0G4D2NZEV8DE63HSZ8JK9TM")).as_deref(),
+            Some("user_01M0G4D2NZEV8DE63HSZ8JK9TM")
+        );
+        assert_eq!(
+            normalize_auth_identity(Some("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV")).as_deref(),
+            Some("user_01ABCDEFGHIJKLMNOPQRSTUV")
+        );
+        assert_eq!(
+            normalize_auth_identity(Some("user_01PLAINUSERID000000000000")).as_deref(),
+            Some("user_01PLAINUSERID000000000000")
+        );
+    }
+
+    #[test]
+    fn accounts_are_duplicates_treats_grok_prefix_as_same_user() {
+        let jwt = sample_jwt("grok|user_01DUPTEST00000000000000");
+        let prefixed = identity_account(
+            "irving@example.com",
+            Some("grok|user_01DUPTEST00000000000000"),
+            &jwt,
+        );
+        let canonical = identity_account(
+            "irving@example.com",
+            Some("user_01DUPTEST00000000000000"),
+            &jwt,
+        );
+        assert!(accounts_are_duplicates(&prefixed, &canonical));
+    }
+
+    #[test]
+    fn accounts_are_duplicates_same_email_when_auth_ids_differ() {
+        let left = identity_account(
+            "same@example.com",
+            Some("user_01LEFTACCOUNT000000000000"),
+            &sample_jwt("auth0|user_01LEFTACCOUNT000000000000"),
+        );
+        let right = identity_account(
+            "same@example.com",
+            Some("user_01RIGHTACCOUNT00000000000"),
+            &sample_jwt("auth0|user_01RIGHTACCOUNT00000000000"),
+        );
+        assert!(accounts_are_duplicates(&left, &right));
+    }
+
+    #[test]
+    fn accounts_are_duplicates_rejects_different_email_and_auth() {
+        let left = identity_account(
+            "left@example.com",
+            Some("user_01LEFTACCOUNT000000000000"),
+            &sample_jwt("auth0|user_01LEFTACCOUNT000000000000"),
+        );
+        let right = identity_account(
+            "right@example.com",
+            Some("user_01RIGHTACCOUNT00000000000"),
+            &sample_jwt("auth0|user_01RIGHTACCOUNT00000000000"),
+        );
+        assert!(!accounts_are_duplicates(&left, &right));
+    }
+
+    #[test]
+    fn resolve_payload_auth_id_canonicalizes_grok_prefix() {
+        let jwt = sample_jwt("grok|user_01LOCALPAYLOAD0000000000");
+        let payload = sample_import_payload(
+            "local@example.com",
+            Some("grok|user_01LOCALPAYLOAD0000000000"),
+            &jwt,
+        );
+        assert_eq!(
+            resolve_payload_auth_id(&payload).as_deref(),
+            Some("user_01LOCALPAYLOAD0000000000")
+        );
+    }
+
+    #[test]
+    fn payload_from_import_json_writes_canonical_auth_id() {
+        let jwt = sample_jwt("grok|user_01JSONIMPORT00000000000");
+        let raw = serde_json::json!({
+            "email": "json@example.com",
+            "access_token": jwt,
+            "auth_id": "grok|user_01JSONIMPORT00000000000"
+        });
+        let payload = payload_from_import_value(raw).expect("parse json payload");
+        assert_eq!(
+            payload.auth_id.as_deref(),
+            Some("user_01JSONIMPORT00000000000")
+        );
+    }
+
+    #[test]
+    fn upsert_reuses_id_when_auth_id_prefix_differs() {
+        let _lock = crate::modules::test_support::env_lock()
+            .lock()
+            .unwrap_or_else(|err| err.into_inner());
+
+        struct DataDirGuard {
+            dir: PathBuf,
+            previous: Option<String>,
+        }
+        impl Drop for DataDirGuard {
+            fn drop(&mut self) {
+                match self.previous.as_ref() {
+                    Some(value) => std::env::set_var("COCKPIT_TOOLS_TEST_DATA_DIR", value),
+                    None => std::env::remove_var("COCKPIT_TOOLS_TEST_DATA_DIR"),
+                }
+                let _ = fs::remove_dir_all(&self.dir);
+            }
+        }
+
+        let dir = std::env::temp_dir().join(format!(
+            "cursor-account-dedup-test-{}-{}",
+            std::process::id(),
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0)
+        ));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("temp dir");
+        let _guard = DataDirGuard {
+            previous: std::env::var("COCKPIT_TOOLS_TEST_DATA_DIR").ok(),
+            dir: dir.clone(),
+        };
+        std::env::set_var("COCKPIT_TOOLS_TEST_DATA_DIR", &dir);
+
+        let jwt = sample_jwt("grok|user_01UPSERTDEDUP0000000000");
+        let first = upsert_account(sample_import_payload(
+            "dup@example.com",
+            Some("grok|user_01UPSERTDEDUP0000000000"),
+            &jwt,
+        ))
+        .expect("first upsert");
+        let second = upsert_account(sample_import_payload(
+            "dup@example.com",
+            Some("user_01UPSERTDEDUP0000000000"),
+            &jwt,
+        ))
+        .expect("second upsert");
+
+        assert_eq!(first.id, second.id);
+        assert_eq!(
+            first.auth_id.as_deref(),
+            Some("user_01UPSERTDEDUP0000000000")
+        );
+        assert_eq!(
+            second.auth_id.as_deref(),
+            Some("user_01UPSERTDEDUP0000000000")
+        );
+        assert_eq!(list_accounts().len(), 1);
     }
 
     fn sample_account(jwt: &str) -> CursorAccount {

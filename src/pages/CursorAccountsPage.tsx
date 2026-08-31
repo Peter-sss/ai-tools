@@ -584,6 +584,16 @@ export function CursorAccountsPage() {
     };
   }, []);
 
+  const resolveBotQuota = useCallback((account: CursorAccount) => {
+    const usage = getCursorUsage(account);
+    const bot = normalizeCursorPercent(usage.botPercentUsed);
+    return {
+      percentage: bot.bar,
+      quotaClass: getCursorQuotaClass(bot.display),
+      valueText: `${bot.display}%`,
+    };
+  }, []);
+
   const resolveOnDemandQuota = useCallback(
     (account: CursorAccount) => {
       const usage = getCursorUsage(account);
@@ -638,6 +648,11 @@ export function CursorAccountsPage() {
     return usage.allowanceResetAt ?? null;
   }, []);
 
+  const resolveBotResetTime = useCallback((account: CursorAccount) => {
+    const usage = getCursorUsage(account);
+    return usage.botResetAt ?? null;
+  }, []);
+
   const formatResetTime = useCallback(
     (timestamp: number | null | undefined) => {
       if (!timestamp) return "";
@@ -645,7 +660,6 @@ export function CursorAccountsPage() {
       if (Number.isNaN(d.getTime())) return "";
       return (
         d.toLocaleDateString(locale, {
-          year: "numeric",
           month: "2-digit",
           day: "2-digit",
         }) +
@@ -1053,9 +1067,11 @@ export function CursorAccountsPage() {
       const total = resolveTotalQuota(account);
       const auto = resolveAutoQuota(account);
       const api = resolveApiQuota(account);
+      const bot = resolveBotQuota(account);
       const onDemand = resolveOnDemandQuota(account);
       const resetTs = resolveResetTime(account);
       const resetText = formatResetTime(resetTs);
+      const botResetText = formatResetTime(resolveBotResetTime(account));
       const accountTags = (account.tags || [])
         .map((tag) => tag.trim())
         .filter(Boolean);
@@ -1169,14 +1185,25 @@ export function CursorAccountsPage() {
                       </span>
                     </div>
                   )}
-                  {resetText && (
+                  {(resetText || botResetText) && (
                     <div className="windsurf-credit-meta-row">
-                      <span className="windsurf-credit-used">
-                        {t("common.shared.quota.resetAt", {
-                          time: resetText,
-                          defaultValue: "Reset: {{time}}",
-                        })}
-                      </span>
+                      {resetText && (
+                        <span className="windsurf-credit-used">
+                          {t("common.shared.quota.resetAt", {
+                            time: resetText,
+                            defaultValue: "Reset: {{time}}",
+                          })}
+                        </span>
+                      )}
+                      {botResetText && (
+                        <span className="windsurf-credit-used">
+                          Bot{" "}
+                          {t("common.shared.quota.resetAt", {
+                            time: botResetText,
+                            defaultValue: "Reset: {{time}}",
+                          })}
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="quota-bar-track">
@@ -1213,6 +1240,31 @@ export function CursorAccountsPage() {
                     <div
                       className={`quota-bar ${api.quotaClass}`}
                       style={{ width: `${Math.min(api.percentage, 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                <div className="quota-item windsurf-credit-item">
+                  <div className="quota-header">
+                    <span className="quota-label">Bot</span>
+                    <span className={`quota-pct ${bot.quotaClass}`}>
+                      {bot.valueText}
+                    </span>
+                  </div>
+                  {botResetText && (
+                    <div className="windsurf-credit-meta-row">
+                      <span className="windsurf-credit-used">
+                        {t("common.shared.quota.resetAt", {
+                          time: botResetText,
+                          defaultValue: "Reset: {{time}}",
+                        })}
+                      </span>
+                    </div>
+                  )}
+                  <div className="quota-bar-track">
+                    <div
+                      className={`quota-bar ${bot.quotaClass}`}
+                      style={{ width: `${Math.min(bot.percentage, 100)}%` }}
                     />
                   </div>
                 </div>
@@ -1316,9 +1368,11 @@ export function CursorAccountsPage() {
       const total = resolveTotalQuota(account);
       const auto = resolveAutoQuota(account);
       const api = resolveApiQuota(account);
+      const bot = resolveBotQuota(account);
       const onDemand = resolveOnDemandQuota(account);
       const resetTs = resolveResetTime(account);
       const resetText = formatResetTime(resetTs);
+      const botResetText = formatResetTime(resolveBotResetTime(account));
       const accountTags = (account.tags || [])
         .map((tag) => tag.trim())
         .filter(Boolean);
@@ -1458,6 +1512,12 @@ export function CursorAccountsPage() {
                       defaultValue: "Reset: {{time}}",
                     })
                   : null,
+                hasQuotaData && botResetText
+                  ? `Bot ${t("common.shared.quota.resetAt", {
+                      time: botResetText,
+                      defaultValue: "Reset: {{time}}",
+                    })}`
+                  : null,
               ]
                 .filter(Boolean)
                 .join(" · ")}
@@ -1481,7 +1541,17 @@ export function CursorAccountsPage() {
               className="cursor-table-quota-refresh"
               onClick={() => void handleRefresh(account.id)}
               disabled={refreshing === account.id}
-              title={t("common.shared.refreshQuota", "刷新配额")}
+              title={[
+                t("common.shared.refreshQuota", "刷新配额"),
+                botResetText
+                  ? `Bot ${t("common.shared.quota.resetAt", {
+                      time: botResetText,
+                      defaultValue: "Reset: {{time}}",
+                    })}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")}
             >
               {hasQuotaData ? (
                 <div className="cursor-table-quota-inline">
@@ -1499,6 +1569,14 @@ export function CursorAccountsPage() {
                       className={`quota-value cursor-table-pct ${api.quotaClass}`}
                     >
                       {api.valueText}
+                    </span>
+                  </span>
+                  <span className="cursor-table-quota-piece">
+                    <span className="quota-name">Bot</span>
+                    <span
+                      className={`quota-value cursor-table-pct ${bot.quotaClass}`}
+                    >
+                      {bot.valueText}
                     </span>
                   </span>
                   <span className="cursor-table-quota-piece">
@@ -1940,7 +2018,7 @@ export function CursorAccountsPage() {
                       {t("common.shared.columns.email", "邮箱")}
                     </th>
                     {showTagsColumn && (
-                      <th style={{ width: 140 }}>
+                      <th style={{ width: 100 }}>
                         {t("common.shared.columns.tags", "标签")}
                       </th>
                     )}
@@ -1995,7 +2073,7 @@ export function CursorAccountsPage() {
                       {t("common.shared.columns.email", "邮箱")}
                     </th>
                     {showTagsColumn && (
-                      <th style={{ width: 140 }}>
+                      <th style={{ width: 100 }}>
                         {t("common.shared.columns.tags", "标签")}
                       </th>
                     )}
