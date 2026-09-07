@@ -1149,6 +1149,7 @@ pub fn run() {
             commands::cursor::export_cursor_accounts_text,
             commands::cursor::refresh_cursor_token,
             commands::cursor::refresh_all_cursor_tokens,
+            commands::cursor::refresh_cursor_accounts,
             commands::cursor::add_cursor_account_with_token,
             commands::cursor::update_cursor_account_tags,
             commands::cursor::get_cursor_accounts_index_path,

@@ -109,6 +109,38 @@ pub async fn refresh_all_cursor_tokens(app: AppHandle) -> Result<i32, String> {
 }
 
 #[tauri::command]
+pub async fn refresh_cursor_accounts(
+    app: AppHandle,
+    account_ids: Vec<String>,
+) -> Result<i32, String> {
+    let started_at = Instant::now();
+    logger::log_info(&format!(
+        "[Cursor Command] 指定账号批量刷新开始: count={}",
+        account_ids.len()
+    ));
+
+    let results = cursor_account::refresh_accounts_by_ids(&account_ids).await?;
+    let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
+
+    if success_count > 0 {
+        if let Err(e) = cursor_account::run_quota_alert_if_needed() {
+            logger::log_warn(&format!(
+                "[QuotaAlert][Cursor] 指定账号批量刷新后预警检查失败: {}",
+                e
+            ));
+        }
+    }
+
+    let _ = crate::modules::tray::update_tray_menu(&app);
+    logger::log_info(&format!(
+        "[Cursor Command] 指定账号批量刷新完成: success={}, elapsed={}ms",
+        success_count,
+        started_at.elapsed().as_millis()
+    ));
+    Ok(success_count as i32)
+}
+
+#[tauri::command]
 pub fn add_cursor_account_with_token(
     app: AppHandle,
     access_token: String,

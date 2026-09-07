@@ -73,6 +73,12 @@ export async function refreshAllCursorTokens(): Promise<number> {
   return await invoke("refresh_all_cursor_tokens");
 }
 
+export async function refreshCursorAccounts(
+  accountIds: string[],
+): Promise<number> {
+  return await invoke("refresh_cursor_accounts", { accountIds });
+}
+
 export async function addCursorAccountWithToken(
   accessToken: string,
 ): Promise<CursorAccount[]> {

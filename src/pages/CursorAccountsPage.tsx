@@ -252,6 +252,7 @@ export function CursorAccountsPage() {
       deleteAccounts: store.deleteAccounts,
       refreshToken: store.refreshToken,
       refreshAllTokens: store.refreshAllTokens,
+      refreshTokens: store.refreshTokens,
       setCurrentAccountId: store.setCurrentAccountId,
       updateAccountTags: store.updateAccountTags,
     },
@@ -321,6 +322,7 @@ export function CursorAccountsPage() {
     openTagModal,
     handleSaveTags,
     refreshing,
+    refreshingIds,
     refreshingAll,
     injecting,
     handleRefresh,
@@ -376,6 +378,12 @@ export function CursorAccountsPage() {
     currentAccountId,
     normalizeTag,
   } = page;
+
+  const isAccountRefreshing = useCallback(
+    (accountId: string) =>
+      refreshing === accountId || refreshingIds.includes(accountId),
+    [refreshing, refreshingIds],
+  );
 
   const exportFormatOptions = useMemo(
     () => [
@@ -1333,12 +1341,14 @@ export function CursorAccountsPage() {
               <button
                 className="card-action-btn"
                 onClick={() => handleRefresh(account.id)}
-                disabled={refreshing === account.id}
+                disabled={isAccountRefreshing(account.id)}
                 title={t("common.shared.refreshQuota", "刷新配额")}
               >
                 <RotateCw
                   size={14}
-                  className={refreshing === account.id ? "loading-spinner" : ""}
+                  className={
+                    isAccountRefreshing(account.id) ? "loading-spinner" : ""
+                  }
                 />
               </button>
               <button
@@ -1502,7 +1512,7 @@ export function CursorAccountsPage() {
               type="button"
               className="cursor-table-quota-refresh"
               onClick={() => void handleRefresh(account.id)}
-              disabled={refreshing === account.id}
+              disabled={isAccountRefreshing(account.id)}
               title={[
                 t("common.shared.refreshQuota", "刷新配额"),
                 hasQuotaData ? total.costText : null,
@@ -1540,7 +1550,7 @@ export function CursorAccountsPage() {
               type="button"
               className="cursor-table-quota-refresh"
               onClick={() => void handleRefresh(account.id)}
-              disabled={refreshing === account.id}
+              disabled={isAccountRefreshing(account.id)}
               title={[
                 t("common.shared.refreshQuota", "刷新配额"),
                 botResetText
@@ -1623,12 +1633,14 @@ export function CursorAccountsPage() {
               <button
                 className="action-btn"
                 onClick={() => handleRefresh(account.id)}
-                disabled={refreshing === account.id}
+                disabled={isAccountRefreshing(account.id)}
                 title={t("common.shared.refreshQuota", "刷新配额")}
               >
                 <RotateCw
                   size={14}
-                  className={refreshing === account.id ? "loading-spinner" : ""}
+                  className={
+                    isAccountRefreshing(account.id) ? "loading-spinner" : ""
+                  }
                 />
               </button>
               <button

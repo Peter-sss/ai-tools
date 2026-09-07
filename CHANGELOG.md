@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.24] - 2026-09-07
+
+### Fixed
+
+- **Cursor quota refresh retries transient failures**: a single account refresh now retries up to 3 times after timeout, rate-limit, or 5xx (and after a failed token refresh that left usage on a stale session). Structural errors such as a missing account or unreadable WorkOS user id are not retried.
+
+### Changed
+
+- **Cursor import refreshes quotas in parallel**: after Token / JSON or file import, newly added accounts refresh with up to 5 concurrent requests, and the account list reloads once when the batch finishes.
+
+---
+
 ## [1.3.23] - 2026-08-31
 
 ### Fixed

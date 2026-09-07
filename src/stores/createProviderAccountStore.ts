@@ -33,6 +33,7 @@ type ProviderService<TAccount> = {
   injectAccount: (accountId: string) => Promise<unknown>;
   refreshToken: (accountId: string) => Promise<unknown>;
   refreshAllTokens: () => Promise<unknown>;
+  refreshTokens?: (accountIds: string[]) => Promise<unknown>;
   importFromJson: (jsonContent: string) => Promise<TAccount[]>;
   exportAccounts: (accountIds: string[]) => Promise<string>;
   updateAccountTags: (accountId: string, tags: string[]) => Promise<TAccount>;
@@ -67,6 +68,7 @@ export interface ProviderAccountStoreState<TAccount> {
   deleteAccounts: (accountIds: string[]) => Promise<void>;
   refreshToken: (accountId: string) => Promise<void>;
   refreshAllTokens: () => Promise<void>;
+  refreshTokens?: (accountIds: string[]) => Promise<void>;
   importFromJson: (jsonContent: string) => Promise<TAccount[]>;
   exportAccounts: (accountIds: string[]) => Promise<string>;
   updateAccountTags: (accountId: string, tags: string[]) => Promise<TAccount>;
@@ -365,6 +367,22 @@ export function createProviderAccountStore<TAccount extends ProviderAccountAugme
         throw error;
       }
     },
+
+    refreshTokens: service.refreshTokens
+      ? async (accountIds: string[]) => {
+          if (accountIds.length === 0) return;
+          let error: unknown;
+          try {
+            await service.refreshTokens?.(accountIds);
+          } catch (err) {
+            error = err;
+          }
+          await get().fetchAccounts();
+          if (error) {
+            throw error;
+          }
+        }
+      : undefined,
 
     importFromJson: async (jsonContent: string) => {
       const accounts = await service.importFromJson(jsonContent);

@@ -21,6 +21,9 @@ const ACCOUNTS_INDEX_FILE: &str = "cursor_accounts.json";
 const ACCOUNTS_DIR: &str = "cursor_accounts";
 const CURSOR_QUOTA_ALERT_COOLDOWN_SECONDS: i64 = 10 * 60;
 const CURSOR_ACCESS_TOKEN_REFRESH_THRESHOLD_SECONDS: i64 = 5 * 60;
+const CURSOR_REFRESH_MAX_ATTEMPTS: u32 = 3;
+const CURSOR_REFRESH_RETRY_DELAYS_MS: [u64; 2] = [300, 800];
+const CURSOR_REFRESH_MAX_CONCURRENT: usize = 5;
 const CURSOR_AUTH_VSCDB_RAW_KEY: &str = "_vscdb";
 
 lazy_static::lazy_static! {
@@ -3006,39 +3009,96 @@ async fn refresh_account_async_once(account_id: &str) -> Result<CursorAccount, S
     Ok(updated)
 }
 
-pub async fn refresh_account_async(account_id: &str) -> Result<CursorAccount, String> {
-    let result = refresh_account_async_once(account_id).await;
-    if let Err(err) = &result {
-        persist_quota_query_error(account_id, err);
-    }
-    result
+fn is_structural_cursor_refresh_error(err: &str) -> bool {
+    err.contains("账号不存在") || err.contains("无法从 accessToken 解析 WorkOS 用户 ID")
 }
 
-pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<CursorAccount, String>)>, String> {
+fn cursor_refresh_retry_delay_ms(failed_attempt: u32) -> u64 {
+    let delay_index = (failed_attempt as usize)
+        .saturating_sub(1)
+        .min(CURSOR_REFRESH_RETRY_DELAYS_MS.len().saturating_sub(1));
+    CURSOR_REFRESH_RETRY_DELAYS_MS[delay_index]
+}
+
+pub async fn refresh_account_async(account_id: &str) -> Result<CursorAccount, String> {
+    let mut last_error: Option<String> = None;
+
+    for attempt in 1..=CURSOR_REFRESH_MAX_ATTEMPTS {
+        logger::log_info(&format!(
+            "[Cursor Refresh] 开始尝试: id={}, attempt={}/{}",
+            account_id, attempt, CURSOR_REFRESH_MAX_ATTEMPTS
+        ));
+
+        match refresh_account_async_once(account_id).await {
+            Ok(account) => {
+                if account.quota_query_last_error.is_none() {
+                    if attempt > 1 {
+                        logger::log_info(&format!(
+                            "[Cursor Refresh] 重试后成功: id={}, attempt={}/{}",
+                            account_id, attempt, CURSOR_REFRESH_MAX_ATTEMPTS
+                        ));
+                    }
+                    return Ok(account);
+                }
+
+                let err = account
+                    .quota_query_last_error
+                    .clone()
+                    .unwrap_or_else(|| "配额查询失败".to_string());
+                if is_structural_cursor_refresh_error(&err) || attempt == CURSOR_REFRESH_MAX_ATTEMPTS
+                {
+                    return Ok(account);
+                }
+                last_error = Some(err);
+            }
+            Err(err) => {
+                if is_structural_cursor_refresh_error(&err) || attempt == CURSOR_REFRESH_MAX_ATTEMPTS
+                {
+                    persist_quota_query_error(account_id, &err);
+                    return Err(err);
+                }
+                last_error = Some(err);
+            }
+        }
+
+        let delay_ms = cursor_refresh_retry_delay_ms(attempt);
+        logger::log_warn(&format!(
+            "[Cursor Refresh] 刷新失败将重试: id={}, attempt={}/{}, delay={}ms, error={}",
+            account_id,
+            attempt,
+            CURSOR_REFRESH_MAX_ATTEMPTS,
+            delay_ms,
+            last_error.as_deref().unwrap_or("")
+        ));
+        tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+    }
+
+    let fallback = last_error.unwrap_or_else(|| "配额查询失败".to_string());
+    persist_quota_query_error(account_id, &fallback);
+    Err(fallback)
+}
+
+pub async fn refresh_accounts_by_ids(
+    account_ids: &[String],
+) -> Result<Vec<(String, Result<CursorAccount, String>)>, String> {
     use futures::future::join_all;
     use std::sync::Arc;
     use tokio::sync::Semaphore;
 
-    const MAX_CONCURRENT: usize = 5;
-    let accounts = list_accounts();
-    let total = accounts.len();
-    let active_accounts: Vec<CursorAccount> = accounts
-        .into_iter()
-        .filter(|account| !is_banned_account(account))
-        .collect();
-    let skipped_banned = total.saturating_sub(active_accounts.len());
-    if skipped_banned > 0 {
-        logger::log_info(&format!(
-            "[Cursor Refresh] 跳过封禁账号: skipped={}, total={}",
-            skipped_banned, total
-        ));
+    let mut unique_ids = Vec::new();
+    let mut seen = HashSet::new();
+    for account_id in account_ids {
+        let trimmed = account_id.trim();
+        if trimmed.is_empty() || !seen.insert(trimmed.to_string()) {
+            continue;
+        }
+        unique_ids.push(trimmed.to_string());
     }
 
-    let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT));
-    let tasks: Vec<_> = active_accounts
+    let semaphore = Arc::new(Semaphore::new(CURSOR_REFRESH_MAX_CONCURRENT));
+    let tasks: Vec<_> = unique_ids
         .into_iter()
-        .map(|account| {
-            let id = account.id;
+        .map(|id| {
             let semaphore = semaphore.clone();
             async move {
                 let _permit = semaphore
@@ -3060,6 +3120,25 @@ pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<CursorAccount, S
     }
 
     Ok(results)
+}
+
+pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<CursorAccount, String>)>, String> {
+    let accounts = list_accounts();
+    let total = accounts.len();
+    let active_ids: Vec<String> = accounts
+        .into_iter()
+        .filter(|account| !is_banned_account(account))
+        .map(|account| account.id)
+        .collect();
+    let skipped_banned = total.saturating_sub(active_ids.len());
+    if skipped_banned > 0 {
+        logger::log_info(&format!(
+            "[Cursor Refresh] 跳过封禁账号: skipped={}, total={}",
+            skipped_banned, total
+        ));
+    }
+
+    refresh_accounts_by_ids(&active_ids).await
 }
 
 // ---------------------------------------------------------------------------
@@ -3882,5 +3961,29 @@ mod tests {
         assert_eq!(value["nested"]["note"], "keep");
         assert_eq!(value["version"], 1);
         assert!(value.get("refreshToken").is_none());
+    }
+
+    #[test]
+    fn structural_refresh_errors_are_not_retried() {
+        assert!(is_structural_cursor_refresh_error("账号不存在"));
+        assert!(is_structural_cursor_refresh_error(
+            "无法从 accessToken 解析 WorkOS 用户 ID"
+        ));
+        assert!(!is_structural_cursor_refresh_error(
+            "请求 Cursor usage API 失败: timeout"
+        ));
+        assert!(!is_structural_cursor_refresh_error(
+            "Cursor usage API 返回异常状态码: 429"
+        ));
+        assert!(!is_structural_cursor_refresh_error(
+            "Cursor 会话已过期或未认证，请重新导入账号"
+        ));
+    }
+
+    #[test]
+    fn refresh_retry_delay_uses_short_backoff() {
+        assert_eq!(cursor_refresh_retry_delay_ms(1), 300);
+        assert_eq!(cursor_refresh_retry_delay_ms(2), 800);
+        assert_eq!(cursor_refresh_retry_delay_ms(3), 800);
     }
 }

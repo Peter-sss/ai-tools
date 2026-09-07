@@ -139,6 +139,7 @@ export interface ProviderStoreActions<TAccount> {
   deleteAccounts: (ids: string[]) => Promise<void>;
   refreshToken: (id: string) => Promise<void>;
   refreshAllTokens: () => Promise<void>;
+  refreshTokens?: (ids: string[]) => Promise<void>;
   updateAccountTags: (id: string, tags: string[]) => Promise<unknown>;
 }
 
@@ -702,6 +703,7 @@ export interface UseProviderAccountsPageReturn {
 
   // CRUD
   refreshing: string | null;
+  refreshingIds: string[];
   refreshingAll: boolean;
   injecting: string | null;
   handleRefresh: (accountId: string) => Promise<void>;
@@ -868,6 +870,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     deleteAccounts,
     refreshToken,
     refreshAllTokens,
+    refreshTokens,
     switchAccount,
     setCurrentAccountId: setStoreCurrentAccountId,
     updateAccountTags,
@@ -1282,6 +1285,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
 
   // ─── CRUD ─────────────────────────────────────────────────────────────
   const [refreshing, setRefreshing] = useState<string | null>(null);
+  const [refreshingIds, setRefreshingIds] = useState<string[]>([]);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [injecting, setInjecting] = useState<string | null>(null);
   const [deleteConfirm, rawSetDeleteConfirm] = useState<{
@@ -1358,12 +1362,24 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
       const ids = [...new Set(collectImportedAccountIds(imported))];
       if (ids.length === 0) return;
       void (async () => {
+        if (refreshTokens) {
+          setRefreshingIds(ids);
+          setRefreshingAll(true);
+          try {
+            await refreshTokens(ids);
+          } catch (e) {
+            console.error(e);
+          }
+          setRefreshingIds([]);
+          setRefreshingAll(false);
+          return;
+        }
         for (const id of ids) {
           await handleRefresh(id);
         }
       })();
     },
-    [handleRefresh, refreshAfterImport],
+    [handleRefresh, refreshAfterImport, refreshTokens],
   );
 
   const handleRefreshAll = useCallback(async () => {
@@ -2886,6 +2902,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     openTagModal,
     handleSaveTags,
     refreshing,
+    refreshingIds,
     refreshingAll,
     injecting,
     handleRefresh,

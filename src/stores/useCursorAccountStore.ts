@@ -20,6 +20,7 @@ export const useCursorAccountStore = createProviderAccountStore<CursorAccount>(
     injectAccount: cursorService.injectCursorAccount,
     refreshToken: cursorService.refreshCursorToken,
     refreshAllTokens: cursorService.refreshAllCursorTokens,
+    refreshTokens: cursorService.refreshCursorAccounts,
     importFromJson: cursorService.importCursorFromJson,
     exportAccounts: cursorService.exportCursorAccounts,
     updateAccountTags: cursorService.updateCursorAccountTags,
