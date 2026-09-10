@@ -5,6 +5,7 @@ import {
   useState,
   useRef,
   Fragment,
+  type MouseEvent as ReactMouseEvent,
   type SyntheticEvent,
 } from "react";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -33,6 +34,7 @@ import {
   EyeOff,
   Lock,
   BookOpen,
+  GripVertical,
 } from "lucide-react";
 import { useCursorAccountStore } from "../stores/useCursorAccountStore";
 import * as cursorService from "../services/cursorService";
@@ -61,6 +63,10 @@ import {
 } from "../types/cursor";
 import type { CursorAccount } from "../types/cursor";
 import { compareCurrentAccountFirst } from "../utils/currentAccountSort";
+import {
+  applyPageReorder,
+  computeCreatedAtUpdates,
+} from "../utils/createdAtReorder";
 import {
   buildValidAccountsFilterOption,
   splitValidityFilterValues,
@@ -1008,6 +1014,182 @@ export function CursorAccountsPage() {
     storageKey: buildPaginationPageSizeStorageKey("Cursor"),
   });
   const paginatedAccounts = pagination.pageItems;
+  const canDragSort =
+    sortBy === "created_at" && viewMode === "list" && !groupByTag;
+  const [draggedAccountId, setDraggedAccountId] = useState<string | null>(null);
+  const [dropTargetId, setDropTargetId] = useState<string | null>(null);
+  const [dragOrderedIds, setDragOrderedIds] = useState<string[] | null>(null);
+  const draggedAccountIdRef = useRef<string | null>(null);
+  const dragOrderedIdsRef = useRef<string[] | null>(null);
+  const pageSortableIdsRef = useRef<string[] | null>(null);
+  const persistCreatedAtOrderRef = useRef<(() => Promise<void>) | null>(null);
+
+  const sortablePageIds = useMemo(
+    () =>
+      paginatedAccounts
+        .filter((account) => account.id !== currentAccountId)
+        .map((account) => account.id),
+    [currentAccountId, paginatedAccounts],
+  );
+
+  const tableAccounts = useMemo(() => {
+    if (!canDragSort || !dragOrderedIds) return paginatedAccounts;
+    const byId = new Map(
+      paginatedAccounts.map((account) => [account.id, account]),
+    );
+    const current = currentAccountId
+      ? paginatedAccounts.find((account) => account.id === currentAccountId)
+      : undefined;
+    const rest = dragOrderedIds
+      .map((id) => byId.get(id))
+      .filter((account): account is CursorAccount => Boolean(account));
+    return current ? [current, ...rest] : rest;
+  }, [canDragSort, currentAccountId, dragOrderedIds, paginatedAccounts]);
+
+  const stopCreatedAtDragging = useCallback(() => {
+    setDraggedAccountId(null);
+    setDropTargetId(null);
+    setDragOrderedIds(null);
+    draggedAccountIdRef.current = null;
+    dragOrderedIdsRef.current = null;
+    pageSortableIdsRef.current = null;
+  }, []);
+
+  const handleCreatedAtDragStart = useCallback(
+    (event: ReactMouseEvent, accountId: string) => {
+      if (!canDragSort || event.button !== 0) return;
+      if (accountId === currentAccountId) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const pageIds = [...sortablePageIds];
+      if (!pageIds.includes(accountId)) return;
+      draggedAccountIdRef.current = accountId;
+      dragOrderedIdsRef.current = pageIds;
+      pageSortableIdsRef.current = pageIds;
+      setDraggedAccountId(accountId);
+      setDropTargetId(null);
+      setDragOrderedIds(pageIds);
+    },
+    [canDragSort, currentAccountId, sortablePageIds],
+  );
+
+  const handleCreatedAtDragMove = useCallback(
+    (targetAccountId: string) => {
+      const draggedId = draggedAccountIdRef.current;
+      const ordered = dragOrderedIdsRef.current;
+      if (!draggedId || !ordered) return;
+      if (targetAccountId === currentAccountId) return;
+      if (draggedId === targetAccountId) {
+        setDropTargetId(null);
+        return;
+      }
+      const fromIndex = ordered.indexOf(draggedId);
+      const toIndex = ordered.indexOf(targetAccountId);
+      if (fromIndex < 0 || toIndex < 0) return;
+      setDropTargetId(targetAccountId);
+      const next = [...ordered];
+      const [moved] = next.splice(fromIndex, 1);
+      next.splice(toIndex, 0, moved);
+      dragOrderedIdsRef.current = next;
+      setDragOrderedIds(next);
+    },
+    [currentAccountId],
+  );
+
+  const persistCreatedAtOrder = useCallback(async () => {
+    const draggedId = draggedAccountIdRef.current;
+    const nextPageIds = dragOrderedIdsRef.current;
+    const originalPageIds = pageSortableIdsRef.current;
+    draggedAccountIdRef.current = null;
+    setDraggedAccountId(null);
+    setDropTargetId(null);
+
+    const clearPreview = () => {
+      setDragOrderedIds(null);
+      dragOrderedIdsRef.current = null;
+      pageSortableIdsRef.current = null;
+    };
+
+    if (!canDragSort || !draggedId || !nextPageIds || !originalPageIds) {
+      clearPreview();
+      return;
+    }
+    const unchanged =
+      originalPageIds.length === nextPageIds.length &&
+      originalPageIds.every((id, index) => id === nextPageIds[index]);
+    if (unchanged) {
+      clearPreview();
+      return;
+    }
+
+    const sortableFiltered = filteredAccounts.filter(
+      (account) => account.id !== currentAccountId,
+    );
+    const nextFullIds = applyPageReorder(
+      sortableFiltered.map((account) => account.id),
+      originalPageIds,
+      nextPageIds,
+    );
+    const byId = new Map(
+      sortableFiltered.map((account) => [account.id, account]),
+    );
+    const ordered = nextFullIds
+      .map((id) => byId.get(id))
+      .filter((account): account is CursorAccount => Boolean(account))
+      .map((account) => ({
+        id: account.id,
+        created_at: account.created_at,
+      }));
+    const updates = computeCreatedAtUpdates({
+      ordered,
+      movedId: draggedId,
+      direction: sortDirection,
+    });
+    if (updates.length === 0) {
+      clearPreview();
+      return;
+    }
+    try {
+      await cursorService.updateCursorAccountsCreatedAt(
+        updates.map((item) => ({
+          accountId: item.id,
+          createdAt: item.created_at,
+        })),
+      );
+      await store.fetchAccounts();
+    } catch (error) {
+      setMessage({ text: String(error), tone: "error" });
+    } finally {
+      clearPreview();
+    }
+  }, [
+    canDragSort,
+    currentAccountId,
+    filteredAccounts,
+    setMessage,
+    sortDirection,
+    store.fetchAccounts,
+  ]);
+
+  useEffect(() => {
+    persistCreatedAtOrderRef.current = persistCreatedAtOrder;
+  }, [persistCreatedAtOrder]);
+
+  useEffect(() => {
+    if (!draggedAccountId) return;
+    const handleMouseUp = () => {
+      void persistCreatedAtOrderRef.current?.();
+    };
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => window.removeEventListener("mouseup", handleMouseUp);
+  }, [draggedAccountId]);
+
+  useEffect(() => {
+    if (!canDragSort) {
+      stopCreatedAtDragging();
+    }
+  }, [canDragSort, stopCreatedAtDragging]);
+
   const paginatedIds = useMemo(
     () => paginatedAccounts.map((account) => account.id),
     [paginatedAccounts],
@@ -1388,17 +1570,57 @@ export function CursorAccountsPage() {
         statusReason || t("accounts.status.forbidden_tooltip");
       const errorTitle = statusReason || t("accounts.status.refreshFailed");
 
+      const rowClass = [
+        isCurrent ? "current" : "",
+        isBanned ? "disabled" : "",
+        canDragSort && draggedAccountId === account.id ? "is-dragging" : "",
+        canDragSort && draggedAccountId && !isCurrent
+          ? "is-drop-candidate"
+          : "",
+        canDragSort &&
+        draggedAccountId &&
+        draggedAccountId !== account.id &&
+        !isCurrent &&
+        dropTargetId === account.id
+          ? "is-drop-target"
+          : "",
+      ]
+        .filter(Boolean)
+        .join(" ");
+
       return (
         <tr
           key={groupKey ? `${groupKey}-${account.id}` : account.id}
-          className={`${isCurrent ? "current" : ""} ${isBanned ? "disabled" : ""}`}
+          className={rowClass}
+          onMouseEnter={() => {
+            if (!canDragSort || isCurrent) return;
+            handleCreatedAtDragMove(account.id);
+          }}
         >
           <td>
-            <input
-              type="checkbox"
-              checked={selected.has(account.id)}
-              onChange={() => toggleSelect(account.id)}
-            />
+            <div className="cursor-table-select-cell">
+              {canDragSort &&
+                (isCurrent ? (
+                  <span className="cursor-created-at-drag-handle is-placeholder" />
+                ) : (
+                  <button
+                    type="button"
+                    className="cursor-created-at-drag-handle"
+                    onMouseDown={(event) =>
+                      handleCreatedAtDragStart(event, account.id)
+                    }
+                    title={t("accounts.sort.customDragHandle", "拖拽排序")}
+                    aria-label={t("accounts.sort.customDragHandle", "拖拽排序")}
+                  >
+                    <GripVertical size={14} />
+                  </button>
+                ))}
+              <input
+                type="checkbox"
+                checked={selected.has(account.id)}
+                onChange={() => toggleSelect(account.id)}
+              />
+            </div>
           </td>
           <td>
             <div
@@ -2018,7 +2240,7 @@ export function CursorAccountsPage() {
                       {t("common.shared.columns.email", "邮箱")}
                     </th>
                     {showTagsColumn && (
-                      <th style={{ width: 100 }}>
+                      <th className="account-tags-cell" style={{ width: 80 }}>
                         {t("common.shared.columns.tags", "标签")}
                       </th>
                     )}
@@ -2056,13 +2278,15 @@ export function CursorAccountsPage() {
               </table>
             </div>
           ) : (
-            <div className="account-table-container">
+            <div
+              className={`account-table-container${draggedAccountId ? " is-sorting" : ""}`}
+            >
               <table
                 className={`account-table${showTagsColumn ? " has-tags-column" : ""}`}
               >
                 <thead>
                   <tr>
-                    <th style={{ width: 40 }}>
+                    <th style={{ width: canDragSort ? 68 : 40 }}>
                       <input
                         type="checkbox"
                         checked={isAllPaginatedSelected}
@@ -2073,7 +2297,7 @@ export function CursorAccountsPage() {
                       {t("common.shared.columns.email", "邮箱")}
                     </th>
                     {showTagsColumn && (
-                      <th style={{ width: 100 }}>
+                      <th className="account-tags-cell" style={{ width: 80 }}>
                         {t("common.shared.columns.tags", "标签")}
                       </th>
                     )}
@@ -2087,7 +2311,7 @@ export function CursorAccountsPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody>{renderTableRows(paginatedAccounts)}</tbody>
+                <tbody>{renderTableRows(tableAccounts)}</tbody>
               </table>
             </div>
           )}

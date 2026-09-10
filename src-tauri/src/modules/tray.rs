@@ -2389,7 +2389,10 @@ fn read_cursor_tray_usage(account: &crate::models::cursor::CursorAccount) -> Cur
         });
     let bot_ineligible = pick_cursor_bool(
         grok_bot,
-        &["usesPooledEnterpriseAllowance", "uses_pooled_enterprise_allowance"],
+        &[
+            "usesPooledEnterpriseAllowance",
+            "uses_pooled_enterprise_allowance",
+        ],
     ) == Some(true)
         || pick_cursor_bool(grok_bot, &["includedLimitZero", "included_limit_zero"]) == Some(true)
         || pick_cursor_bool(

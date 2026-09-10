@@ -2679,7 +2679,14 @@ fn summarize_deepseek_balance(
     CodexModelProviderUsageSummary {
         mode: Some("deepseek".to_string()),
         is_valid: Some(is_available),
-        status: Some(if is_available { "available" } else { "unavailable" }.to_string()),
+        status: Some(
+            if is_available {
+                "available"
+            } else {
+                "unavailable"
+            }
+            .to_string(),
+        ),
         plan_name: None,
         remaining: total_balance,
         balance: total_balance,
@@ -3881,8 +3888,7 @@ mod tests {
             Some("https://api.deepseek.com/user/balance")
         );
         assert_eq!(
-            codex_model_provider_deepseek_balance_url("https://example.com/v1")
-                .expect("valid URL"),
+            codex_model_provider_deepseek_balance_url("https://example.com/v1").expect("valid URL"),
             None
         );
     }

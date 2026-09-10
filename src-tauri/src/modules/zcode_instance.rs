@@ -796,10 +796,7 @@ mod tests {
             vec![
                 (
                     37764,
-                    Some(
-                        "/Users/test/.ai-tools/instances/zcode/managed/electron"
-                            .to_string()
-                    )
+                    Some("/Users/test/.ai-tools/instances/zcode/managed/electron".to_string())
                 ),
                 (
                     41440,

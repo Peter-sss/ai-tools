@@ -954,15 +954,41 @@ pub fn update_account_tags(account_id: &str, tags: Vec<String>) -> Result<Cursor
     Ok(updated)
 }
 
+pub fn update_accounts_created_at(updates: &[(String, i64)]) -> Result<Vec<CursorAccount>, String> {
+    if updates.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let _lock = CURSOR_ACCOUNT_INDEX_LOCK
+        .lock()
+        .map_err(|_| "获取 Cursor 账号锁失败".to_string())?;
+
+    let mut pending = Vec::with_capacity(updates.len());
+    for (account_id, created_at) in updates {
+        if *created_at < 0 {
+            return Err("创建时间无效".to_string());
+        }
+        let mut account = load_account(account_id).ok_or_else(|| "账号不存在".to_string())?;
+        account.created_at = *created_at;
+        pending.push(account);
+    }
+
+    let mut index = load_account_index();
+    for account in &pending {
+        save_account_file(account)?;
+        refresh_summary(&mut index, account);
+    }
+    save_account_index(&index)?;
+    Ok(pending)
+}
+
 // ---------------------------------------------------------------------------
 // Import / Export
 // ---------------------------------------------------------------------------
 
 /// Normalize common Cursor session separators (`%3A%3A` → `::`).
 fn normalize_cursor_token_separators(raw: &str) -> String {
-    raw.trim()
-        .replace("%3A%3A", "::")
-        .replace("%3a%3a", "::")
+    raw.trim().replace("%3A%3A", "::").replace("%3a%3a", "::")
 }
 
 fn is_likely_jwt(token: &str) -> bool {
@@ -996,8 +1022,9 @@ fn payload_from_token_parts(
         return Err("无效的 Cursor JWT Token".to_string());
     }
 
-    let jwt_auth_id = extract_workos_user_id(access_token)
-        .or_else(|| extract_auth_id_from_access_token(access_token).and_then(|id| normalize_workos_user_id(&id)));
+    let jwt_auth_id = extract_workos_user_id(access_token).or_else(|| {
+        extract_auth_id_from_access_token(access_token).and_then(|id| normalize_workos_user_id(&id))
+    });
 
     let hint_auth_id = auth_id_hint.and_then(normalize_workos_user_id);
     let auth_id = match (hint_auth_id, jwt_auth_id) {
@@ -1073,7 +1100,10 @@ pub fn parse_cursor_token_line(line: &str) -> Result<CursorImportPayload, String
         return payload_from_token_parts(None, None, trimmed);
     }
 
-    Err("无法识别的 Cursor Token 格式，支持: email----user_id::jwt / user_id::jwt / JWT".to_string())
+    Err(
+        "无法识别的 Cursor Token 格式，支持: email----user_id::jwt / user_id::jwt / JWT"
+            .to_string(),
+    )
 }
 
 /// Parse multi-line Cursor token text. Empty lines are skipped.
@@ -1400,10 +1430,8 @@ const CURSOR_IDENTITY_EXACT_KEYS: &[&str] = &[
     "adminSettings.cachedAuthId",
 ];
 
-const CURSOR_STALE_ACCOUNT_CACHE_KEYS: &[&str] = &[
-    "cursorAuth/cachedTeam",
-    "cursorAuth/cachedScopedProfile",
-];
+const CURSOR_STALE_ACCOUNT_CACHE_KEYS: &[&str] =
+    &["cursorAuth/cachedTeam", "cursorAuth/cachedScopedProfile"];
 
 const CURSOR_KEYCHAIN_ACCOUNT: &str = "cursor-user";
 const CURSOR_KEYCHAIN_ACCESS_SERVICE: &str = "cursor-access-token";
@@ -1428,9 +1456,7 @@ fn should_keep_identity_row(key: &str, value: &str) -> bool {
     is_identity_snapshot_key(key)
 }
 
-fn read_identity_vscdb_rows(
-    conn: &Connection,
-) -> Result<serde_json::Map<String, Value>, String> {
+fn read_identity_vscdb_rows(conn: &Connection) -> Result<serde_json::Map<String, Value>, String> {
     let mut stmt = conn
         .prepare(
             "SELECT key, value FROM ItemTable \
@@ -1545,7 +1571,10 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
 
     let vscdb_rows = read_identity_vscdb_rows(&conn)?;
     if !vscdb_rows.is_empty() {
-        auth_raw.insert(CURSOR_AUTH_VSCDB_RAW_KEY.to_string(), Value::Object(vscdb_rows));
+        auth_raw.insert(
+            CURSOR_AUTH_VSCDB_RAW_KEY.to_string(),
+            Value::Object(vscdb_rows),
+        );
     }
 
     Ok(Some(CursorImportPayload {
@@ -2007,7 +2036,11 @@ fn looks_like_token_field(key: &str) -> Option<&'static str> {
     None
 }
 
-fn update_existing_token_fields(value: &mut Value, access_token: &str, refresh_token: &str) -> bool {
+fn update_existing_token_fields(
+    value: &mut Value,
+    access_token: &str,
+    refresh_token: &str,
+) -> bool {
     match value {
         Value::Object(map) => {
             let mut changed = false;
@@ -2047,8 +2080,8 @@ fn update_existing_token_fields_in_file(
     if !path.exists() {
         return Ok(());
     }
-    let content = fs::read_to_string(path)
-        .map_err(|e| format!("读取 {} 失败: {}", path.display(), e))?;
+    let content =
+        fs::read_to_string(path).map_err(|e| format!("读取 {} 失败: {}", path.display(), e))?;
     let mut value: Value = match serde_json::from_str(&content) {
         Ok(value) => value,
         Err(_) => return Ok(()),
@@ -2193,8 +2226,7 @@ fn reserve_chrome_cdp_port() -> Result<u16, String> {
 fn find_google_chrome_executable() -> Result<PathBuf, String> {
     #[cfg(target_os = "macos")]
     {
-        let path =
-            PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
+        let path = PathBuf::from("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome");
         if path.exists() {
             return Ok(path);
         }
@@ -2450,10 +2482,7 @@ pub async fn open_account_in_chrome(account_id: &str) -> Result<(), String> {
     tokio::time::sleep(Duration::from_millis(300)).await;
     if let Ok(Some(status)) = child.try_wait() {
         let _ = fs::remove_dir_all(&user_data_dir);
-        return Err(format!(
-            "Google Chrome 启动后立即退出: {}",
-            status
-        ));
+        return Err(format!("Google Chrome 启动后立即退出: {}", status));
     }
 
     let websocket_url = match wait_for_chrome_page_target(port).await {
@@ -3129,7 +3158,11 @@ fn grok_bot_has_personal_allowance(bot: Option<&Value>) -> bool {
         }
         None
     };
-    if flag(&["usesPooledEnterpriseAllowance", "uses_pooled_enterprise_allowance"]) == Some(true) {
+    if flag(&[
+        "usesPooledEnterpriseAllowance",
+        "uses_pooled_enterprise_allowance",
+    ]) == Some(true)
+    {
         return false;
     }
     if flag(&["includedLimitZero", "included_limit_zero"]) == Some(true) {
@@ -3432,9 +3465,14 @@ mod tests {
 
     fn sample_jwt(sub: &str) -> String {
         // header.payload.signature — only payload is decoded by helpers
-        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(br#"{"alg":"HS256","typ":"JWT"}"#);
+        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(br#"{"alg":"HS256","typ":"JWT"}"#);
         let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(
-            format!(r#"{{"sub":"{}","type":"session","aud":"https://cursor.com"}}"#, sub).as_bytes(),
+            format!(
+                r#"{{"sub":"{}","type":"session","aud":"https://cursor.com"}}"#,
+                sub
+            )
+            .as_bytes(),
         );
         format!("{}.{}.sig", header, payload)
     }
@@ -3815,7 +3853,10 @@ mod tests {
 
         inject_account_into_conn(&conn, &sample_account(&jwt)).expect("inject");
 
-        assert_eq!(read_item(&conn, "cursorAuth/accessToken").as_deref(), Some(jwt.as_str()));
+        assert_eq!(
+            read_item(&conn, "cursorAuth/accessToken").as_deref(),
+            Some(jwt.as_str())
+        );
         assert_eq!(
             read_item(&conn, "cursorAuth/cachedEmail").as_deref(),
             Some("next@example.com")

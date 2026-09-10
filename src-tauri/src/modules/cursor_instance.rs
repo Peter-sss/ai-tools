@@ -1380,8 +1380,8 @@ pub fn strip_empty_restored_windows() -> Result<(), String> {
 
     let raw = fs::read_to_string(&storage_path)
         .map_err(|e| format!("读取 Cursor storage.json 失败: {}", e))?;
-    let mut value: serde_json::Value = serde_json::from_str(&raw)
-        .map_err(|e| format!("解析 Cursor storage.json 失败: {}", e))?;
+    let mut value: serde_json::Value =
+        serde_json::from_str(&raw).map_err(|e| format!("解析 Cursor storage.json 失败: {}", e))?;
 
     let removed = {
         let Some(opened) = value
@@ -1408,10 +1408,7 @@ pub fn strip_empty_restored_windows() -> Result<(), String> {
         .map_err(|e| format!("序列化 Cursor storage.json 失败: {}", e))?;
     fs::write(&storage_path, serialized)
         .map_err(|e| format!("写入 Cursor storage.json 失败: {}", e))?;
-    modules::logger::log_info(&format!(
-        "[Cursor Switch] 已去掉 {} 个空恢复窗口",
-        removed
-    ));
+    modules::logger::log_info(&format!("[Cursor Switch] 已去掉 {} 个空恢复窗口", removed));
     Ok(())
 }
 

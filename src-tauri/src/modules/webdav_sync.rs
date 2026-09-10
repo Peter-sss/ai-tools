@@ -489,9 +489,6 @@ mod tests {
             normalize_base_url(" https://dav.jianguoyun.com/dav/ ").unwrap(),
             "https://dav.jianguoyun.com/dav/"
         );
-        assert_eq!(
-            normalize_remote_dir(" /ai-tools/ ").unwrap(),
-            "ai-tools"
-        );
+        assert_eq!(normalize_remote_dir(" /ai-tools/ ").unwrap(), "ai-tools");
     }
 }

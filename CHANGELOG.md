@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.25] - 2026-09-10
+
+### Changed
+
+- **Cursor list can be drag-sorted by created time**: In list view with "Created at" sorting, drag rows to persist order by rewriting `created_at`. The current account stays pinned at the top and is not draggable.
+
+---
+
 ## [1.3.23] - 2026-08-31
 
 ### Fixed

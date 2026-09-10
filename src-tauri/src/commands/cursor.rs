@@ -1,8 +1,16 @@
+use serde::Deserialize;
 use std::time::Instant;
 use tauri::{AppHandle, Emitter};
 
 use crate::models::cursor::CursorAccount;
 use crate::modules::{cursor_account, cursor_instance, cursor_oauth, logger, process};
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorCreatedAtUpdate {
+    pub account_id: String,
+    pub created_at: i64,
+}
 
 #[tauri::command]
 pub fn list_cursor_accounts() -> Result<Vec<CursorAccount>, String> {
@@ -127,6 +135,17 @@ pub async fn update_cursor_account_tags(
 }
 
 #[tauri::command]
+pub fn update_cursor_accounts_created_at(
+    updates: Vec<CursorCreatedAtUpdate>,
+) -> Result<Vec<CursorAccount>, String> {
+    let payload: Vec<(String, i64)> = updates
+        .into_iter()
+        .map(|item| (item.account_id, item.created_at))
+        .collect();
+    cursor_account::update_accounts_created_at(&payload)
+}
+
+#[tauri::command]
 pub fn get_cursor_accounts_index_path() -> Result<String, String> {
     cursor_account::accounts_index_path_string()
 }
@@ -205,11 +224,9 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
         Some(account_id.as_str()),
     )?;
 
-    if let Err(err) = cursor_instance::update_default_settings(
-        Some(Some(account_id.clone())),
-        None,
-        Some(false),
-    ) {
+    if let Err(err) =
+        cursor_instance::update_default_settings(Some(Some(account_id.clone())), None, Some(false))
+    {
         logger::log_warn(&format!("更新 Cursor 默认实例绑定账号失败: {}", err));
     }
 

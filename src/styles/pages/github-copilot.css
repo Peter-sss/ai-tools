@@ -2288,15 +2288,74 @@
   width: 1%;
 }
 
+.ghcp-accounts-page.cursor-accounts-page .account-table-container.is-sorting {
+  user-select: none;
+}
+
+.ghcp-accounts-page.cursor-accounts-page .cursor-table-select-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.ghcp-accounts-page.cursor-accounts-page .cursor-created-at-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: grab;
+  flex-shrink: 0;
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .cursor-created-at-drag-handle.is-placeholder {
+  visibility: hidden;
+  pointer-events: none;
+  cursor: default;
+}
+
+.ghcp-accounts-page.cursor-accounts-page .cursor-created-at-drag-handle:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table-container.is-sorting
+  .cursor-created-at-drag-handle {
+  cursor: grabbing;
+}
+
+.ghcp-accounts-page.cursor-accounts-page .account-table tr.is-dragging {
+  opacity: 0.55;
+}
+
+.ghcp-accounts-page.cursor-accounts-page .account-table tr.is-drop-target {
+  box-shadow: inset 0 2px 0 var(--accent, #3b82f6);
+}
+
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table.has-tags-column
+  th.account-tags-cell,
+.ghcp-accounts-page.cursor-accounts-page
+  .account-table.has-tags-column
+  td.account-tags-cell,
 .ghcp-accounts-page.cursor-accounts-page
   .account-table.has-tags-column
   th:nth-child(3),
 .ghcp-accounts-page.cursor-accounts-page
   .account-table.has-tags-column
   td:nth-child(3) {
-  width: 100px;
-  max-width: 100px;
-  min-width: 100px;
+  width: 1%;
+  max-width: 80px;
+  min-width: 80px;
+  padding-left: 8px;
+  padding-right: 8px;
   vertical-align: middle;
 }
 
@@ -2408,6 +2467,22 @@
   .ghcp-accounts-page .account-table td {
     padding-left: 18px;
     padding-right: 18px;
+  }
+
+  .ghcp-accounts-page.cursor-accounts-page
+    .account-table.has-tags-column
+    th.account-tags-cell,
+  .ghcp-accounts-page.cursor-accounts-page
+    .account-table.has-tags-column
+    td.account-tags-cell,
+  .ghcp-accounts-page.cursor-accounts-page
+    .account-table.has-tags-column
+    th:nth-child(3),
+  .ghcp-accounts-page.cursor-accounts-page
+    .account-table.has-tags-column
+    td:nth-child(3) {
+    padding-left: 8px;
+    padding-right: 8px;
   }
 
   .ghcp-accounts-page.cursor-accounts-page
