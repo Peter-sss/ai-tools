@@ -1,5 +1,24 @@
 import AppKit
+import Combine
 import SwiftUI
+
+/// Command Line Tools 不带 SwiftUIMacros，`@State` 无法编译。用可观察对象保住悬停状态。
+private final class HoverFlag: ObservableObject {
+    @Published var hovering = false
+}
+
+private enum HoverFlags {
+    static var cache: [String: HoverFlag] = [:]
+
+    static func flag(for key: String) -> HoverFlag {
+        if let existing = self.cache[key] {
+            return existing
+        }
+        let created = HoverFlag()
+        self.cache[key] = created
+        return created
+    }
+}
 
 enum NativeMenuLayout {
     static let width: CGFloat = 310
@@ -171,7 +190,14 @@ private struct ProviderSwitchTile: View {
     let platform: NativeMenuPlatform
     let selected: Bool
     let onSelect: () -> Void
-    @State private var hovering = false
+    @ObservedObject private var hover: HoverFlag
+
+    init(platform: NativeMenuPlatform, selected: Bool, onSelect: @escaping () -> Void) {
+        self.platform = platform
+        self.selected = selected
+        self.onSelect = onSelect
+        self.hover = HoverFlags.flag(for: "tile-\(platform.id)")
+    }
 
     var body: some View {
         Button(action: self.onSelect) {
@@ -211,7 +237,7 @@ private struct ProviderSwitchTile: View {
         .buttonStyle(.plain)
         .frame(maxWidth: .infinity)
         .onHover { inside in
-            self.hovering = inside
+            self.hover.hovering = inside
         }
     }
 
@@ -219,7 +245,7 @@ private struct ProviderSwitchTile: View {
         if self.selected {
             return NativeMenuPalette.switcherSelectionBackground
         }
-        if self.hovering {
+        if self.hover.hovering {
             return NativeMenuPalette.switcherHoverBackground
         }
         return Color.clear
@@ -401,7 +427,16 @@ private struct ActionCapsuleButton: View {
     let emphasized: Bool
     let disabled: Bool
     let action: () -> Void
-    @State private var hovering = false
+    @ObservedObject private var hover: HoverFlag
+
+    init(title: String, icon: String, emphasized: Bool, disabled: Bool, action: @escaping () -> Void) {
+        self.title = title
+        self.icon = icon
+        self.emphasized = emphasized
+        self.disabled = disabled
+        self.action = action
+        self.hover = HoverFlags.flag(for: "capsule-\(title)-\(icon)")
+    }
 
     var body: some View {
         Button(action: self.action) {
@@ -425,7 +460,7 @@ private struct ActionCapsuleButton: View {
         .disabled(self.disabled)
         .opacity(self.disabled ? 0.56 : 1)
         .onHover { inside in
-            self.hovering = inside
+            self.hover.hovering = inside
         }
     }
 
@@ -435,16 +470,22 @@ private struct ActionCapsuleButton: View {
 
     private var backgroundColor: Color {
         if self.emphasized {
-            return Color(nsColor: .controlAccentColor).opacity(self.hovering && !self.disabled ? 0.88 : 1)
+            return Color(nsColor: .controlAccentColor).opacity(self.hover.hovering && !self.disabled ? 0.88 : 1)
         }
-        return Color(nsColor: .controlColor).opacity(self.hovering && !self.disabled ? 0.9 : 0.68)
+        return Color(nsColor: .controlColor).opacity(self.hover.hovering && !self.disabled ? 0.9 : 0.68)
     }
 }
 
 private struct PagerButton: View {
     let systemName: String
     let action: () -> Void
-    @State private var hovering = false
+    @ObservedObject private var hover: HoverFlag
+
+    init(systemName: String, action: @escaping () -> Void) {
+        self.systemName = systemName
+        self.action = action
+        self.hover = HoverFlags.flag(for: "pager-\(systemName)")
+    }
 
     var body: some View {
         Button(action: self.action) {
@@ -454,12 +495,12 @@ private struct PagerButton: View {
                 .frame(width: 22, height: 22)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(self.hovering ? Color(nsColor: .controlColor) : Color.clear)
+                        .fill(self.hover.hovering ? Color(nsColor: .controlColor) : Color.clear)
                 )
         }
         .buttonStyle(.plain)
         .onHover { inside in
-            self.hovering = inside
+            self.hover.hovering = inside
         }
     }
 }
@@ -469,7 +510,15 @@ private struct ToolbarIconButton: View {
     let spinning: Bool
     let disabled: Bool
     let action: () -> Void
-    @State private var hovering = false
+    @ObservedObject private var hover: HoverFlag
+
+    init(systemName: String, spinning: Bool, disabled: Bool, action: @escaping () -> Void) {
+        self.systemName = systemName
+        self.spinning = spinning
+        self.disabled = disabled
+        self.action = action
+        self.hover = HoverFlags.flag(for: "toolbar-\(systemName)")
+    }
 
     var body: some View {
         Button(action: self.action) {
@@ -486,14 +535,14 @@ private struct ToolbarIconButton: View {
             .frame(width: 24, height: 24)
             .background(
                 RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    .fill(self.hovering && !self.disabled ? Color(nsColor: .controlColor) : Color.clear)
+                    .fill(self.hover.hovering && !self.disabled ? Color(nsColor: .controlColor) : Color.clear)
             )
         }
         .buttonStyle(.plain)
         .disabled(self.disabled)
         .opacity(self.disabled && !self.spinning ? 0.78 : 1)
         .onHover { inside in
-            self.hovering = inside
+            self.hover.hovering = inside
         }
     }
 
