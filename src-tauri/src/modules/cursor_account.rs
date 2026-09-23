@@ -1056,9 +1056,50 @@ fn payload_from_token_parts(
     })
 }
 
+/// `YYYY-MM-DD HH:mm` prefix written by text-line export. Emails do not match this shape.
+fn is_export_reset_prefix(value: &str) -> bool {
+    chrono::NaiveDateTime::parse_from_str(value.trim(), "%Y-%m-%d %H:%M").is_ok()
+}
+
+fn format_billing_cycle_reset(raw: &str) -> Option<String> {
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+    if let Ok(parsed) = chrono::DateTime::parse_from_rfc3339(trimmed) {
+        return Some(
+            parsed
+                .with_timezone(&chrono::Local)
+                .format("%Y-%m-%d %H:%M")
+                .to_string(),
+        );
+    }
+    for format in [
+        "%Y-%m-%dT%H:%M:%S%.f",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%d %H:%M:%S",
+        "%Y-%m-%d %H:%M",
+    ] {
+        if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(trimmed, format) {
+            return Some(naive.format("%Y-%m-%d %H:%M").to_string());
+        }
+    }
+    None
+}
+
+fn account_export_reset_prefix(account: &CursorAccount) -> Option<String> {
+    let raw = account.cursor_usage_raw.as_ref()?.as_object()?;
+    let billing_end = raw
+        .get("billingCycleEnd")
+        .or_else(|| raw.get("billing_cycle_end"))?
+        .as_str()?;
+    format_billing_cycle_reset(billing_end)
+}
+
 /// Parse one Cursor token line.
 ///
 /// Supported:
+/// - `YYYY-MM-DD HH:mm----email----user_id::jwt` (leading reset time is ignored)
 /// - `email----user_id::jwt`
 /// - `user_id::jwt` / `WorkosCursorSessionToken=user_id%3A%3Ajwt`
 /// - bare JWT (`eyJ...`)
@@ -1071,6 +1112,16 @@ pub fn parse_cursor_token_line(line: &str) -> Result<CursorImportPayload, String
 
     if let Some(rest) = trimmed.strip_prefix("WorkosCursorSessionToken=") {
         trimmed = rest.trim();
+    }
+
+    if let Some((prefix, rest)) = trimmed.split_once("----") {
+        if is_export_reset_prefix(prefix) {
+            let rest = rest.trim();
+            if rest.is_empty() {
+                return Err("时间---- 格式缺少 token 部分".to_string());
+            }
+            trimmed = rest;
+        }
     }
 
     if let Some((email_part, rest)) = trimmed.split_once("----") {
@@ -1178,7 +1229,11 @@ pub fn format_account_token_line(account: &CursorAccount) -> String {
         .or_else(|| extract_workos_user_id(&account.access_token))
         .unwrap_or_else(|| "unknown".to_string());
 
-    format!("{}----{}::{}", email, auth_id, account.access_token.trim())
+    let token_line = format!("{}----{}::{}", email, auth_id, account.access_token.trim());
+    match account_export_reset_prefix(account) {
+        Some(reset) => format!("{}----{}", reset, token_line),
+        None => token_line,
+    }
 }
 
 pub fn export_accounts_text(account_ids: &[String]) -> Result<String, String> {
@@ -3576,6 +3631,65 @@ mod tests {
         assert_eq!(parsed.access_token, jwt);
         assert_eq!(
             parsed.auth_id.as_deref(),
+            Some("user_01ROUNDTRIP00000000000")
+        );
+    }
+
+    #[test]
+    fn format_token_line_prefixes_billing_reset_and_round_trips() {
+        let jwt = sample_jwt("auth0|user_01ROUNDTRIP00000000000");
+        let billing_end = "2026-10-01T09:35:00Z";
+        let expected_prefix = chrono::DateTime::parse_from_rfc3339(billing_end)
+            .expect("billing end")
+            .with_timezone(&chrono::Local)
+            .format("%Y-%m-%d %H:%M")
+            .to_string();
+        let account = CursorAccount {
+            id: "acc1".to_string(),
+            email: "round@example.com".to_string(),
+            auth_id: Some("user_01ROUNDTRIP00000000000".to_string()),
+            name: None,
+            tags: None,
+            access_token: jwt.clone(),
+            refresh_token: None,
+            membership_type: None,
+            subscription_status: None,
+            sign_up_type: None,
+            cursor_auth_raw: None,
+            cursor_usage_raw: Some(json!({ "billingCycleEnd": billing_end })),
+            status: None,
+            status_reason: None,
+            quota_query_last_error: None,
+            quota_query_last_error_at: None,
+            usage_updated_at: None,
+            created_at: 0,
+            last_used: 0,
+        };
+        let line = format_account_token_line(&account);
+        assert_eq!(
+            line,
+            format!(
+                "{}----round@example.com----user_01ROUNDTRIP00000000000::{}",
+                expected_prefix, jwt
+            )
+        );
+        let parsed = parse_cursor_token_line(&line).expect("round-trip parse");
+        assert_eq!(parsed.email, "round@example.com");
+        assert_eq!(parsed.access_token, jwt);
+        assert_eq!(
+            parsed.auth_id.as_deref(),
+            Some("user_01ROUNDTRIP00000000000")
+        );
+
+        let literal = format!(
+            "2026-10-01 17:35----round@example.com----user_01ROUNDTRIP00000000000::{}",
+            jwt
+        );
+        let parsed_literal = parse_cursor_token_line(&literal).expect("parse prefixed line");
+        assert_eq!(parsed_literal.email, "round@example.com");
+        assert_eq!(parsed_literal.access_token, jwt);
+        assert_eq!(
+            parsed_literal.auth_id.as_deref(),
             Some("user_01ROUNDTRIP00000000000")
         );
     }

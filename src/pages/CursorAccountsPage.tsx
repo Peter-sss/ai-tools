@@ -114,7 +114,7 @@ const CURSOR_TOKEN_JSON_EXAMPLE = `[
   {"access_token":"eyJhbGciOiJIUzI1NiIs...","email":"b@example.com"}
 ]`;
 
-type CursorExportFormat = "text" | "json";
+type CursorExportFormat = "text" | "textWithReset" | "json";
 
 function extractWorkosUserIdFromJwt(jwt: string): string | null {
   try {
@@ -146,6 +146,25 @@ function formatCursorTokenLine(account: CursorAccount): string | null {
   return `${email}----${authId}::${token}`;
 }
 
+/** Local `YYYY-MM-DD HH:mm` for text-line export. */
+function formatCursorExportResetTime(
+  resetTs: number | null | undefined,
+): string | null {
+  if (resetTs == null || !Number.isFinite(resetTs)) return null;
+  const date = new Date(resetTs * 1000);
+  if (Number.isNaN(date.getTime())) return null;
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function prefixCursorTokenLineWithReset(
+  line: string,
+  resetTs: number | null | undefined,
+): string {
+  const reset = formatCursorExportResetTime(resetTs);
+  return reset ? `${reset}----${line}` : line;
+}
+
 /** Remaining whole days until reset timestamp (seconds). */
 function formatResetDaysLeft(
   resetTs: number | null | undefined,
@@ -156,7 +175,10 @@ function formatResetDaysLeft(
   return `${days}d`;
 }
 
-function cursorAccountsJsonToTokenLines(jsonContent: string): string {
+function cursorAccountsJsonToTokenLines(
+  jsonContent: string,
+  includeResetTime: boolean,
+): string {
   try {
     const parsed = JSON.parse(jsonContent) as unknown;
     const accounts = Array.isArray(parsed) ? parsed : [parsed];
@@ -187,7 +209,10 @@ function cursorAccountsJsonToTokenLines(jsonContent: string): string {
         if (!authId) {
           authId = extractWorkosUserIdFromJwt(token) || "unknown";
         }
-        return `${email}----${authId}::${token}`;
+        const line = `${email}----${authId}::${token}`;
+        if (!includeResetTime) return line;
+        const resetAt = getCursorUsage(raw as CursorAccount).allowanceResetAt;
+        return prefixCursorTokenLineWithReset(line, resetAt);
       })
       .filter(Boolean)
       .join("\n");
@@ -390,6 +415,13 @@ export function CursorAccountsPage() {
         label: t("cursor.exportFormat.text", "文本行 (email----user_id::jwt)"),
       },
       {
+        value: "textWithReset",
+        label: t(
+          "cursor.exportFormat.textWithReset",
+          "文本行 (时间----email----user_id::jwt)",
+        ),
+      },
+      {
         value: "json",
         label: t("cursor.exportFormat.json", "JSON"),
       },
@@ -400,7 +432,10 @@ export function CursorAccountsPage() {
   const exportDisplayContent = useMemo(() => {
     if (!exportJsonContent) return "";
     if (exportFormat === "json") return exportJsonContent;
-    return cursorAccountsJsonToTokenLines(exportJsonContent);
+    return cursorAccountsJsonToTokenLines(
+      exportJsonContent,
+      exportFormat === "textWithReset",
+    );
   }, [exportFormat, exportJsonContent]);
 
   useEffect(() => {
@@ -438,7 +473,7 @@ export function CursorAccountsPage() {
     setExportFormatSaving(true);
     try {
       const date = new Date().toISOString().slice(0, 10);
-      const isText = exportFormat === "text";
+      const isText = exportFormat !== "json";
       const defaultFileName = isText
         ? `cursor_accounts_${date}.txt`
         : `cursor_accounts_${date}.json`;
@@ -2754,9 +2789,9 @@ export function CursorAccountsPage() {
           <ExportJsonModal
             isOpen={showExportModal}
             title={
-              exportFormat === "text"
-                ? t("cursor.export.titleText", "导出文本行")
-                : t("cursor.export.titleJson", "导出 JSON")
+              exportFormat === "json"
+                ? t("cursor.export.titleJson", "导出 JSON")
+                : t("cursor.export.titleText", "导出文本行")
             }
             jsonContent={exportDisplayContent}
             hidden={exportJsonHidden}

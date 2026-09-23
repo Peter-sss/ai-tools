@@ -4584,6 +4584,7 @@
     "exportFormat": {
       "label": "导出格式",
       "text": "文本行 (email----user_id::jwt)",
+      "textWithReset": "文本行 (时间----email----user_id::jwt)",
       "json": "JSON"
     },
     "import": {
