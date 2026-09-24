@@ -30,7 +30,6 @@ import {
   ArrowDownWideNarrow,
   Tag,
   Play,
-  Zap,
   Eye,
   EyeOff,
   Lock,
@@ -267,29 +266,6 @@ export function CursorAccountsPage() {
   const untaggedKey = "__untagged__";
 
   const store = useCursorAccountStore();
-  const seamlessEnabledRef = useRef(false);
-  const [seamlessEnabled, setSeamlessEnabled] = useState(() => {
-    try {
-      return localStorage.getItem("cursor.seamless.enabled") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const [seamlessBusy, setSeamlessBusy] = useState(false);
-  seamlessEnabledRef.current = seamlessEnabled;
-  const injectCursorAccount = useCallback(async (accountId: string) => {
-    if (!seamlessEnabledRef.current) {
-      return cursorService.injectCursorAccount(accountId);
-    }
-    const status = await cursorService.cursorSeamlessStatus();
-    if (!status.installed) {
-      const installed = await cursorService.installCursorSeamless();
-      if (installed.newlyInstalled || !installed.installed) {
-        throw new Error(installed.message);
-      }
-    }
-    return cursorService.hotSwitchCursorAccount(accountId);
-  }, []);
 
   const page = useProviderAccountsPage<CursorAccount>({
     platformKey: "Cursor",
@@ -330,7 +306,7 @@ export function CursorAccountsPage() {
       importFromLocal: cursorService.importCursorFromLocal,
       addWithToken: cursorService.addCursorAccountWithToken,
       exportAccounts: cursorService.exportCursorAccounts,
-      injectToVSCode: injectCursorAccount,
+      injectToVSCode: cursorService.injectCursorAccount,
     },
     getDisplayEmail: (account) => getCursorAccountDisplayEmail(account),
     refreshAfterImport: true,
@@ -431,56 +407,6 @@ export function CursorAccountsPage() {
     currentAccountId,
     normalizeTag,
   } = page;
-
-  const toggleSeamlessSwitch = async () => {
-    if (seamlessEnabled) {
-      seamlessEnabledRef.current = false;
-      setSeamlessEnabled(false);
-      try {
-        localStorage.setItem("cursor.seamless.enabled", "0");
-      } catch {
-        /* ignore */
-      }
-      setMessage({
-        text: t(
-          "cursor.seamless.turnedOff",
-          "已关闭无感切号，之后切换账号会重启 Cursor",
-        ),
-        tone: "success",
-      });
-      return;
-    }
-
-    setSeamlessBusy(true);
-    setMessage(null);
-    try {
-      const installed = await cursorService.installCursorSeamless();
-      seamlessEnabledRef.current = true;
-      setSeamlessEnabled(true);
-      try {
-        localStorage.setItem("cursor.seamless.enabled", "1");
-      } catch {
-        /* ignore */
-      }
-      setMessage({
-        text: installed.message,
-        tone: "success",
-      });
-    } catch (error) {
-      setMessage({
-        text: t(
-          "cursor.seamless.installFailed",
-          "开启无感切号失败：{{error}}",
-          {
-            error: String(error),
-          },
-        ),
-        tone: "error",
-      });
-    } finally {
-      setSeamlessBusy(false);
-    }
-  };
 
   const exportFormatOptions = useMemo(
     () => [
@@ -1605,9 +1531,7 @@ export function CursorAccountsPage() {
                 title={
                   isBanned
                     ? t("accounts.status.forbidden_msg")
-                    : seamlessEnabled
-                      ? t("cursor.seamlessSwitch", "无感切换")
-                      : t("cursor.injectToCursor", "切换到 Cursor")
+                    : t("cursor.injectToCursor", "切换到 Cursor")
                 }
               >
                 {injecting === account.id ? (
@@ -1937,9 +1861,7 @@ export function CursorAccountsPage() {
                 title={
                   isBanned
                     ? t("accounts.status.forbidden_msg")
-                    : seamlessEnabled
-                      ? t("cursor.seamlessSwitch", "无感切换")
-                      : t("cursor.injectToCursor", "切换到 Cursor")
+                    : t("cursor.injectToCursor", "切换到 Cursor")
                 }
               >
                 {injecting === account.id ? (
@@ -2171,23 +2093,6 @@ export function CursorAccountsPage() {
               </button>
             </div>
             <div className="toolbar-right">
-              <button
-                className={`btn icon-only ${seamlessEnabled ? "btn-primary" : "btn-secondary"}`}
-                onClick={() => void toggleSeamlessSwitch()}
-                disabled={seamlessBusy}
-                title={
-                  seamlessEnabled
-                    ? t("cursor.seamless.on", "无感切号已开启")
-                    : t("cursor.seamless.off", "无感切号")
-                }
-                aria-label={
-                  seamlessEnabled
-                    ? t("cursor.seamless.on", "无感切号已开启")
-                    : t("cursor.seamless.off", "无感切号")
-                }
-              >
-                <Zap size={14} />
-              </button>
               <button
                 className="btn btn-primary icon-only"
                 onClick={() => openAddModal("token")}

@@ -8,6 +8,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.27] - 2026-09-24
+
+### Fixed
+
+- **Cursor regular switch no longer uses the slim auth writer**: single-account switch again calls the full `inject_to_cursor` path (identity snapshot, stale cache cleanup, Keychain/CLI sync). The v1.3.26 seamless-switch feature is removed, including the workbench patch, `cp_token.json` poller, and toolbar toggle. Switching also restores `workbench.desktop.main.js` from `.seamless.bak` when that leftover patch is still present.
+- **macOS dev builds can link the native menu again**: when Command Line Tools emit the Swift static library outside the path the linker expects, the build copies it into place.
+
+---
+
 ## [1.3.26] - 2026-09-24
 
 ### Changed

@@ -8,6 +8,15 @@
 
 ---
 
+## [1.3.27] - 2026-09-24
+
+### 修复
+
+- **Cursor 普通切号不再走精简写库**：单账号切换恢复完整 `inject_to_cursor`（回放登录快照、清理脏缓存、同步 Keychain/CLI）。已撤回 1.3.26 的无感切号，包括 workbench 补丁、`cp_token.json` 轮询和工具栏开关。切号时若仍有 `.seamless.bak`，会把 `workbench.desktop.main.js` 还原回去。
+- **macOS 本地开发可以再次链上原生菜单**：Command Line Tools 把 Swift 静态库编到链接器预期路径之外时，构建会把它拷到正确位置。
+
+---
+
 ## [1.3.26] - 2026-09-24
 
 ### 变更

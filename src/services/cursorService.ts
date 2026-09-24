@@ -100,30 +100,6 @@ export async function injectCursorAccount(accountId: string): Promise<string> {
   return await invoke("inject_cursor_account", { accountId });
 }
 
-export interface CursorSeamlessStatus {
-  installed: boolean;
-  available: boolean;
-  workbenchPath: string;
-}
-
-export interface CursorSeamlessInstallResult {
-  installed: boolean;
-  newlyInstalled: boolean;
-  message: string;
-}
-
-export async function cursorSeamlessStatus(): Promise<CursorSeamlessStatus> {
-  return await invoke("cursor_seamless_status");
-}
-
-export async function installCursorSeamless(): Promise<CursorSeamlessInstallResult> {
-  return await invoke("cursor_install_seamless");
-}
-
-export async function hotSwitchCursorAccount(accountId: string): Promise<string> {
-  return await invoke("cursor_hot_switch_account", { accountId });
-}
-
 /** 用账号 Session Token 打开 Chrome 无痕窗口并登录 Cursor Dashboard */
 export async function openCursorAccountInChrome(
   accountId: string,

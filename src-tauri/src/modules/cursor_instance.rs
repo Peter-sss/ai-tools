@@ -1467,3 +1467,239 @@ pub fn inject_account_to_profile(profile_dir: &Path, account_id: &str) -> Result
     ));
     Ok(())
 }
+
+const SEAMLESS_PATCH_MARKERS: &[&str] = &["__COCKPIT_SEAMLESS_PATCH__", "__SEAMLESS_PATCHED__"];
+
+const WORKBENCH_JS_RELATIVES: &[&str] = &[
+    "Contents/Resources/app/out/vs/workbench/workbench.desktop.main.js",
+    "resources/app/out/vs/workbench/workbench.desktop.main.js",
+    "app/out/vs/workbench/workbench.desktop.main.js",
+    "out/vs/workbench/workbench.desktop.main.js",
+    "Contents/Resources/app/out/vs/code/electron-sandbox/workbench/workbench.desktop.main.js",
+    "resources/app/out/vs/code/electron-sandbox/workbench/workbench.desktop.main.js",
+    "app/out/vs/code/electron-sandbox/workbench/workbench.desktop.main.js",
+];
+
+const WORKBENCH_HTML_RELATIVES: &[&str] = &[
+    "Contents/Resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+    "resources/app/out/vs/code/electron-sandbox/workbench/workbench.html",
+    "app/out/vs/code/electron-sandbox/workbench/workbench.html",
+    "out/vs/code/electron-sandbox/workbench/workbench.html",
+];
+
+/// Clear leftover v1.3.26 workbench patch / `cp_token.json`. Never blocks switch.
+pub fn remove_legacy_seamless_patch() {
+    if let Err(err) = remove_legacy_seamless_patch_inner() {
+        modules::logger::log_warn(&format!(
+            "[Cursor Switch] 清理无感切号残留失败（已忽略）: {}",
+            err
+        ));
+    }
+}
+
+fn remove_legacy_seamless_patch_inner() -> Result<(), String> {
+    let launch_path = match resolve_cursor_launch_path() {
+        Ok(path) => path,
+        Err(_) => match detect_and_save_cursor_launch_path(false) {
+            Some(path) => PathBuf::from(path),
+            None => return Ok(()),
+        },
+    };
+
+    if let Some(token_path) = find_legacy_cp_token_path(&launch_path) {
+        remove_file_if_present(&token_path, "残留 cp_token.json");
+    }
+
+    let Some(js_path) = find_under_install(&launch_path, WORKBENCH_JS_RELATIVES) else {
+        return Ok(());
+    };
+
+    if restore_workbench_from_seamless_backup(&js_path)? {
+        return Ok(());
+    }
+
+    match fs::read_to_string(&js_path) {
+        Ok(source) if workbench_has_seamless_patch(&source) => {
+            modules::logger::log_warn(
+                "[Cursor Switch] workbench 仍有无感补丁但没有 .seamless.bak，未做手术式还原。请重装 Cursor 或从安装包恢复 workbench.desktop.main.js",
+            );
+        }
+        Ok(_) => {}
+        Err(err) => {
+            modules::logger::log_warn(&format!(
+                "[Cursor Switch] 读取 workbench.desktop.main.js 失败（已忽略）: {}",
+                err
+            ));
+        }
+    }
+    Ok(())
+}
+
+fn restore_workbench_from_seamless_backup(js_path: &Path) -> Result<bool, String> {
+    let backup = seamless_backup_path(js_path);
+    if !backup.exists() {
+        return Ok(false);
+    }
+    fs::copy(&backup, js_path).map_err(|err| {
+        format!(
+            "从备份还原 workbench.desktop.main.js 失败: {}",
+            err
+        )
+    })?;
+    remove_file_if_present(&backup, "workbench.desktop.main.js.seamless.bak");
+    modules::logger::log_info("[Cursor Switch] 已从备份还原 workbench.desktop.main.js");
+    Ok(true)
+}
+
+fn remove_file_if_present(path: &Path, label: &str) {
+    if !path.exists() {
+        return;
+    }
+    match fs::remove_file(path) {
+        Ok(()) => {
+            modules::logger::log_info(&format!("[Cursor Switch] 已删除{}", label));
+        }
+        Err(err) => {
+            modules::logger::log_warn(&format!(
+                "[Cursor Switch] 删除{}失败（已忽略）: {}",
+                label, err
+            ));
+        }
+    }
+}
+
+fn workbench_has_seamless_patch(source: &str) -> bool {
+    SEAMLESS_PATCH_MARKERS
+        .iter()
+        .any(|marker| source.contains(marker))
+}
+
+fn seamless_backup_path(js_path: &Path) -> PathBuf {
+    let mut backup = js_path.as_os_str().to_os_string();
+    backup.push(".seamless.bak");
+    PathBuf::from(backup)
+}
+
+fn find_legacy_cp_token_path(launch_path: &Path) -> Option<PathBuf> {
+    if let Some(html) = find_under_install(launch_path, WORKBENCH_HTML_RELATIVES) {
+        return html.parent().map(|dir| dir.join("cp_token.json"));
+    }
+    find_under_install(launch_path, WORKBENCH_JS_RELATIVES)
+        .and_then(|js| js.parent().map(|dir| dir.join("cp_token.json")))
+}
+
+fn find_under_install(launch_path: &Path, relatives: &[&str]) -> Option<PathBuf> {
+    for root in install_search_roots(launch_path) {
+        for relative in relatives {
+            let candidate = root.join(relative);
+            if candidate.exists() {
+                return Some(candidate);
+            }
+        }
+    }
+    None
+}
+
+fn install_search_roots(launch_path: &Path) -> Vec<PathBuf> {
+    let mut roots = Vec::new();
+    let text = launch_path.to_string_lossy();
+    if let Some(index) = text.to_ascii_lowercase().find(".app") {
+        let end = index + 4;
+        if text.is_char_boundary(end) {
+            roots.push(PathBuf::from(&text[..end]));
+        }
+    }
+
+    let mut current = if launch_path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| ext.eq_ignore_ascii_case("exe") || ext.eq_ignore_ascii_case("app"))
+        .unwrap_or(false)
+        || launch_path.is_file()
+    {
+        launch_path.parent().map(Path::to_path_buf)
+    } else {
+        Some(launch_path.to_path_buf())
+    };
+
+    for _ in 0..8 {
+        let Some(dir) = current else {
+            break;
+        };
+        if !roots.iter().any(|existing| existing == &dir) {
+            roots.push(dir.clone());
+        }
+        if dir.file_name().and_then(|name| name.to_str()) == Some("bin") {
+            if let Some(parent) = dir.parent() {
+                for extra in [
+                    parent.join("share").join("cursor"),
+                    parent.join("lib").join("cursor"),
+                ] {
+                    if !roots.iter().any(|existing| existing == &extra) {
+                        roots.push(extra);
+                    }
+                }
+            }
+        }
+        current = dir.parent().map(Path::to_path_buf);
+    }
+    roots
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn install_roots_cover_mac_windows_and_linux() {
+        let mac = install_search_roots(Path::new(
+            "/Applications/Cursor.app/Contents/MacOS/Cursor",
+        ));
+        assert!(mac.iter().any(|path| path.ends_with("Cursor.app")));
+
+        let windows = install_search_roots(Path::new(
+            "/Users/me/AppData/Local/Programs/Cursor/Cursor.exe",
+        ));
+        assert!(windows.iter().any(|path| path.ends_with("Cursor")));
+
+        let linux = install_search_roots(Path::new("/usr/bin/cursor"));
+        assert!(linux
+            .iter()
+            .any(|path| path.ends_with("share/cursor") || path.ends_with(r"share\cursor")));
+    }
+
+    #[test]
+    fn restore_workbench_replaces_patched_file_and_drops_backup() {
+        let dir = std::env::temp_dir().join(format!(
+            "cursor-seamless-cleanup-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir_all(&dir).expect("temp dir");
+        let js_path = dir.join("workbench.desktop.main.js");
+        fs::write(&js_path, "PATCHED").expect("patched");
+        let backup = seamless_backup_path(&js_path);
+        fs::write(&backup, "ORIGINAL").expect("backup");
+
+        assert!(restore_workbench_from_seamless_backup(&js_path).expect("restore"));
+        assert_eq!(fs::read_to_string(&js_path).expect("read"), "ORIGINAL");
+        assert!(!backup.exists());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn restore_workbench_is_noop_without_backup() {
+        let dir = std::env::temp_dir().join(format!(
+            "cursor-seamless-cleanup-{}",
+            Uuid::new_v4()
+        ));
+        fs::create_dir_all(&dir).expect("temp dir");
+        let js_path = dir.join("workbench.desktop.main.js");
+        fs::write(&js_path, "CLEAN").expect("js");
+
+        assert!(!restore_workbench_from_seamless_backup(&js_path).expect("restore"));
+        assert_eq!(fs::read_to_string(&js_path).expect("read"), "CLEAN");
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+}
