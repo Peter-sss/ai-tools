@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.26] - 2026-09-24
+
+### Changed
+
+- **Cursor single-account seamless switch**: The accounts toolbar has a seamless toggle. When it is on, Cockpit patches Cursor's workbench and switches accounts without restarting. When it is off, Cursor is quit, the fixed login fields are written, and Cursor is started again. Multi-instance switching is unchanged. If macOS blocks writing into the Cursor install, Cockpit opens App Management instead of asking for an administrator password.
+
+---
+
 ## [1.3.25] - 2026-09-10
 
 ### Changed
