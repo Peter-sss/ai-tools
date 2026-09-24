@@ -3,14 +3,24 @@ use rand::Rng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 use crate::models::cursor::CursorImportPayload;
 use crate::modules::logger;
 
 const CURSOR_LOGIN_URL: &str = "https://cursor.com/loginDeepControl";
+const CURSOR_DEEP_CALLBACK_URL: &str = "https://cursor.com/api/auth/loginDeepCallbackControl";
 const CURSOR_POLL_ENDPOINT: &str = "https://api2.cursor.sh/auth/poll";
 const OAUTH_POLL_INTERVAL_MS: u64 = 2000;
 const OAUTH_MAX_POLLS: u32 = 150;
+const WEB_EXCHANGE_POLL_INTERVAL: Duration = Duration::from_secs(1);
+const WEB_EXCHANGE_MAX_POLLS: u32 = 20;
+
+#[derive(Debug, Clone)]
+pub struct ExchangedCursorSession {
+    pub access_token: String,
+    pub refresh_token: Option<String>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -261,6 +271,131 @@ pub async fn complete_login(login_id: &str) -> Result<CursorImportPayload, Strin
     }
 
     Err("Cursor 登录轮询超时，请重试".to_string())
+}
+
+/// 用网页 `WorkosCursorSessionToken`（`userId%3A%3Ajwt`）换成 IDE session。
+///
+/// `refresh_token` 仅在 poll 真正返回时带上；缺失时由调用方沿用 access token 兜底。
+pub async fn exchange_web_session(session_cookie: &str) -> Result<ExchangedCursorSession, String> {
+    let session_cookie = session_cookie.trim();
+    if session_cookie.is_empty() {
+        return Err(
+            "网页 token 换票失败：缺少 WorkosCursorSessionToken，请重新导入账号".to_string(),
+        );
+    }
+
+    let login_uuid = generate_uuid();
+    let code_verifier = generate_code_verifier();
+    let code_challenge = generate_code_challenge(&code_verifier);
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    logger::log_info(&format!(
+        "[Cursor OAuth] 开始把网页 token 换成 IDE session: uuid={}",
+        login_uuid
+    ));
+
+    let callback = client
+        .post(CURSOR_DEEP_CALLBACK_URL)
+        .header(
+            "Cookie",
+            format!("WorkosCursorSessionToken={}", session_cookie),
+        )
+        .header("Content-Type", "application/json")
+        .json(&serde_json::json!({
+            "challenge": code_challenge,
+            "uuid": login_uuid,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("网页 token 换票请求失败: {}，请重新导入账号", e))?;
+
+    let callback_status = callback.status().as_u16();
+    if !callback.status().is_success() {
+        let body_len = callback.text().await.map(|body| body.len()).unwrap_or(0);
+        return Err(format!(
+            "网页 token 换票失败: status={}, body_len={}，请重新导入账号",
+            callback_status, body_len
+        ));
+    }
+
+    let poll_url = format!(
+        "{}?uuid={}&verifier={}",
+        CURSOR_POLL_ENDPOINT, login_uuid, code_verifier
+    );
+
+    for attempt in 0..WEB_EXCHANGE_MAX_POLLS {
+        tokio::time::sleep(WEB_EXCHANGE_POLL_INTERVAL).await;
+
+        let response = match client
+            .get(&poll_url)
+            .header("Accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(err) => {
+                logger::log_warn(&format!(
+                    "[Cursor OAuth] 网页 token 换票轮询失败: attempt={}, error={}",
+                    attempt, err
+                ));
+                continue;
+            }
+        };
+
+        let status = response.status().as_u16();
+        if status == 404 {
+            continue;
+        }
+        if status != 200 {
+            logger::log_warn(&format!(
+                "[Cursor OAuth] 网页 token 换票轮询状态异常: attempt={}, status={}",
+                attempt, status
+            ));
+            continue;
+        }
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| format!("读取网页 token 换票响应失败: {}", e))?;
+        let poll_data = match serde_json::from_str::<PollResponse>(&body) {
+            Ok(poll_data) => poll_data,
+            Err(err) => {
+                logger::log_warn(&format!(
+                    "[Cursor OAuth] 网页 token 换票响应无法解析: attempt={}, error={}",
+                    attempt, err
+                ));
+                continue;
+            }
+        };
+
+        let Some(access_token) = poll_data
+            .access_token
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty())
+        else {
+            continue;
+        };
+        let refresh_token = poll_data
+            .refresh_token
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty());
+
+        logger::log_info(&format!(
+            "[Cursor OAuth] 网页 token 已换成 IDE session: has_refresh={}",
+            refresh_token.is_some()
+        ));
+        return Ok(ExchangedCursorSession {
+            access_token,
+            refresh_token,
+        });
+    }
+
+    Err("网页 token 换票超时，请重新导入账号".to_string())
 }
 
 pub fn cancel_login(login_id: Option<&str>) -> Result<(), String> {

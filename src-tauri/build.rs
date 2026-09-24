@@ -30,7 +30,11 @@ fn ensure_swift_static_lib_for_swift_rs(package: &str) {
     }
 
     let candidates = [
-        swift_root.join("out").join("Products").join("Debug").join(format!("lib{package}.a")),
+        swift_root
+            .join("out")
+            .join("Products")
+            .join("Debug")
+            .join(format!("lib{package}.a")),
         swift_root.join("debug").join(format!("lib{package}.a")),
     ];
     for candidate in candidates {

@@ -1540,12 +1540,8 @@ fn restore_workbench_from_seamless_backup(js_path: &Path) -> Result<bool, String
     if !backup.exists() {
         return Ok(false);
     }
-    fs::copy(&backup, js_path).map_err(|err| {
-        format!(
-            "从备份还原 workbench.desktop.main.js 失败: {}",
-            err
-        )
-    })?;
+    fs::copy(&backup, js_path)
+        .map_err(|err| format!("从备份还原 workbench.desktop.main.js 失败: {}", err))?;
     remove_file_if_present(&backup, "workbench.desktop.main.js.seamless.bak");
     modules::logger::log_info("[Cursor Switch] 已从备份还原 workbench.desktop.main.js");
     Ok(true)
@@ -1652,9 +1648,7 @@ mod tests {
 
     #[test]
     fn install_roots_cover_mac_windows_and_linux() {
-        let mac = install_search_roots(Path::new(
-            "/Applications/Cursor.app/Contents/MacOS/Cursor",
-        ));
+        let mac = install_search_roots(Path::new("/Applications/Cursor.app/Contents/MacOS/Cursor"));
         assert!(mac.iter().any(|path| path.ends_with("Cursor.app")));
 
         let windows = install_search_roots(Path::new(
@@ -1670,10 +1664,7 @@ mod tests {
 
     #[test]
     fn restore_workbench_replaces_patched_file_and_drops_backup() {
-        let dir = std::env::temp_dir().join(format!(
-            "cursor-seamless-cleanup-{}",
-            Uuid::new_v4()
-        ));
+        let dir = std::env::temp_dir().join(format!("cursor-seamless-cleanup-{}", Uuid::new_v4()));
         fs::create_dir_all(&dir).expect("temp dir");
         let js_path = dir.join("workbench.desktop.main.js");
         fs::write(&js_path, "PATCHED").expect("patched");
@@ -1689,10 +1680,7 @@ mod tests {
 
     #[test]
     fn restore_workbench_is_noop_without_backup() {
-        let dir = std::env::temp_dir().join(format!(
-            "cursor-seamless-cleanup-{}",
-            Uuid::new_v4()
-        ));
+        let dir = std::env::temp_dir().join(format!("cursor-seamless-cleanup-{}", Uuid::new_v4()));
         fs::create_dir_all(&dir).expect("temp dir");
         let js_path = dir.join("workbench.desktop.main.js");
         fs::write(&js_path, "CLEAN").expect("js");

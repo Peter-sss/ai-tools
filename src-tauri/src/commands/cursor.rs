@@ -212,6 +212,8 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
     let account = cursor_account::load_account(&account_id)
         .ok_or_else(|| format!("Cursor account not found: {}", account_id))?;
 
+    cursor_account::ensure_ide_session_for_switch(&account_id).await?;
+
     let default_dir = cursor_instance::get_default_cursor_user_data_dir()?;
     cursor_instance::close_cursor(&[default_dir.to_string_lossy().to_string()], 20)?;
     cursor_instance::remove_legacy_seamless_patch();

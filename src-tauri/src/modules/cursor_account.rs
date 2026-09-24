@@ -346,6 +346,15 @@ fn decode_access_token_payload(access_token: &str) -> Option<serde_json::Value> 
     serde_json::from_slice(&decoded).ok()
 }
 
+fn access_token_jwt_type(access_token: &str) -> Option<String> {
+    decode_access_token_payload(access_token)?
+        .get("type")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
 fn extract_auth_id_from_access_token(access_token: &str) -> Option<String> {
     let value = decode_access_token_payload(access_token)?;
     normalize_non_empty(value.get("sub").and_then(|raw| raw.as_str()))
@@ -1822,6 +1831,69 @@ fn inject_account_and_refresh_snapshot(
 ) -> Result<(), String> {
     inject_account_into_conn(conn, account)?;
     persist_live_identity_snapshot(&account.id, conn);
+    Ok(())
+}
+
+fn apply_exchanged_session(
+    account: &mut CursorAccount,
+    access_token: String,
+    refresh_token: Option<String>,
+) {
+    account.access_token = access_token.clone();
+    account.refresh_token = refresh_token.clone();
+    upsert_cursor_auth_raw_string(account, "accessToken", Some(access_token.clone()));
+    if let Some(refresh) = refresh_token.clone() {
+        upsert_cursor_auth_raw_string(account, "refreshToken", Some(refresh));
+    }
+
+    let raw = cursor_auth_raw_object_mut(account);
+    let Some(Value::Object(rows)) = raw.get_mut(CURSOR_AUTH_VSCDB_RAW_KEY) else {
+        return;
+    };
+    for key in ["cursorAuth/accessToken", "cursor.accessToken"] {
+        if rows.contains_key(key) {
+            rows.insert(key.to_string(), Value::String(access_token.clone()));
+        }
+    }
+    if let Some(refresh) = refresh_token {
+        if rows.contains_key("cursorAuth/refreshToken") {
+            rows.insert(
+                "cursorAuth/refreshToken".to_string(),
+                Value::String(refresh),
+            );
+        }
+    }
+}
+
+/// 网页 token（JWT `type=web`）不能用于 Cursor 3.x 聊天。切号写库前换成 IDE session。
+/// 已是 session、或根本不是 JWT 的账号保持原样。换票失败时不改账号、也不写 Cursor。
+pub async fn ensure_ide_session_for_switch(account_id: &str) -> Result<(), String> {
+    let Some(mut account) = load_account(account_id) else {
+        return Err(format!("Cursor 账号不存在: {}", account_id));
+    };
+    if access_token_jwt_type(&account.access_token).as_deref() != Some("web") {
+        return Ok(());
+    }
+
+    let session_cookie = session_cookie_value(&account.access_token)
+        .ok_or_else(|| "网页 token 无法解析 WorkOS 用户 ID，请重新导入账号".to_string())?;
+
+    logger::log_info(&format!(
+        "[Cursor Switch] 网页 token 换成 IDE session: id={}, email={}",
+        account.id, account.email
+    ));
+
+    let exchanged = crate::modules::cursor_oauth::exchange_web_session(&session_cookie).await?;
+    if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
+        return Err("换票结果不是 IDE session token，请重新导入账号".to_string());
+    }
+
+    apply_exchanged_session(
+        &mut account,
+        exchanged.access_token,
+        exchanged.refresh_token,
+    );
+    upsert_account_record(account)?;
     Ok(())
 }
 
@@ -3519,17 +3591,67 @@ mod tests {
     use super::*;
 
     fn sample_jwt(sub: &str) -> String {
+        sample_jwt_with_type(sub, "session")
+    }
+
+    fn sample_jwt_with_type(sub: &str, token_type: &str) -> String {
         // header.payload.signature — only payload is decoded by helpers
         let header = base64::engine::general_purpose::URL_SAFE_NO_PAD
             .encode(br#"{"alg":"HS256","typ":"JWT"}"#);
         let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(
             format!(
-                r#"{{"sub":"{}","type":"session","aud":"https://cursor.com"}}"#,
-                sub
+                r#"{{"sub":"{}","type":"{}","aud":"https://cursor.com"}}"#,
+                sub, token_type
             )
             .as_bytes(),
         );
         format!("{}.{}.sig", header, payload)
+    }
+
+    #[test]
+    fn jwt_type_distinguishes_web_from_session() {
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        assert_eq!(access_token_jwt_type(&session).as_deref(), Some("session"));
+        assert_eq!(access_token_jwt_type(&web).as_deref(), Some("web"));
+        assert_eq!(access_token_jwt_type("not-a-jwt"), None);
+    }
+
+    #[test]
+    fn exchanged_session_replaces_web_token_and_keeps_real_refresh() {
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let mut account = sample_account(&web);
+        account.cursor_auth_raw = Some(serde_json::json!({
+            "accessToken": web,
+            "_vscdb": {
+                "cursorAuth/accessToken": web,
+                "cursorAuth/refreshToken": web,
+                "cursor.accessToken": web,
+                "cursorAuth/cachedEmail": "next@example.com"
+            }
+        }));
+
+        apply_exchanged_session(&mut account, session.clone(), Some("refresh-1".to_string()));
+
+        assert_eq!(account.access_token, session);
+        assert_eq!(account.refresh_token.as_deref(), Some("refresh-1"));
+        let raw = account.cursor_auth_raw.expect("raw");
+        assert_eq!(raw["accessToken"], session);
+        assert_eq!(raw["refreshToken"], "refresh-1");
+        assert_eq!(raw["_vscdb"]["cursorAuth/accessToken"], session);
+        assert_eq!(raw["_vscdb"]["cursorAuth/refreshToken"], "refresh-1");
+        assert_eq!(raw["_vscdb"]["cursor.accessToken"], session);
+        assert_eq!(raw["_vscdb"]["cursorAuth/cachedEmail"], "next@example.com");
+    }
+
+    #[test]
+    fn exchanged_session_without_refresh_does_not_copy_access_into_refresh() {
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let mut account = sample_account(&session);
+        apply_exchanged_session(&mut account, session.clone(), None);
+        assert_eq!(account.access_token, session);
+        assert!(account.refresh_token.is_none());
     }
 
     #[test]

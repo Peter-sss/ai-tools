@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.28] - 2026-09-24
+
+### Fixed
+
+- **Cursor switch exchanges a web token for an IDE session first**: a `type=web` JWT can open Plan & Usage, but Cursor 3.21 chat returns not-logged-in. Before writing local auth, the switch exchanges the web cookie for a `type=session` token. If the exchange fails, the switch stops and does not write the web token. Accounts that are already session tokens are left unchanged.
+
+---
+
 ## [1.3.27] - 2026-09-24
 
 ### Fixed
