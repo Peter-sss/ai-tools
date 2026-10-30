@@ -345,7 +345,7 @@ function readGrokBotPercent(raw: unknown, plan: unknown): number | null {
       "bot_percent_used",
     );
     if (percent != null) {
-      return percent;
+      return percent > 0 && percent <= 1 ? percent * 100 : percent;
     }
   }
 

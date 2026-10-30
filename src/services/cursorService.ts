@@ -63,6 +63,26 @@ export async function exportCursorAccountsText(
   return await invoke("export_cursor_accounts_text", { accountIds });
 }
 
+export type CursorModelSpendItem = {
+  name: string;
+  cents: number;
+};
+
+export type CursorUsageSpendBreakdown = {
+  autoCents: number;
+  apiCents: number;
+  autoCapCents?: number | null;
+  apiCapCents?: number | null;
+  autoModels: CursorModelSpendItem[];
+  apiModels: CursorModelSpendItem[];
+};
+
+export async function fetchCursorUsageSpend(
+  accountId: string,
+): Promise<CursorUsageSpendBreakdown> {
+  return await invoke("fetch_cursor_usage_spend", { accountId });
+}
+
 export async function refreshCursorToken(
   accountId: string,
 ): Promise<CursorAccount> {

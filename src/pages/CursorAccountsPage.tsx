@@ -86,6 +86,7 @@ import {
   writeAccountsOverviewFilterField,
 } from "../utils/accountsOverviewFilterPersistence";
 
+import { useEscClose } from "../hooks/useEscClose";
 import { useProviderAccountsPage } from "../hooks/useProviderAccountsPage";
 import {
   CursorOverviewTabsHeader,
@@ -251,6 +252,13 @@ export function CursorAccountsPage() {
         )
       : [],
   );
+  const [usageSpendAccountId, setUsageSpendAccountId] = useState<string | null>(
+    null,
+  );
+  const [usageSpendBreakdown, setUsageSpendBreakdown] =
+    useState<cursorService.CursorUsageSpendBreakdown | null>(null);
+  const [usageSpendLoading, setUsageSpendLoading] = useState(false);
+  const [usageSpendError, setUsageSpendError] = useState<string | null>(null);
   const [exportFormat, setExportFormat] = useState<CursorExportFormat>("text");
   const [exportFormatCopied, setExportFormatCopied] = useState(false);
   const [exportFormatSaving, setExportFormatSaving] = useState(false);
@@ -709,6 +717,65 @@ export function CursorAccountsPage() {
       );
     },
     [locale],
+  );
+
+  const closeUsageSpendModal = useCallback(() => {
+    setUsageSpendAccountId(null);
+    setUsageSpendBreakdown(null);
+    setUsageSpendError(null);
+    setUsageSpendLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (!usageSpendAccountId) {
+      return;
+    }
+    let cancelled = false;
+    setUsageSpendLoading(true);
+    setUsageSpendError(null);
+    setUsageSpendBreakdown(null);
+    void cursorService
+      .fetchCursorUsageSpend(usageSpendAccountId)
+      .then((data) => {
+        if (!cancelled) {
+          setUsageSpendBreakdown(data);
+        }
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          setUsageSpendError(String(error));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setUsageSpendLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [usageSpendAccountId]);
+
+  const usageSpendAccount = useMemo(
+    () =>
+      accounts.find((account) => account.id === usageSpendAccountId) ?? null,
+    [accounts, usageSpendAccountId],
+  );
+
+  useEscClose(Boolean(usageSpendAccountId), closeUsageSpendModal);
+
+  const formatSpendLine = useCallback(
+    (usedCents: number | null | undefined, capCents?: number | null) => {
+      if (usedCents == null) {
+        return "—";
+      }
+      const usedText = formatCursorUsageDollars(usedCents);
+      if (capCents == null || capCents <= 0) {
+        return usedText;
+      }
+      return `${usedText} / ${formatCursorUsageDollars(capCents)}`;
+    },
+    [],
   );
 
   const formatAddedTime = useCallback(
@@ -1578,6 +1645,82 @@ export function CursorAccountsPage() {
       );
     });
 
+  const renderUsageSpendModels = (
+    models: cursorService.CursorModelSpendItem[],
+  ) =>
+    models.map((model) => (
+      <div
+        key={model.name}
+        className="cursor-usage-spend-row cursor-usage-spend-model"
+      >
+        <span>{model.name}</span>
+        <span className="quota-value">
+          {formatCursorUsageDollars(model.cents)}
+        </span>
+      </div>
+    ));
+
+  const renderUsageSpendBody = (account: CursorAccount) => {
+    const resetText = formatResetTime(resolveResetTime(account));
+    if (usageSpendLoading) {
+      return (
+        <div className="quota-empty">
+          {t("cursor.usageSpend.loading", "正在统计消费...")}
+        </div>
+      );
+    }
+    if (usageSpendError) {
+      return <div className="quota-empty">{usageSpendError}</div>;
+    }
+    if (!usageSpendBreakdown) {
+      return (
+        <div className="quota-empty">
+          {t("common.shared.quota.noData", "暂无配额数据")}
+        </div>
+      );
+    }
+    return (
+      <>
+        <div className="cursor-usage-spend-rows">
+          <div className="cursor-usage-spend-group">
+            <div className="cursor-usage-spend-row">
+              <span>Auto</span>
+              <span className="quota-value">
+                {formatSpendLine(
+                  usageSpendBreakdown.autoCents,
+                  usageSpendBreakdown.autoCapCents,
+                )}
+              </span>
+            </div>
+            {renderUsageSpendModels(usageSpendBreakdown.autoModels ?? [])}
+          </div>
+          <div className="cursor-usage-spend-group">
+            <div className="cursor-usage-spend-row">
+              <span>{t("cursor.usageSpend.premium", "高级")}</span>
+              <span className="quota-value">
+                {formatSpendLine(
+                  usageSpendBreakdown.apiCents,
+                  usageSpendBreakdown.apiCapCents,
+                )}
+              </span>
+            </div>
+            {renderUsageSpendModels(usageSpendBreakdown.apiModels ?? [])}
+          </div>
+        </div>
+        {resetText && (
+          <div className="cursor-usage-spend-resets">
+            <span>
+              {t("common.shared.quota.resetAt", {
+                time: resetText,
+                defaultValue: "Reset: {{time}}",
+              })}
+            </span>
+          </div>
+        )}
+      </>
+    );
+  };
+
   const renderTableRows = (items: typeof filteredAccounts, groupKey?: string) =>
     items.map((account) => {
       const displayEmail = resolveDisplayEmail(account);
@@ -1758,11 +1901,9 @@ export function CursorAccountsPage() {
             <button
               type="button"
               className="cursor-table-quota-refresh"
-              onClick={() => void handleRefresh(account.id)}
-              disabled={refreshing === account.id}
+              onClick={() => setUsageSpendAccountId(account.id)}
               title={[
-                t("common.shared.refreshQuota", "刷新配额"),
-                hasQuotaData ? total.costText : null,
+                t("cursor.usageSpend.viewHint", "点击查看消费"),
                 hasQuotaData && resetText
                   ? t("common.shared.quota.resetAt", {
                       time: resetText,
@@ -2688,6 +2829,45 @@ export function CursorAccountsPage() {
                         <CircleAlert size={16} />
                       )}
                       <span>{addMessage}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {usageSpendAccountId && (
+            <div className="modal-overlay" onClick={closeUsageSpendModal}>
+              <div
+                className="modal cursor-usage-spend-modal"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="modal-header">
+                  <div>
+                    <h2>{t("cursor.usageSpend.title", "消费统计")}</h2>
+                    {usageSpendAccount ? (
+                      <p className="cursor-usage-spend-subtitle">
+                        {maskAccountText(
+                          resolveDisplayEmail(usageSpendAccount) ||
+                            usageSpendAccount.id,
+                        )}
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    className="modal-close"
+                    onClick={closeUsageSpendModal}
+                    aria-label={t("common.close", "关闭")}
+                  >
+                    <X />
+                  </button>
+                </div>
+                <div className="modal-body">
+                  {usageSpendAccount ? (
+                    renderUsageSpendBody(usageSpendAccount)
+                  ) : (
+                    <div className="quota-empty">
+                      {t("common.shared.quota.noData", "暂无配额数据")}
                     </div>
                   )}
                 </div>

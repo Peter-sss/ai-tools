@@ -1,7 +1,7 @@
 use base64::Engine as _;
 use futures_util::{SinkExt, StreamExt};
 use rusqlite::{Connection, OptionalExtension};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -2239,6 +2239,60 @@ const CURSOR_SAND_USAGE_DASHBOARD_URL: &str =
 const CURSOR_GET_USER_META_URL: &str = "https://api2.cursor.sh/aiserver.v1.AuthService/GetUserMeta";
 const CURSOR_FULL_STRIPE_PROFILE_URL: &str = "https://api2.cursor.sh/auth/full_stripe_profile";
 const CURSOR_STRIPE_PROFILE_URL: &str = "https://api2.cursor.sh/auth/stripe_profile";
+const CURSOR_CURRENT_PERIOD_USAGE_URL: &str =
+    "https://cursor.com/api/dashboard/get-current-period-usage";
+const CURSOR_AGGREGATED_USAGE_EVENTS_URL: &str =
+    "https://cursor.com/api/dashboard/get-aggregated-usage-events";
+const FALLBACK_AUTO_BUCKET_MODELS: &[&str] = &[
+    "default",
+    "composer-1",
+    "composer-1.5",
+    "composer-2",
+    "composer-2-fast",
+    "composer-2.5",
+    "composer-2.5-fast",
+    "vega",
+    "vega-medium",
+    "vega-high",
+    "vega-xhigh",
+    "vega-fast-medium",
+    "vega-fast-high",
+    "vega-fast-xhigh",
+    "grok-4.5",
+    "cursor-grok-4.5",
+    "cursor-grok-4.5-low",
+    "cursor-grok-4.5-low-fast",
+    "cursor-grok-4.5-medium",
+    "cursor-grok-4.5-medium-fast",
+    "cursor-grok-4.5-high",
+    "cursor-grok-4.5-high-fast",
+    "grok-4.5-medium",
+    "grok-4.5-fast-medium",
+    "grok-4.5-high",
+    "grok-4.5-fast-high",
+    "grok-4.5-xhigh",
+    "grok-4.5-fast-xhigh",
+];
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorModelSpendItem {
+    pub name: String,
+    pub cents: f64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CursorUsageSpendBreakdown {
+    pub auto_cents: f64,
+    pub api_cents: f64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auto_cap_cents: Option<f64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub api_cap_cents: Option<f64>,
+    pub auto_models: Vec<CursorModelSpendItem>,
+    pub api_models: Vec<CursorModelSpendItem>,
+}
 // 与官方 Cursor 客户端保持一致：使用 api2.cursor.sh/oauth/token 和内置 client_id 交换新 token。
 const CURSOR_OAUTH_TOKEN_URL: &str = "https://api2.cursor.sh/oauth/token";
 const CURSOR_AUTH_CLIENT_ID: &str = "KbZUR41cY7W6zRSdpSUJ7I7mLYBKOCmB";
@@ -2885,6 +2939,506 @@ async fn fetch_usage_summary_with_client(
         .map_err(|e| format!("解析 Cursor usage JSON 失败: {}", e))
 }
 
+fn is_grok_bot_model(name: &str) -> bool {
+    let normalized = name.trim().to_ascii_lowercase();
+    if normalized.is_empty() || token_prefix_match(&normalized, "cursor-grok") {
+        return false;
+    }
+    token_prefix_match(&normalized, "sand")
+        || token_prefix_match(&normalized, "grok-bot")
+        || normalized.contains("grok-bot")
+        || normalized.contains("sand-")
+        || normalized.contains("sand_")
+}
+
+fn token_prefix_match(name: &str, prefix: &str) -> bool {
+    name == prefix
+        || name.starts_with(&format!("{}-", prefix))
+        || name.starts_with(&format!("{}_", prefix))
+}
+
+fn model_stem(name: &str) -> String {
+    let mut stem = name.to_ascii_lowercase();
+    stem = stem.replace("-fast", "");
+    for quality in ["-low", "-medium", "-high", "-xhigh"] {
+        stem = stem.replace(quality, "");
+    }
+    let stripped: String = stem
+        .chars()
+        .filter(|ch| *ch != '.' && !ch.is_ascii_digit())
+        .collect();
+    stripped
+        .split('-')
+        .filter(|part| !part.is_empty())
+        .collect::<Vec<_>>()
+        .join("-")
+}
+
+fn same_model_family(name: &str, bucket_name: &str) -> bool {
+    if name.eq_ignore_ascii_case(bucket_name) {
+        return true;
+    }
+    let left = model_stem(name);
+    let right = model_stem(bucket_name);
+    !left.is_empty() && left == right
+}
+
+fn is_cursor_pool_model(name: &str, auto_set: &[String]) -> bool {
+    if name.is_empty() || is_grok_bot_model(name) || auto_set.is_empty() {
+        return false;
+    }
+    if auto_set.iter().any(|item| item.eq_ignore_ascii_case(name)) {
+        return true;
+    }
+    auto_set.iter().any(|item| same_model_family(name, item))
+}
+
+fn json_number(value: Option<&Value>, keys: &[&str]) -> Option<f64> {
+    let obj = value?.as_object()?;
+    for key in keys {
+        let Some(raw) = obj.get(*key) else {
+            continue;
+        };
+        if let Some(n) = raw.as_f64() {
+            if n.is_finite() {
+                return Some(n);
+            }
+        }
+        if let Some(text) = raw.as_str() {
+            if let Ok(parsed) = text.trim().parse::<f64>() {
+                if parsed.is_finite() {
+                    return Some(parsed);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn json_time_ms(value: Option<&Value>) -> Option<i64> {
+    let value = value?;
+    match value {
+        Value::Number(number) => {
+            let n = number.as_f64()?;
+            if !n.is_finite() || n <= 0.0 {
+                return None;
+            }
+            if n > 1_000_000_000_000.0 {
+                Some(n as i64)
+            } else if n > 1_000_000_000.0 {
+                Some((n * 1000.0) as i64)
+            } else {
+                None
+            }
+        }
+        Value::String(text) => {
+            let trimmed = text.trim();
+            if trimmed.is_empty() {
+                return None;
+            }
+            if let Ok(parsed) = trimmed.parse::<f64>() {
+                return json_time_ms(Some(&Value::from(parsed)));
+            }
+            chrono::DateTime::parse_from_rfc3339(trimmed)
+                .ok()
+                .map(|dt| dt.timestamp_millis())
+        }
+        Value::Object(obj) => {
+            let seconds = obj
+                .get("seconds")
+                .or_else(|| obj.get("Seconds"))
+                .or_else(|| obj.get("secs"));
+            let base = json_time_ms(seconds)?;
+            let nanos = obj
+                .get("nanos")
+                .or_else(|| obj.get("nanosCount"))
+                .and_then(|item| {
+                    item.as_f64()
+                        .or_else(|| item.as_str()?.trim().parse::<f64>().ok())
+                })
+                .unwrap_or(0.0);
+            if nanos.is_finite() && nanos > 0.0 {
+                Some(base + (nanos / 1_000_000.0) as i64)
+            } else {
+                Some(base)
+            }
+        }
+        _ => None,
+    }
+}
+
+fn collect_string_list(value: Option<&Value>, keys: &[&str]) -> Vec<String> {
+    let Some(obj) = value.and_then(|item| item.as_object()) else {
+        return Vec::new();
+    };
+    for key in keys {
+        let Some(Value::Array(items)) = obj.get(*key) else {
+            continue;
+        };
+        let names = items
+            .iter()
+            .filter_map(|item| item.as_str())
+            .map(|item| item.trim().to_string())
+            .filter(|item| !item.is_empty())
+            .collect::<Vec<_>>();
+        if !names.is_empty() {
+            return names;
+        }
+    }
+    Vec::new()
+}
+
+fn resolve_auto_bucket_models(period: Option<&Value>) -> Vec<String> {
+    let names = collect_string_list(period, &["autoBucketModels", "auto_bucket_models"]);
+    if !names.is_empty() {
+        return names;
+    }
+    FALLBACK_AUTO_BUCKET_MODELS
+        .iter()
+        .map(|item| (*item).to_string())
+        .collect()
+}
+
+fn normalize_sand_percent(raw: f64) -> f64 {
+    if raw > 0.0 && raw <= 1.0 {
+        raw * 100.0
+    } else {
+        raw
+    }
+}
+
+fn infer_cap_cents(used_cents: f64, percent: Option<f64>) -> Option<f64> {
+    let percent = percent?;
+    if !used_cents.is_finite()
+        || used_cents <= 0.0
+        || !percent.is_finite()
+        || percent <= 0.0
+        || percent >= 99.5
+    {
+        return None;
+    }
+    let cap = used_cents / (percent / 100.0);
+    if !cap.is_finite() || cap <= 0.0 {
+        return None;
+    }
+    let dollars = cap / 100.0;
+    let rounded = dollars.round();
+    if rounded >= 1.0 && (dollars - rounded).abs() / rounded <= 0.015 {
+        return Some(rounded * 100.0);
+    }
+    Some(cap)
+}
+
+fn usage_row_names(row: &Value) -> Vec<String> {
+    [
+        "modelIntent",
+        "model_intent",
+        "model",
+        "kind",
+        "product",
+    ]
+    .into_iter()
+    .filter_map(|key| row.get(key).and_then(|item| item.as_str()))
+    .map(|name| name.trim().to_string())
+    .filter(|name| !name.is_empty())
+    .collect()
+}
+
+fn usage_row_is_grok_bot(row: &Value) -> bool {
+    usage_row_names(row)
+        .iter()
+        .any(|name| is_grok_bot_model(name))
+}
+
+fn usage_row_cents(row: &Value) -> f64 {
+    let token_usage = row.get("tokenUsage").or_else(|| row.get("token_usage"));
+    let candidates = [
+        json_number(token_usage, &["totalCents", "total_cents"]),
+        json_number(
+            Some(row),
+            &["totalCents", "total_cents", "listCost", "list_cost", "costCents", "cost_cents"],
+        ),
+        json_number(Some(row), &["chargedCents", "charged_cents"]),
+        json_number(token_usage, &["chargedCents", "charged_cents"]),
+        json_number(
+            row.get("pricing"),
+            &[
+                "totalCents",
+                "total_cents",
+                "amountCents",
+                "amount_cents",
+                "cents",
+                "usdCents",
+                "usd_cents",
+            ],
+        ),
+    ];
+    for cents in candidates.into_iter().flatten() {
+        if cents.is_finite() && cents > 0.0 {
+            return cents;
+        }
+    }
+    0.0
+}
+
+fn display_model_name(name: &str) -> String {
+    let trimmed = name.trim();
+    if let Some(rest) = trimmed.strip_prefix("cursor-") {
+        return rest.to_string();
+    }
+    if let Some(rest) = trimmed.strip_prefix("Cursor-") {
+        return rest.to_string();
+    }
+    trimmed.to_string()
+}
+
+fn collect_model_spend_items(
+    aggregations: &[Value],
+    auto_set: &[String],
+    auto_pool: bool,
+) -> Vec<CursorModelSpendItem> {
+    let mut by_name: HashMap<String, f64> = HashMap::new();
+    for row in aggregations {
+        if usage_row_is_grok_bot(row) {
+            continue;
+        }
+        let names = usage_row_names(row);
+        if names.is_empty() {
+            continue;
+        }
+        let is_auto = names
+            .iter()
+            .any(|name| is_cursor_pool_model(name, auto_set));
+        if is_auto != auto_pool {
+            continue;
+        }
+        let cents = usage_row_cents(row);
+        if !cents.is_finite() || cents <= 0.0 {
+            continue;
+        }
+        let name = display_model_name(&names[0]);
+        *by_name.entry(name).or_insert(0.0) += cents;
+    }
+    let mut items: Vec<CursorModelSpendItem> = by_name
+        .into_iter()
+        .map(|(name, cents)| CursorModelSpendItem { name, cents })
+        .collect();
+    items.sort_by(|left, right| {
+        right
+            .cents
+            .partial_cmp(&left.cents)
+            .unwrap_or(std::cmp::Ordering::Equal)
+            .then_with(|| left.name.cmp(&right.name))
+    });
+    items
+}
+
+fn read_plan_percent(summary: Option<&Value>, period: Option<&Value>, keys: &[&str]) -> Option<f64> {
+    json_number(
+        period
+            .and_then(|item| item.get("planUsage"))
+            .or_else(|| period.and_then(|item| item.get("plan_usage"))),
+        keys,
+    )
+    .or_else(|| {
+        json_number(
+            summary
+                .and_then(|item| item.get("individualUsage"))
+                .and_then(|item| item.get("plan"))
+                .or_else(|| {
+                    summary
+                        .and_then(|item| item.get("individual_usage"))
+                        .and_then(|item| item.get("plan"))
+                }),
+            keys,
+        )
+    })
+}
+
+fn aggregations_from(value: &Value) -> Vec<Value> {
+    value
+        .get("aggregations")
+        .and_then(|item| item.as_array())
+        .cloned()
+        .unwrap_or_default()
+}
+
+async fn post_cursor_dashboard_json(
+    client: &reqwest::Client,
+    access_token: &str,
+    url: &str,
+    body: Value,
+) -> Result<Value, String> {
+    let cookie = build_session_cookie(access_token)
+        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+    let response = client
+        .post(url)
+        .header("Accept", "application/json")
+        .header("Content-Type", "application/json")
+        .header("Cookie", &cookie)
+        .header("Origin", "https://cursor.com")
+        .header("Referer", "https://cursor.com/dashboard?tab=usage")
+        .header(
+            "User-Agent",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+        )
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| format!("请求 Cursor 用量明细失败: {}", format_reqwest_error(&e)))?;
+    let status = response.status().as_u16();
+    if status == 401 || status == 403 {
+        return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
+    }
+    if status != 200 {
+        return Err(format!("Cursor 用量明细接口返回异常状态码: {}", status));
+    }
+    let text = response
+        .text()
+        .await
+        .map_err(|e| format!("读取 Cursor 用量明细失败: {}", format_reqwest_error(&e)))?;
+    parse_json_object_body(&text, "Cursor 用量明细")
+}
+
+async fn fetch_current_period_usage_with_client(
+    client: &reqwest::Client,
+    access_token: &str,
+) -> Result<Value, String> {
+    post_cursor_dashboard_json(
+        client,
+        access_token,
+        CURSOR_CURRENT_PERIOD_USAGE_URL,
+        json!({}),
+    )
+    .await
+}
+
+async fn fetch_aggregated_usage_events_with_client(
+    client: &reqwest::Client,
+    access_token: &str,
+    start_ms: i64,
+    end_ms: i64,
+) -> Result<Value, String> {
+    let bodies = [
+        json!({ "startDate": start_ms, "endDate": end_ms }),
+        json!({ "teamId": -1, "startDate": start_ms, "endDate": end_ms }),
+        json!({ "startMs": start_ms, "endMs": end_ms }),
+    ];
+    let mut last_error = None;
+    for body in bodies {
+        match post_cursor_dashboard_json(
+            client,
+            access_token,
+            CURSOR_AGGREGATED_USAGE_EVENTS_URL,
+            body,
+        )
+        .await
+        {
+            Ok(value) => return Ok(value),
+            Err(error) => last_error = Some(error),
+        }
+    }
+    Err(last_error.unwrap_or_else(|| "Cursor 用量明细不可用".to_string()))
+}
+
+fn resolve_billing_window_ms(summary: Option<&Value>, period: Option<&Value>) -> Option<(i64, i64)> {
+    let start = json_time_ms(
+        summary
+            .and_then(|item| item.get("billingCycleStart"))
+            .or_else(|| summary.and_then(|item| item.get("billing_cycle_start"))),
+    )
+    .or_else(|| {
+        json_time_ms(
+            period
+                .and_then(|item| item.get("billingCycleStart"))
+                .or_else(|| period.and_then(|item| item.get("billing_cycle_start"))),
+        )
+    });
+    let end = json_time_ms(
+        summary
+            .and_then(|item| item.get("billingCycleEnd"))
+            .or_else(|| summary.and_then(|item| item.get("billing_cycle_end"))),
+    )
+    .or_else(|| {
+        json_time_ms(
+            period
+                .and_then(|item| item.get("billingCycleEnd"))
+                .or_else(|| period.and_then(|item| item.get("billing_cycle_end"))),
+        )
+    });
+    match (start, end) {
+        (Some(start_ms), Some(end_ms)) if end_ms > start_ms => Some((start_ms, end_ms)),
+        (Some(start_ms), None) => Some((start_ms, chrono::Utc::now().timestamp_millis())),
+        (None, Some(end_ms)) => Some((end_ms - 30 * 24 * 60 * 60 * 1000, end_ms)),
+        _ => None,
+    }
+}
+
+fn split_usage_spend(
+    aggregations: &[Value],
+    auto_set: &[String],
+    auto_percent: Option<f64>,
+    api_percent: Option<f64>,
+) -> CursorUsageSpendBreakdown {
+    let auto_models = collect_model_spend_items(aggregations, auto_set, true);
+    let api_models = collect_model_spend_items(aggregations, auto_set, false);
+    let auto_cents = auto_models.iter().map(|item| item.cents).sum();
+    let api_cents = api_models.iter().map(|item| item.cents).sum();
+    CursorUsageSpendBreakdown {
+        auto_cents,
+        api_cents,
+        auto_cap_cents: infer_cap_cents(auto_cents, auto_percent),
+        api_cap_cents: infer_cap_cents(api_cents, api_percent),
+        auto_models,
+        api_models,
+    }
+}
+
+pub async fn fetch_usage_spend_breakdown(
+    account_id: &str,
+) -> Result<CursorUsageSpendBreakdown, String> {
+    let account =
+        load_account(account_id).ok_or_else(|| format!("账号不存在: {}", account_id))?;
+    if account.access_token.trim().is_empty() {
+        return Err("账号缺少 access token".to_string());
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", format_reqwest_error(&e)))?;
+
+    let summary = account.cursor_usage_raw.as_ref();
+    let period = if resolve_billing_window_ms(summary, None).is_none() {
+        fetch_current_period_usage_with_client(&client, &account.access_token)
+            .await
+            .ok()
+    } else {
+        None
+    };
+    let window = resolve_billing_window_ms(summary, period.as_ref())
+        .ok_or_else(|| "无法解析 Cursor 账单周期".to_string())?;
+    let events = fetch_aggregated_usage_events_with_client(
+        &client,
+        &account.access_token,
+        window.0,
+        window.1,
+    )
+    .await?;
+    let aggregations = aggregations_from(&events);
+    let auto_set = resolve_auto_bucket_models(period.as_ref());
+    let auto_percent =
+        read_plan_percent(summary, period.as_ref(), &["autoPercentUsed", "auto_percent_used"]);
+    let api_percent =
+        read_plan_percent(summary, period.as_ref(), &["apiPercentUsed", "api_percent_used"]);
+    Ok(split_usage_spend(
+        &aggregations,
+        &auto_set,
+        auto_percent,
+        api_percent,
+    ))
+}
+
 fn sand_usage_looks_valid(value: &Value) -> bool {
     let Some(obj) = value.as_object() else {
         return false;
@@ -3317,6 +3871,7 @@ fn pick_grok_bot_percent(raw_obj: &serde_json::Map<String, Value>) -> Option<f64
             "bot_percent_used",
         ],
     )
+    .map(normalize_sand_percent)
 }
 
 fn pick_number(value: Option<&Value>, keys: &[&str]) -> Option<f64> {
@@ -3615,6 +4170,112 @@ mod tests {
         assert_eq!(access_token_jwt_type(&session).as_deref(), Some("session"));
         assert_eq!(access_token_jwt_type(&web).as_deref(), Some("web"));
         assert_eq!(access_token_jwt_type("not-a-jwt"), None);
+    }
+
+    #[test]
+    fn grok_bot_models_are_not_auto_or_api() {
+        assert!(is_grok_bot_model("grok-bot-4.5"));
+        assert!(is_grok_bot_model("sand-default"));
+        assert!(is_grok_bot_model("grok-bot-default"));
+        assert!(is_grok_bot_model("grok-bot-cua"));
+        assert!(!is_grok_bot_model("cursor-grok-4.5"));
+        assert!(!is_grok_bot_model("grok-4.5"));
+    }
+
+    #[test]
+    fn auto_bucket_matches_family_not_plan_limit() {
+        let auto_set = vec!["grok-4.5".to_string(), "composer-2.5".to_string()];
+        assert!(is_cursor_pool_model("grok-4.6-high-fast", &auto_set));
+        assert!(is_cursor_pool_model("composer-2.5-fast", &auto_set));
+        assert!(!is_cursor_pool_model("claude-4.6-opus", &auto_set));
+        assert!(!is_cursor_pool_model("grok-bot-4.5", &auto_set));
+    }
+
+    #[test]
+    fn split_usage_spend_uses_event_cents() {
+        let auto_set = vec!["composer-2.5".to_string(), "cursor-grok-4.5".to_string()];
+        let aggregations = vec![
+            json!({"modelIntent": "composer-2.5-fast", "totalCents": 680.0}),
+            json!({"modelIntent": "cursor-grok-4.5", "totalCents": 120.0}),
+            json!({"modelIntent": "claude-4.6-sonnet", "totalCents": 2000.0}),
+            json!({"modelIntent": "gpt-5.4", "totalCents": 350.0}),
+            json!({"modelIntent": "grok-bot-1", "totalCents": 125.0}),
+            json!({"modelIntent": "composer-2.5", "totalCents": 0.0}),
+        ];
+        let split = split_usage_spend(&aggregations, &auto_set, Some(34.0), Some(100.0));
+        assert!((split.auto_cents - 800.0).abs() < f64::EPSILON);
+        assert!((split.api_cents - 2350.0).abs() < f64::EPSILON);
+        assert!(split.api_cap_cents.is_none());
+        assert!(split.auto_cap_cents.is_some());
+        assert_eq!(
+            split
+                .auto_models
+                .iter()
+                .map(|item| (item.name.as_str(), item.cents))
+                .collect::<Vec<_>>(),
+            vec![("composer-2.5-fast", 680.0), ("grok-4.5", 120.0)]
+        );
+        assert_eq!(
+            split
+                .api_models
+                .iter()
+                .map(|item| (item.name.as_str(), item.cents))
+                .collect::<Vec<_>>(),
+            vec![("claude-4.6-sonnet", 2000.0), ("gpt-5.4", 350.0)]
+        );
+    }
+
+    #[test]
+    fn sand_percent_treats_fraction_as_official_weekly() {
+        assert!((normalize_sand_percent(0.80) - 80.0).abs() < f64::EPSILON);
+        assert!((normalize_sand_percent(80.0) - 80.0).abs() < f64::EPSILON);
+        assert!((normalize_sand_percent(0.0) - 0.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn infer_cap_snaps_near_whole_dollar() {
+        let cap = infer_cap_cents(6400.0, Some(80.0)).expect("cap");
+        assert!((cap - 8000.0).abs() < 1.0);
+    }
+
+    #[test]
+    fn bot_rows_accept_model_field_and_string_cents() {
+        let rows = vec![
+            json!({"model": "grok-bot-default", "totalCents": "6400"}),
+            json!({"kind": "sand-automation", "listCost": 125.5}),
+            json!({"model": "cursor-grok-4.5", "totalCents": "999"}),
+        ];
+        assert!(usage_row_is_grok_bot(&rows[0]));
+        assert!(usage_row_is_grok_bot(&rows[1]));
+        assert!(!usage_row_is_grok_bot(&rows[2]));
+        assert!((usage_row_cents(&rows[0]) - 6400.0).abs() < f64::EPSILON);
+        assert!((usage_row_cents(&rows[1]) - 125.5).abs() < f64::EPSILON);
+        assert!(!is_grok_bot_model("cursor-grok-4.5"));
+    }
+
+    #[test]
+    fn bot_rows_stay_out_of_auto_and_api() {
+        let rows = vec![json!({
+            "model": "grok-4.6",
+            "product": "grok-bot",
+            "chargedCents": 0,
+            "tokenUsage": { "totalCents": "8000" }
+        })];
+        assert!(usage_row_is_grok_bot(&rows[0]));
+        assert!((usage_row_cents(&rows[0]) - 8000.0).abs() < f64::EPSILON);
+        let auto_set = vec!["grok-4.6".to_string()];
+        let split = split_usage_spend(&rows, &auto_set, Some(10.0), Some(10.0));
+        assert!((split.auto_cents - 0.0).abs() < f64::EPSILON);
+        assert!((split.api_cents - 0.0).abs() < f64::EPSILON);
+        assert!(split.auto_models.is_empty());
+        assert!(split.api_models.is_empty());
+    }
+
+    #[test]
+    fn proto_timestamp_object_parses_to_millis() {
+        let ms = json_time_ms(Some(&json!({"seconds": 1_761_888_000, "nanos": 24_000_000})))
+            .expect("timestamp");
+        assert_eq!(ms, 1_761_888_000_024);
     }
 
     #[test]

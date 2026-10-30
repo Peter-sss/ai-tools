@@ -54,6 +54,13 @@ pub fn export_cursor_accounts_text(account_ids: Vec<String>) -> Result<String, S
 }
 
 #[tauri::command]
+pub async fn fetch_cursor_usage_spend(
+    account_id: String,
+) -> Result<cursor_account::CursorUsageSpendBreakdown, String> {
+    cursor_account::fetch_usage_spend_breakdown(&account_id).await
+}
+
+#[tauri::command]
 pub async fn refresh_cursor_token(
     app: AppHandle,
     account_id: String,

@@ -1147,6 +1147,7 @@ pub fn run() {
             commands::cursor::import_cursor_from_local,
             commands::cursor::export_cursor_accounts,
             commands::cursor::export_cursor_accounts_text,
+            commands::cursor::fetch_cursor_usage_spend,
             commands::cursor::refresh_cursor_token,
             commands::cursor::refresh_all_cursor_tokens,
             commands::cursor::add_cursor_account_with_token,
