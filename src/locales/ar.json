@@ -1113,6 +1113,8 @@
       "testAction": "اختبار/حفظ الإعدادات",
       "uploadAction": "إنشاء ورفع",
       "syncAction": "مزامنة الإعدادات",
+      "headerUploadAction": "رفع",
+      "headerSyncAction": "مزامنة",
       "syncLatestConfirm": "هل أنت متأكد من رغبتك في سحب آخر نسخة احتياطية بعيدة {{name}} ومزامنتها محلياً؟ سيؤدي هذا إلى استبدال البيانات المحلية الحالية.",
       "remoteListTitle": "النسخ الاحتياطي البعيد",
       "remoteListDesc": "يتم عرض ملفات JSON وZIP المطابقة لأسماء نسخ Cockpit الاحتياطي التلقائي/اليدوي فقط.",
@@ -4315,6 +4317,16 @@
       "formatRequired": "رمز مفرد: الصق JWT مباشرة؛ استيراد دفعي: استخدم تنسيق مصفوفة JSON",
       "singleExample": "مثال مفرد (JWT)",
       "batchExample": "مثال دفعي (JSON)"
+    },
+    "export": {
+      "titleText": "تصدير أسطر نصية",
+      "titleJson": "تصدير JSON"
+    },
+    "exportFormat": {
+      "label": "تنسيق التصدير",
+      "text": "سطر نصي (email----user_id::jwt)",
+      "textWithReset": "سطر نصي (الوقت----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "استيراد بيانات الحساب من عميل Cursor المحلي أو ملف JSON.",

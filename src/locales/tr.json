@@ -1066,6 +1066,8 @@
       "testAction": "Test Et/Kaydet",
       "uploadAction": "Oluştur & Yükle",
       "syncAction": "Ayarları Senkronize Et",
+      "headerUploadAction": "Yükle",
+      "headerSyncAction": "Senkronize Et",
       "syncLatestConfirm": "En son uzak yedeği {{name}} çekmek ve yerel verilerle senkronize etmek istediğinizden emin misiniz? Bu işlem mevcut yerel verilerin üzerine yazacaktır.",
       "remoteListTitle": "Uzak Yedekler",
       "remoteListDesc": "Sadece Cockpit otomatik/manuel yedekleme adlarıyla eşleşen JSON ve ZIP dosyaları gösterilir.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Tekli jeton: JWT'yi doğrudan yapıştırın; toplu içe aktarma: JSON dizi formatı kullanın",
       "singleExample": "Tekli örnek (JWT)",
       "batchExample": "Toplu örnek (JSON)"
+    },
+    "export": {
+      "titleText": "Metin satırlarını dışa aktar",
+      "titleJson": "JSON dışa aktar"
+    },
+    "exportFormat": {
+      "label": "Dışa aktarma biçimi",
+      "text": "Metin satırı (email----user_id::jwt)",
+      "textWithReset": "Metin satırı (zaman----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Yerel Cursor istemcisinden veya bir JSON dosyasından hesap verilerini içe aktarın.",

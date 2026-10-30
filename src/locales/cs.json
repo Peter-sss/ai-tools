@@ -1066,6 +1066,8 @@
       "testAction": "Testovat/Uložit nastavení",
       "uploadAction": "Vytvořit a nahrát",
       "syncAction": "Synchronizovat nastavení",
+      "headerUploadAction": "Nahrát",
+      "headerSyncAction": "Synchronizovat",
       "syncLatestConfirm": "Opravdu chcete stáhnout nejnovější vzdálenou zálohu {{name}} a synchronizovat ji lokálně? Tím dojde k přepsání stávajících lokálních dat.",
       "remoteListTitle": "Vzdálené zálohy",
       "remoteListDesc": "Zobrazují se pouze soubory JSON a ZIP odpovídající názvům automatických/ručních záloh Cockpit.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Jeden token: vložte JWT přímo; hromadný import: použijte formát JSON pole",
       "singleExample": "Příklad jednoho tokenu (JWT)",
       "batchExample": "Příklad hromadného importu (JSON)"
+    },
+    "export": {
+      "titleText": "Exportovat textové řádky",
+      "titleJson": "Exportovat JSON"
+    },
+    "exportFormat": {
+      "label": "Formát exportu",
+      "text": "Textový řádek (email----user_id::jwt)",
+      "textWithReset": "Textový řádek (čas----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Importujte data účtu z místního klienta Cursor nebo souboru JSON.",

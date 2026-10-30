@@ -1066,6 +1066,8 @@
       "testAction": "Probar/Guardar configuración",
       "uploadAction": "Crear y subir",
       "syncAction": "Sincronizar configuración",
+      "headerUploadAction": "Subir",
+      "headerSyncAction": "Sincronizar",
       "syncLatestConfirm": "¿Está seguro de que desea descargar la última copia de seguridad remota {{name}} y sincronizarla localmente? Esto sobrescribirá los datos locales existentes.",
       "remoteListTitle": "Copias de seguridad remotas",
       "remoteListDesc": "Solo se muestran los archivos JSON y ZIP que coinciden con los nombres de copias de seguridad automáticas/manuales de Cockpit.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Token individual: pega el JWT directamente; importación masiva: usa formato de array JSON",
       "singleExample": "Ejemplo individual (JWT)",
       "batchExample": "Ejemplo masivo (JSON)"
+    },
+    "export": {
+      "titleText": "Exportar líneas de texto",
+      "titleJson": "Exportar JSON"
+    },
+    "exportFormat": {
+      "label": "Formato de exportación",
+      "text": "Línea de texto (email----user_id::jwt)",
+      "textWithReset": "Línea de texto (hora----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Importar datos de cuenta desde el cliente local de Cursor o un archivo JSON.",

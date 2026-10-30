@@ -1113,6 +1113,8 @@
       "testAction": "Uji/Simpan Konfigurasi",
       "uploadAction": "Buat & Unggah",
       "syncAction": "Sinkronisasi Konfigurasi",
+      "headerUploadAction": "Unggah",
+      "headerSyncAction": "Sinkronisasi",
       "syncLatestConfirm": "Apakah Anda yakin ingin mengunduh cadangan jarak jauh terbaru {{name}} dan menyinkronkannya secara lokal? Ini akan menimpa data lokal yang ada.",
       "remoteListTitle": "Cadangan Jarak Jauh",
       "remoteListDesc": "Hanya file JSON dan ZIP yang cocok dengan nama cadangan otomatis/manual Cockpit yang ditampilkan.",
@@ -4424,6 +4426,16 @@
       "formatRequired": "Token tunggal: tempel JWT langsung; impor batch: gunakan format array JSON",
       "singleExample": "Single example (JWT)​",
       "batchExample": "Batch example (JSON)​"
+    },
+    "export": {
+      "titleText": "Ekspor baris teks",
+      "titleJson": "Ekspor JSON"
+    },
+    "exportFormat": {
+      "label": "Format ekspor",
+      "text": "Baris teks (email----user_id::jwt)",
+      "textWithReset": "Baris teks (waktu----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Impor data akun dari klien Cursor lokal atau berkas JSON.",

@@ -579,6 +579,36 @@
   align-items: center;
 }
 
+.cursor-webdav-header-actions {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.cursor-webdav-header-actions-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cursor-webdav-header-actions .btn {
+  height: 36px;
+  padding: 0 12px;
+  font-size: 13px;
+  gap: 6px;
+}
+
+.cursor-webdav-header-feedback {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 20;
+  width: max-content;
+  max-width: min(280px, 42vw);
+  white-space: normal;
+  box-shadow: var(--shadow-md);
+}
+
 .page-tabs-leading .platform-group-switcher-trigger {
   height: 42px;
   padding: 0 16px;
@@ -909,8 +939,13 @@ html[data-reduced-motion="true"]
   }
 
   .page-tabs-leading,
-  .page-tabs-row-with-leading .page-tabs {
+  .page-tabs-row-with-leading .page-tabs,
+  .page-tabs-trailing {
     grid-column: 1;
+  }
+
+  .page-tabs-trailing {
+    justify-self: end;
   }
 
   .page-tabs-leading {

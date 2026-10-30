@@ -58,6 +58,7 @@ interface PlatformOverviewTabsHeaderProps {
   active: PlatformOverviewTab;
   onTabChange?: (tab: PlatformOverviewTab) => void;
   tabs?: PlatformOverviewTab[];
+  trailing?: ReactNode;
 }
 
 interface PlatformOverviewConfig {
@@ -147,6 +148,7 @@ export function PlatformOverviewTabsHeader({
   active,
   onTabChange,
   tabs,
+  trailing,
 }: PlatformOverviewTabsHeaderProps) {
   const { t } = useTranslation();
   const { platformGroups } = usePlatformLayoutStore();
@@ -264,6 +266,7 @@ export function PlatformOverviewTabsHeader({
           </button>
         ))}
       </div>
+      {trailing ? <div className="page-tabs-trailing">{trailing}</div> : null}
     </div>
   );
 }

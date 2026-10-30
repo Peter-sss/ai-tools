@@ -8,7 +8,7 @@ use std::fs;
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::timeout;
 use tokio_tungstenite::connect_async;
@@ -26,6 +26,8 @@ const CURSOR_AUTH_VSCDB_RAW_KEY: &str = "_vscdb";
 lazy_static::lazy_static! {
     static ref CURSOR_ACCOUNT_INDEX_LOCK: Mutex<()> = Mutex::new(());
     static ref CURSOR_QUOTA_ALERT_LAST_SENT: Mutex<HashMap<String, i64>> = Mutex::new(HashMap::new());
+    static ref CURSOR_ACCOUNT_REFRESH_LOCKS: Mutex<HashMap<String, Arc<tokio::sync::Mutex<()>>>> =
+        Mutex::new(HashMap::new());
 }
 
 fn now_ts() -> i64 {
@@ -2359,11 +2361,150 @@ fn format_reqwest_error(error: &reqwest::Error) -> String {
     }
 }
 
+const CURSOR_HTTP_CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
+const CURSOR_HTTP_TIMEOUT: Duration = Duration::from_secs(15);
+const CURSOR_REFRESH_MAX_CONCURRENT: usize = 4;
+const CURSOR_REFRESH_STAGGER_MS: u64 = 150;
+const CURSOR_HTTP_RETRY_DELAYS_MS: [u64; 2] = [400, 800];
+
+struct CursorHttpResponse {
+    status: u16,
+    body: String,
+}
+
 fn build_cursor_http_client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
+        .http1_only()
+        .connect_timeout(CURSOR_HTTP_CONNECT_TIMEOUT)
+        .timeout(CURSOR_HTTP_TIMEOUT)
         .build()
         .map_err(|e| format!("创建 HTTP 客户端失败: {}", format_reqwest_error(&e)))
+}
+
+fn is_retryable_cursor_status(status: u16) -> bool {
+    status == 429 || status == 502
+}
+
+fn is_retryable_cursor_transport(error: &reqwest::Error) -> bool {
+    if error.is_connect() {
+        return true;
+    }
+    let message = format_error_chain(error).to_ascii_lowercase();
+    message.contains("connection closed")
+        || message.contains("closed session")
+        || message.contains("connection reset")
+        || message.contains("broken pipe")
+}
+
+fn is_cursor_session_auth_error(message: &str) -> bool {
+    message.contains("会话已过期或未认证")
+}
+
+pub(crate) fn cursor_usage_refresh_succeeded(account: &CursorAccount) -> bool {
+    account
+        .quota_query_last_error
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .is_none()
+}
+
+async fn send_cursor_with_retry(
+    context: &str,
+    mut build: impl FnMut() -> reqwest::RequestBuilder,
+) -> Result<CursorHttpResponse, String> {
+    let mut attempt = 0usize;
+    loop {
+        match build().send().await {
+            Ok(response) => {
+                let status = response.status().as_u16();
+                if is_retryable_cursor_status(status) && attempt < CURSOR_HTTP_RETRY_DELAYS_MS.len()
+                {
+                    let delay = CURSOR_HTTP_RETRY_DELAYS_MS[attempt];
+                    logger::log_warn(&format!(
+                        "[Cursor Refresh] {} 返回 {}，{}ms 后重试 ({}/{})",
+                        context,
+                        status,
+                        delay,
+                        attempt + 1,
+                        CURSOR_HTTP_RETRY_DELAYS_MS.len()
+                    ));
+                    attempt += 1;
+                    tokio::time::sleep(Duration::from_millis(delay)).await;
+                    continue;
+                }
+                match response.text().await {
+                    Ok(body) => return Ok(CursorHttpResponse { status, body }),
+                    Err(error)
+                        if is_retryable_cursor_transport(&error)
+                            && attempt < CURSOR_HTTP_RETRY_DELAYS_MS.len() =>
+                    {
+                        let delay = CURSOR_HTTP_RETRY_DELAYS_MS[attempt];
+                        logger::log_warn(&format!(
+                            "[Cursor Refresh] {} 读取响应时连接中断，{}ms 后重试 ({}/{}): {}",
+                            context,
+                            delay,
+                            attempt + 1,
+                            CURSOR_HTTP_RETRY_DELAYS_MS.len(),
+                            format_reqwest_error(&error)
+                        ));
+                        attempt += 1;
+                        tokio::time::sleep(Duration::from_millis(delay)).await;
+                    }
+                    Err(error) => {
+                        return Err(format!(
+                            "读取 {} 响应失败: {}",
+                            context,
+                            format_reqwest_error(&error)
+                        ));
+                    }
+                }
+            }
+            Err(error)
+                if is_retryable_cursor_transport(&error)
+                    && attempt < CURSOR_HTTP_RETRY_DELAYS_MS.len() =>
+            {
+                let delay = CURSOR_HTTP_RETRY_DELAYS_MS[attempt];
+                logger::log_warn(&format!(
+                    "[Cursor Refresh] {} 连接中断，{}ms 后重试 ({}/{}): {}",
+                    context,
+                    delay,
+                    attempt + 1,
+                    CURSOR_HTTP_RETRY_DELAYS_MS.len(),
+                    format_reqwest_error(&error)
+                ));
+                attempt += 1;
+                tokio::time::sleep(Duration::from_millis(delay)).await;
+            }
+            Err(error) => {
+                return Err(format!("{}失败: {}", context, format_reqwest_error(&error)));
+            }
+        }
+    }
+}
+
+fn account_refresh_lock(account_id: &str) -> Arc<tokio::sync::Mutex<()>> {
+    let mut locks = CURSOR_ACCOUNT_REFRESH_LOCKS
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    locks
+        .entry(account_id.to_string())
+        .or_insert_with(|| Arc::new(tokio::sync::Mutex::new(())))
+        .clone()
+}
+
+fn persist_rotated_cursor_tokens(account: &CursorAccount) {
+    if let Err(err) = upsert_account_record(account.clone()) {
+        logger::log_warn(&format!(
+            "[Cursor Refresh] 换票后立即落盘失败: id={}, error={}",
+            account.id, err
+        ));
+        return;
+    }
+    logger::log_info(&format!(
+        "[Cursor Refresh] 换票后已落盘: id={}",
+        account.id
+    ));
 }
 
 fn extract_workos_user_id(jwt: &str) -> Option<String> {
@@ -2714,30 +2855,20 @@ async fn exchange_refresh_token_with_client(
     client: &reqwest::Client,
     refresh_token: &str,
 ) -> Result<CursorRefreshTokenResponse, String> {
-    let response = client
-        .post(CURSOR_OAUTH_TOKEN_URL)
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({
-            "grant_type": "refresh_token",
-            "client_id": CURSOR_AUTH_CLIENT_ID,
-            "refresh_token": refresh_token,
-        }))
-        .send()
-        .await
-        .map_err(|e| {
-            format!(
-                "请求 Cursor token 刷新接口失败: {}",
-                format_reqwest_error(&e)
-            )
-        })?;
+    let response = send_cursor_with_retry("请求 Cursor token 刷新接口", || {
+        client
+            .post(CURSOR_OAUTH_TOKEN_URL)
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({
+                "grant_type": "refresh_token",
+                "client_id": CURSOR_AUTH_CLIENT_ID,
+                "refresh_token": refresh_token,
+            }))
+    })
+    .await?;
 
-    let status = response.status().as_u16();
-    let body = response.text().await.map_err(|e| {
-        format!(
-            "读取 Cursor token 刷新响应失败: {}",
-            format_reqwest_error(&e)
-        )
-    })?;
+    let status = response.status;
+    let body = response.body;
 
     if status == 401 || status == 403 {
         return Err("Cursor refresh token 已过期或无效，请重新导入账号".to_string());
@@ -2788,17 +2919,17 @@ async fn fetch_user_meta_with_client(
     client: &reqwest::Client,
     access_token: &str,
 ) -> Result<CursorUserMetaResponse, String> {
-    let response = client
-        .post(CURSOR_GET_USER_META_URL)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({}))
-        .send()
-        .await
-        .map_err(|e| format!("请求 Cursor user meta 失败: {}", format_reqwest_error(&e)))?;
+    let response = send_cursor_with_retry("请求 Cursor user meta", || {
+        client
+            .post(CURSOR_GET_USER_META_URL)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .json(&serde_json::json!({}))
+    })
+    .await?;
 
-    let status = response.status().as_u16();
+    let status = response.status;
     if status == 401 || status == 403 {
         return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
     }
@@ -2806,12 +2937,7 @@ async fn fetch_user_meta_with_client(
         return Err(format!("Cursor user meta API 返回异常状态码: {}", status));
     }
 
-    let body = response.text().await.map_err(|e| {
-        format!(
-            "读取 Cursor user meta 响应失败: {}",
-            format_reqwest_error(&e)
-        )
-    })?;
+    let body = response.body;
 
     serde_json::from_str::<CursorUserMetaResponse>(&body)
         .map_err(|e| format!("解析 Cursor user meta JSON 失败: {}", e))
@@ -2821,49 +2947,34 @@ async fn fetch_stripe_profile_with_client(
     client: &reqwest::Client,
     access_token: &str,
 ) -> Result<Option<CursorStripeProfileResponse>, String> {
-    let full_response = client
-        .get(CURSOR_FULL_STRIPE_PROFILE_URL)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| {
-            format!(
-                "请求 Cursor full stripe profile 失败: {}",
-                format_reqwest_error(&e)
-            )
-        })?;
+    let full_response = send_cursor_with_retry("请求 Cursor full stripe profile", || {
+        client
+            .get(CURSOR_FULL_STRIPE_PROFILE_URL)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Accept", "application/json")
+    })
+    .await?;
 
-    let full_status = full_response.status().as_u16();
+    let full_status = full_response.status;
     if full_status == 401 || full_status == 403 {
         return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
     }
     if full_status == 200 {
-        let body = full_response.text().await.map_err(|e| {
-            format!(
-                "读取 Cursor full stripe profile 响应失败: {}",
-                format_reqwest_error(&e)
-            )
-        })?;
+        let body = full_response.body;
         let profile = serde_json::from_str::<CursorStripeProfileResponse>(&body)
             .map_err(|e| format!("解析 Cursor full stripe profile JSON 失败: {}", e))?;
         return Ok(Some(profile));
     }
 
-    let fallback_response = client
-        .get(CURSOR_STRIPE_PROFILE_URL)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("Accept", "application/json")
-        .send()
-        .await
-        .map_err(|e| {
-            format!(
-                "请求 Cursor stripe profile 失败: {}",
-                format_reqwest_error(&e)
-            )
-        })?;
+    let fallback_response = send_cursor_with_retry("请求 Cursor stripe profile", || {
+        client
+            .get(CURSOR_STRIPE_PROFILE_URL)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Accept", "application/json")
+    })
+    .await?;
 
-    let fallback_status = fallback_response.status().as_u16();
+    let fallback_status = fallback_response.status;
     if fallback_status == 401 || fallback_status == 403 {
         return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
     }
@@ -2871,12 +2982,7 @@ async fn fetch_stripe_profile_with_client(
         return Ok(None);
     }
 
-    let body = fallback_response.text().await.map_err(|e| {
-        format!(
-            "读取 Cursor stripe profile 响应失败: {}",
-            format_reqwest_error(&e)
-        )
-    })?;
+    let body = fallback_response.body;
 
     let parsed = serde_json::from_str::<serde_json::Value>(&body)
         .map_err(|e| format!("解析 Cursor stripe profile JSON 失败: {}", e))?;
@@ -2910,19 +3016,19 @@ async fn fetch_usage_summary_with_client(
     let cookie = build_session_cookie(access_token)
         .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
 
-    let response = client
-        .get(CURSOR_USAGE_SUMMARY_URL)
-        .header("Accept", "application/json")
-        .header("Cookie", &cookie)
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        )
-        .send()
-        .await
-        .map_err(|e| format!("请求 Cursor usage API 失败: {}", format_reqwest_error(&e)))?;
+    let response = send_cursor_with_retry("请求 Cursor usage API", || {
+        client
+            .get(CURSOR_USAGE_SUMMARY_URL)
+            .header("Accept", "application/json")
+            .header("Cookie", &cookie)
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+            )
+    })
+    .await?;
 
-    let status = response.status().as_u16();
+    let status = response.status;
     if status == 401 || status == 403 {
         return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
     }
@@ -2930,10 +3036,7 @@ async fn fetch_usage_summary_with_client(
         return Err(format!("Cursor usage API 返回异常状态码: {}", status));
     }
 
-    let body = response
-        .text()
-        .await
-        .map_err(|e| format!("读取 Cursor usage 响应失败: {}", format_reqwest_error(&e)))?;
+    let body = response.body;
 
     serde_json::from_str::<serde_json::Value>(&body)
         .map_err(|e| format!("解析 Cursor usage JSON 失败: {}", e))
@@ -3471,30 +3574,20 @@ async fn fetch_sand_usage_status_with_client(
     client: &reqwest::Client,
     access_token: &str,
 ) -> Result<Value, String> {
-    let rpc_response = client
-        .post(CURSOR_SAND_USAGE_RPC_URL)
-        .header("Authorization", format!("Bearer {}", access_token))
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .header("Connect-Protocol-Version", "1")
-        .json(&serde_json::json!({}))
-        .send()
-        .await
-        .map_err(|e| {
-            format!(
-                "请求 Cursor Grok Bot 用量接口失败: {}",
-                format_reqwest_error(&e)
-            )
-        })?;
+    let rpc_response = send_cursor_with_retry("请求 Cursor Grok Bot 用量接口", || {
+        client
+            .post(CURSOR_SAND_USAGE_RPC_URL)
+            .header("Authorization", format!("Bearer {}", access_token))
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("Connect-Protocol-Version", "1")
+            .json(&serde_json::json!({}))
+    })
+    .await?;
 
-    let rpc_status = rpc_response.status().as_u16();
+    let rpc_status = rpc_response.status;
     if rpc_status == 200 {
-        let body = rpc_response.text().await.map_err(|e| {
-            format!(
-                "读取 Cursor Grok Bot 用量响应失败: {}",
-                format_reqwest_error(&e)
-            )
-        })?;
+        let body = rpc_response.body;
         if let Ok(value) = parse_json_object_body(&body, "Cursor Grok Bot 用量") {
             if sand_usage_looks_valid(&value) {
                 return Ok(value);
@@ -3506,27 +3599,22 @@ async fn fetch_sand_usage_status_with_client(
 
     let cookie = build_session_cookie(access_token)
         .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
-    let dashboard_response = client
-        .post(CURSOR_SAND_USAGE_DASHBOARD_URL)
-        .header("Accept", "application/json")
-        .header("Content-Type", "application/json")
-        .header("Cookie", &cookie)
-        .header("Origin", "https://cursor.com")
-        .header(
-            "User-Agent",
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
-        )
-        .json(&serde_json::json!({}))
-        .send()
-        .await
-        .map_err(|e| {
-            format!(
-                "请求 Cursor Grok Bot dashboard 用量失败: {}",
-                format_reqwest_error(&e)
+    let dashboard_response = send_cursor_with_retry("请求 Cursor Grok Bot dashboard 用量", || {
+        client
+            .post(CURSOR_SAND_USAGE_DASHBOARD_URL)
+            .header("Accept", "application/json")
+            .header("Content-Type", "application/json")
+            .header("Cookie", &cookie)
+            .header("Origin", "https://cursor.com")
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
             )
-        })?;
+            .json(&serde_json::json!({}))
+    })
+    .await?;
 
-    let dashboard_status = dashboard_response.status().as_u16();
+    let dashboard_status = dashboard_response.status;
     if dashboard_status == 401 || dashboard_status == 403 {
         return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
     }
@@ -3537,12 +3625,7 @@ async fn fetch_sand_usage_status_with_client(
         ));
     }
 
-    let body = dashboard_response.text().await.map_err(|e| {
-        format!(
-            "读取 Cursor Grok Bot dashboard 用量响应失败: {}",
-            format_reqwest_error(&e)
-        )
-    })?;
+    let body = dashboard_response.body;
     parse_json_object_body(&body, "Cursor Grok Bot dashboard 用量")
 }
 
@@ -3550,31 +3633,66 @@ async fn fetch_sand_usage_status_with_client(
 // Refresh (updates our own account storage + fetches usage from official APIs)
 // ---------------------------------------------------------------------------
 
-async fn refresh_account_async_once(account_id: &str) -> Result<CursorAccount, String> {
+async fn rotate_cursor_access_token(
+    client: &reqwest::Client,
+    account: &mut CursorAccount,
+) -> Result<bool, String> {
+    let rotated = refresh_account_access_token_with_client(client, account).await?;
+    if rotated {
+        logger::log_info(&format!(
+            "[Cursor Refresh] access token 刷新成功: id={}",
+            account.id
+        ));
+        persist_rotated_cursor_tokens(account);
+    }
+    Ok(rotated)
+}
+
+async fn fetch_usage_summary_after_auth_retry(
+    client: &reqwest::Client,
+    account: &mut CursorAccount,
+) -> Result<serde_json::Value, String> {
+    match fetch_usage_summary_with_client(client, &account.access_token).await {
+        Ok(usage) => Ok(usage),
+        Err(err) if is_cursor_session_auth_error(&err) => {
+            logger::log_warn(&format!(
+                "[Cursor Refresh] 用量接口未认证，换票后重试一次: id={}, error={}",
+                account.id, err
+            ));
+            match rotate_cursor_access_token(client, account).await {
+                Ok(true) => fetch_usage_summary_with_client(client, &account.access_token).await,
+                Ok(false) => Err(err),
+                Err(refresh_err) => {
+                    logger::log_warn(&format!(
+                        "[Cursor Refresh] 用量未认证后换票失败: id={}, error={}",
+                        account.id, refresh_err
+                    ));
+                    Err(refresh_err)
+                }
+            }
+        }
+        Err(err) => Err(err),
+    }
+}
+
+async fn refresh_account_async_once(
+    account_id: &str,
+    client: &reqwest::Client,
+) -> Result<CursorAccount, String> {
     let existing = load_account(account_id).ok_or_else(|| "账号不存在".to_string())?;
     logger::log_info(&format!(
         "[Cursor Refresh] 开始刷新账号: id={}, email={}",
         existing.id, existing.email
     ));
 
-    let client = build_cursor_http_client()?;
     let mut account = existing.clone();
 
     if access_token_needs_refresh(&account.access_token) {
-        match refresh_account_access_token_with_client(&client, &mut account).await {
-            Ok(true) => {
-                logger::log_info(&format!(
-                    "[Cursor Refresh] access token 刷新成功: id={}",
-                    account.id
-                ));
-            }
-            Ok(false) => {}
-            Err(err) => {
-                logger::log_warn(&format!(
-                    "[Cursor Refresh] access token 刷新失败，继续使用现有 token: id={}, error={}",
-                    account.id, err
-                ));
-            }
+        if let Err(err) = rotate_cursor_access_token(client, &mut account).await {
+            logger::log_warn(&format!(
+                "[Cursor Refresh] access token 刷新失败，继续使用现有 token: id={}, error={}",
+                account.id, err
+            ));
         }
     }
 
@@ -3659,7 +3777,7 @@ async fn refresh_account_async_once(account_id: &str) -> Result<CursorAccount, S
     }
 
     let mut usage_refreshed = false;
-    match fetch_usage_summary_with_client(&client, &account.access_token).await {
+    match fetch_usage_summary_after_auth_retry(client, &mut account).await {
         Ok(mut usage) => {
             if let Some(mt) = usage.get("membershipType").and_then(|v| v.as_str()) {
                 if !mt.is_empty() {
@@ -3716,20 +3834,28 @@ async fn refresh_account_async_once(account_id: &str) -> Result<CursorAccount, S
     Ok(updated)
 }
 
-pub async fn refresh_account_async(account_id: &str) -> Result<CursorAccount, String> {
-    let result = refresh_account_async_once(account_id).await;
+async fn refresh_account_with_client(
+    account_id: &str,
+    client: &reqwest::Client,
+) -> Result<CursorAccount, String> {
+    let lock = account_refresh_lock(account_id);
+    let _guard = lock.lock().await;
+    let result = refresh_account_async_once(account_id, client).await;
     if let Err(err) = &result {
         persist_quota_query_error(account_id, err);
     }
     result
 }
 
+pub async fn refresh_account_async(account_id: &str) -> Result<CursorAccount, String> {
+    let client = build_cursor_http_client()?;
+    refresh_account_with_client(account_id, &client).await
+}
+
 pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<CursorAccount, String>)>, String> {
     use futures::future::join_all;
-    use std::sync::Arc;
     use tokio::sync::Semaphore;
 
-    const MAX_CONCURRENT: usize = 5;
     let accounts = list_accounts();
     let total = accounts.len();
     let active_accounts: Vec<CursorAccount> = accounts
@@ -3744,18 +3870,35 @@ pub async fn refresh_all_tokens() -> Result<Vec<(String, Result<CursorAccount, S
         ));
     }
 
-    let semaphore = Arc::new(Semaphore::new(MAX_CONCURRENT));
+    let client = build_cursor_http_client()?;
+    let semaphore = Arc::new(Semaphore::new(CURSOR_REFRESH_MAX_CONCURRENT));
     let tasks: Vec<_> = active_accounts
         .into_iter()
-        .map(|account| {
+        .enumerate()
+        .map(|(index, account)| {
             let id = account.id;
             let semaphore = semaphore.clone();
+            let client = client.clone();
             async move {
                 let _permit = semaphore
                     .acquire_owned()
                     .await
                     .map_err(|e| format!("获取 Cursor 刷新并发许可失败: {}", e))?;
-                let result = refresh_account_async(&id).await;
+                let stagger_slots = (index % CURSOR_REFRESH_MAX_CONCURRENT) as u64;
+                if stagger_slots > 0 {
+                    tokio::time::sleep(Duration::from_millis(
+                        stagger_slots * CURSOR_REFRESH_STAGGER_MS,
+                    ))
+                    .await;
+                }
+                let refreshed = refresh_account_with_client(&id, &client).await;
+                let result = match refreshed {
+                    Ok(account) if !cursor_usage_refresh_succeeded(&account) => Err(account
+                        .quota_query_last_error
+                        .clone()
+                        .unwrap_or_else(|| "Cursor usage API 刷新失败".to_string())),
+                    other => other,
+                };
                 Ok::<(String, Result<CursorAccount, String>), String>((id, result))
             }
         })
@@ -4161,6 +4304,29 @@ mod tests {
             .as_bytes(),
         );
         format!("{}.{}.sig", header, payload)
+    }
+
+    #[test]
+    fn cursor_refresh_retries_rate_limit_and_bad_gateway_only() {
+        assert!(is_retryable_cursor_status(429));
+        assert!(is_retryable_cursor_status(502));
+        assert!(!is_retryable_cursor_status(401));
+        assert!(!is_retryable_cursor_status(403));
+        assert!(!is_retryable_cursor_status(200));
+        assert!(!is_retryable_cursor_status(500));
+    }
+
+    #[test]
+    fn cursor_session_auth_error_is_distinct_from_transport_failure() {
+        assert!(is_cursor_session_auth_error(
+            "Cursor 会话已过期或未认证，请重新导入账号"
+        ));
+        assert!(!is_cursor_session_auth_error(
+            "Cursor usage API 返回异常状态码: 502"
+        ));
+        assert!(!is_cursor_session_auth_error(
+            "请求 Cursor usage API失败: connection closed"
+        ));
     }
 
     #[test]

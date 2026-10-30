@@ -1066,6 +1066,8 @@
       "testAction": "Testen/Einstellungen speichern",
       "uploadAction": "Erstellen & Hochladen",
       "syncAction": "Einstellungen synchronisieren",
+      "headerUploadAction": "Hochladen",
+      "headerSyncAction": "Synchronisieren",
       "syncLatestConfirm": "Möchten Sie wirklich das neueste Remote-Backup {{name}} herunterladen und lokal synchronisieren? Dadurch werden bestehende lokale Daten überschrieben.",
       "remoteListTitle": "Remote-Backups",
       "remoteListDesc": "Es werden nur JSON- und ZIP-Dateien angezeigt, die den Namen der automatischen/manuellen Cockpit-Backups entsprechen.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Einzelnes Token: JWT direkt einfügen; Massenimport: JSON-Array-Format verwenden",
       "singleExample": "Einzelbeispiel (JWT)",
       "batchExample": "Massenbeispiel (JSON)"
+    },
+    "export": {
+      "titleText": "Textzeilen exportieren",
+      "titleJson": "JSON exportieren"
+    },
+    "exportFormat": {
+      "label": "Exportformat",
+      "text": "Textzeile (email----user_id::jwt)",
+      "textWithReset": "Textzeile (Zeit----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Kontodaten vom lokalen Cursor-Client oder einer JSON-Datei importieren.",

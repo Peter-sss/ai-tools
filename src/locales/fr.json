@@ -1066,6 +1066,8 @@
       "testAction": "Tester/Enregistrer la config",
       "uploadAction": "Créer & Télécharger",
       "syncAction": "Synchroniser la config",
+      "headerUploadAction": "Téléverser",
+      "headerSyncAction": "Synchroniser",
       "syncLatestConfirm": "Voulez-vous vraiment télécharger la dernière sauvegarde distante {{name}} et la synchroniser localement ? Cela écrasera les données locales existantes.",
       "remoteListTitle": "Sauvegardes distantes",
       "remoteListDesc": "Seuls les fichiers JSON et ZIP correspondant aux noms de sauvegarde automatique/manuelle de Cockpit sont affichés.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Jeton unique : collez le JWT directement ; import en lot : utilisez le format tableau JSON",
       "singleExample": "Exemple unique (JWT)",
       "batchExample": "Exemple en lot (JSON)"
+    },
+    "export": {
+      "titleText": "Exporter des lignes de texte",
+      "titleJson": "Exporter JSON"
+    },
+    "exportFormat": {
+      "label": "Format d'export",
+      "text": "Ligne de texte (email----user_id::jwt)",
+      "textWithReset": "Ligne de texte (heure----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Importer les données de compte depuis le client Cursor local ou un fichier JSON.",

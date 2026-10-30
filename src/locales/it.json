@@ -1066,6 +1066,8 @@
       "testAction": "Testa/Salva configurazione",
       "uploadAction": "Crea e carica",
       "syncAction": "Sincronizza configurazione",
+      "headerUploadAction": "Carica",
+      "headerSyncAction": "Sincronizza",
       "syncLatestConfirm": "Sei sicuro di voler scaricare l'ultimo backup remoto {{name}} e sincronizzarlo localmente? Questo sovrascriverà i dati locali esistenti.",
       "remoteListTitle": "Backup remoti",
       "remoteListDesc": "Vengono mostrati solo i file JSON e ZIP che corrispondono ai nomi dei backup automatici/manuali di Cockpit.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Token singolo: incolla direttamente il JWT; importazione in blocco: usa il formato array JSON",
       "singleExample": "Esempio singolo (JWT)",
       "batchExample": "Esempio in blocco (JSON)"
+    },
+    "export": {
+      "titleText": "Esporta righe di testo",
+      "titleJson": "Esporta JSON"
+    },
+    "exportFormat": {
+      "label": "Formato di esportazione",
+      "text": "Riga di testo (email----user_id::jwt)",
+      "textWithReset": "Riga di testo (ora----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Importa i dati dell'account dal client Cursor locale o da un file JSON.",

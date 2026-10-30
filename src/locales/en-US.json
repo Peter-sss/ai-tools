@@ -1265,6 +1265,8 @@
       "testAction": "Test/Save Config",
       "uploadAction": "Create & Upload",
       "syncAction": "Sync Config",
+      "headerUploadAction": "Upload",
+      "headerSyncAction": "Sync",
       "syncLatestConfirm": "Are you sure you want to pull the latest remote backup {{name}} and sync to local? This will overwrite existing local data.",
       "remoteListTitle": "Remote Backups",
       "remoteListDesc": "Only JSON and ZIP files matching Cockpit auto/manual backup names are shown.",
@@ -4576,6 +4578,16 @@
       "formatRequired": "Single token: paste JWT directly; batch import: use JSON array format",
       "singleExample": "Single example (JWT)",
       "batchExample": "Batch example (JSON)"
+    },
+    "export": {
+      "titleText": "Export text lines",
+      "titleJson": "Export JSON"
+    },
+    "exportFormat": {
+      "label": "Export format",
+      "text": "Text line (email----user_id::jwt)",
+      "textWithReset": "Text line (time----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Import account data from local Cursor client or a JSON file.",

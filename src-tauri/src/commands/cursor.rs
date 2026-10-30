@@ -103,7 +103,15 @@ pub async fn refresh_all_cursor_tokens(app: AppHandle) -> Result<i32, String> {
     logger::log_info("[Cursor Command] 批量刷新开始");
 
     let results = cursor_account::refresh_all_tokens().await?;
-    let success_count = results.iter().filter(|(_, r)| r.is_ok()).count();
+    let success_count = results
+        .iter()
+        .filter(|(_, result)| {
+            result
+                .as_ref()
+                .ok()
+                .is_some_and(cursor_account::cursor_usage_refresh_succeeded)
+        })
+        .count();
 
     if success_count > 0 {
         if let Err(e) = cursor_account::run_quota_alert_if_needed() {

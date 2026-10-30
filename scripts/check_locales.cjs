@@ -162,6 +162,7 @@ function isAllowedEnglishReuse(key, value) {
 
   const allowedExactValues = new Set([
     'OAuth',
+    'JSON',
     'Token / JSON',
     // 品牌名 / 产品名允许跨语言保持英文原文
     'ai-tools',

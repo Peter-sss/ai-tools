@@ -8,6 +8,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.29] - 2026-10-30
+
+### Changed
+
+- **Cursor accounts can show a spend breakdown**: open the spend dialog from the accounts page to see Auto and API usage separately.
+- **Cursor header can upload and sync WebDAV directly**: the accounts toolbar has Upload and Sync, so this no longer requires opening Settings. A saved, enabled WebDAV config is required.
+
+### Fixed
+
+- **Refreshing all Cursor accounts no longer fails the batch when connections drop together**: refresh shares one HTTP/1.1 client, with at most 4 in flight and a staggered start. Connection resets, 502, and 429 are retried twice. If the usage API is unauthenticated, the access token is refreshed once and usage is retried. Only a final usage failure is shown as a quota query failure. User profile, subscription, and Bot usage failures do not change the success count.
+
+---
+
 ## [1.3.28] - 2026-09-24
 
 ### Fixed

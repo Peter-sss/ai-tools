@@ -1,4 +1,8 @@
-import { PlatformOverviewTabsHeader, PlatformOverviewTab } from './platform/PlatformOverviewTabsHeader';
+import { CursorWebdavHeaderActions } from "./CursorWebdavHeaderActions";
+import {
+  PlatformOverviewTabsHeader,
+  PlatformOverviewTab,
+} from "./platform/PlatformOverviewTabsHeader";
 
 export type CursorTab = PlatformOverviewTab;
 
@@ -12,6 +16,11 @@ export function CursorOverviewTabsHeader({
   onTabChange,
 }: CursorOverviewTabsHeaderProps) {
   return (
-    <PlatformOverviewTabsHeader platform="cursor" active={active} onTabChange={onTabChange} />
+    <PlatformOverviewTabsHeader
+      platform="cursor"
+      active={active}
+      onTabChange={onTabChange}
+      trailing={<CursorWebdavHeaderActions />}
+    />
   );
 }

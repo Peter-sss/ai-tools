@@ -1066,6 +1066,8 @@
       "testAction": "Kiểm tra/Lưu cấu hình",
       "uploadAction": "Tạo & Tải lên",
       "syncAction": "Đồng bộ cấu hình",
+      "headerUploadAction": "Tải lên",
+      "headerSyncAction": "Đồng bộ",
       "syncLatestConfirm": "Bạn có chắc chắn muốn tải bản sao lưu từ xa mới nhất {{name}} và đồng bộ hóa cục bộ không? Việc này sẽ ghi đè lên dữ liệu cục bộ hiện có.",
       "remoteListTitle": "Bản sao lưu từ xa",
       "remoteListDesc": "Chỉ hiển thị các tệp JSON và ZIP khớp với tên sao lưu tự động/thủ công của Cockpit.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Mã đơn lẻ: dán JWT trực tiếp; nhập hàng loạt: sử dụng định dạng mảng JSON",
       "singleExample": "Ví dụ đơn lẻ (JWT)",
       "batchExample": "Ví dụ hàng loạt (JSON)"
+    },
+    "export": {
+      "titleText": "Xuất dòng văn bản",
+      "titleJson": "Xuất JSON"
+    },
+    "exportFormat": {
+      "label": "Định dạng xuất",
+      "text": "Dòng văn bản (email----user_id::jwt)",
+      "textWithReset": "Dòng văn bản (thời gian----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Nhập dữ liệu tài khoản từ ứng dụng Cursor cục bộ hoặc tệp JSON.",

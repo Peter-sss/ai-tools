@@ -1066,6 +1066,8 @@
       "testAction": "テスト/設定保存",
       "uploadAction": "作成してアップロード",
       "syncAction": "設定同期",
+      "headerUploadAction": "アップロード",
+      "headerSyncAction": "同期",
       "syncLatestConfirm": "最新のリモートバックアップ {{name}} を取得してローカルに同期しますか？これにより、既存のローカルデータが上書きされます。",
       "remoteListTitle": "リモートバックアップ",
       "remoteListDesc": "Cockpitの自動/手動バックアップ名に一致するJSONおよびZIPファイルのみが表示されます。",
@@ -4268,6 +4270,16 @@
       "formatRequired": "単一トークン：JWT を直接貼り付け；一括インポート：JSON 配列形式を使用",
       "singleExample": "単一の例（JWT）",
       "batchExample": "一括の例（JSON）"
+    },
+    "export": {
+      "titleText": "テキスト行をエクスポート",
+      "titleJson": "JSON をエクスポート"
+    },
+    "exportFormat": {
+      "label": "エクスポート形式",
+      "text": "テキスト行 (email----user_id::jwt)",
+      "textWithReset": "テキスト行 (時刻----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "ローカルの Cursor クライアントまたは JSON ファイルからアカウントデータをインポートします。",

@@ -1066,6 +1066,8 @@
       "testAction": "테스트/설정 저장",
       "uploadAction": "생성 및 업로드",
       "syncAction": "설정 동기화",
+      "headerUploadAction": "업로드",
+      "headerSyncAction": "동기화",
       "syncLatestConfirm": "최신 원격 백업 {{name}}을 가져와 로컬로 동기화하시겠습니까? 이렇게 하면 기존 로컬 데이터가 덮어씌워집니다.",
       "remoteListTitle": "원격 백업",
       "remoteListDesc": "Cockpit 자동/수동 백업 이름과 일치하는 JSON 및 ZIP 파일만 표시됩니다.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "단일 토큰: JWT를 직접 붙여넣기; 일괄 가져오기: JSON 배열 형식 사용",
       "singleExample": "단일 예시 (JWT)",
       "batchExample": "일괄 예시 (JSON)"
+    },
+    "export": {
+      "titleText": "텍스트 줄 내보내기",
+      "titleJson": "JSON 내보내기"
+    },
+    "exportFormat": {
+      "label": "내보내기 형식",
+      "text": "텍스트 줄 (email----user_id::jwt)",
+      "textWithReset": "텍스트 줄 (시간----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "로컬 Cursor 클라이언트 또는 JSON 파일에서 계정 데이터를 가져옵니다.",

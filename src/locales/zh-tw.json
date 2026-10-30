@@ -1066,6 +1066,8 @@
       "testAction": "測試/保存設定",
       "uploadAction": "生成並上傳",
       "syncAction": "同步設定",
+      "headerUploadAction": "上傳",
+      "headerSyncAction": "同步",
       "syncLatestConfirm": "確認拉取最新的遠端備份 {{name}} 並同步到本地？此操作將覆蓋本地現有數據。",
       "remoteListTitle": "遠端備份",
       "remoteListDesc": "僅顯示匹配 Cockpit 自動/手動備份命名的 JSON 與 ZIP 檔案。",
@@ -4268,6 +4270,16 @@
       "formatRequired": "單一權杖：直接貼上 JWT；批次匯入：使用 JSON 陣列格式",
       "singleExample": "單一範例（JWT）",
       "batchExample": "批次範例（JSON）"
+    },
+    "export": {
+      "titleText": "匯出文字行",
+      "titleJson": "匯出 JSON"
+    },
+    "exportFormat": {
+      "label": "匯出格式",
+      "text": "文字行 (email----user_id::jwt)",
+      "textWithReset": "文字行 (時間----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "從本機 Cursor 用戶端或 JSON 檔案匯入帳號資料。",

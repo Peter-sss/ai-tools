@@ -1066,6 +1066,8 @@
       "testAction": "Testuj/Zapisz konfigurację",
       "uploadAction": "Utwórz i prześlij",
       "syncAction": "Synchronizuj konfigurację",
+      "headerUploadAction": "Prześlij",
+      "headerSyncAction": "Synchronizuj",
       "syncLatestConfirm": "Czy na pewno chcesz pobrać najnowszą zdalną kopię zapasową {{name}} i zsynchronizować ją lokalnie? Spowoduje to nadpisanie istniejących danych lokalnych.",
       "remoteListTitle": "Kopie zapasowe zdalne",
       "remoteListDesc": "Wyświetlane są tylko pliki JSON i ZIP pasujące do nazw automatycznych/ręcznych kopii zapasowych Cockpit.",
@@ -4268,6 +4270,16 @@
       "formatRequired": "Pojedynczy token: wklej JWT bezpośrednio; import zbiorczy: użyj formatu tablicy JSON",
       "singleExample": "Przykład pojedynczy (JWT)",
       "batchExample": "Przykład zbiorczy (JSON)"
+    },
+    "export": {
+      "titleText": "Eksportuj wiersze tekstu",
+      "titleJson": "Eksportuj JSON"
+    },
+    "exportFormat": {
+      "label": "Format eksportu",
+      "text": "Wiersz tekstu (email----user_id::jwt)",
+      "textWithReset": "Wiersz tekstu (czas----email----user_id::jwt)",
+      "json": "JSON"
     },
     "import": {
       "localDesc": "Importuj dane konta z lokalnego klienta Cursor lub pliku JSON.",
