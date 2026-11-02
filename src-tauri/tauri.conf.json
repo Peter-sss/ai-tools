@@ -50,9 +50,7 @@
     "active": true,
     "targets": "all",
     "createUpdaterArtifacts": true,
-    "externalBin": [
-      "../sidecars/cockpit-cliproxy/bin/cockpit-cliproxy"
-    ],
+    "externalBin": ["../sidecars/cockpit-cliproxy/bin/cockpit-cliproxy"],
     "windows": {
       "nsis": {
         "installMode": "currentUser",
@@ -97,11 +95,7 @@
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": [
-          "ai-tools",
-          "aitools",
-          "zcode"
-        ]
+        "schemes": ["ai-tools", "aitools", "zcode"]
       }
     },
     "updater": {
