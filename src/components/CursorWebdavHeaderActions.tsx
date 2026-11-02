@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { RefreshCw, Upload } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import {
@@ -69,6 +69,14 @@ export function CursorWebdavHeaderActions() {
   const [uploading, setUploading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const busy = uploading || syncing;
+
+  useEffect(() => {
+    if (!feedback || feedback.tone === "loading") return;
+    const timer = window.setTimeout(() => {
+      setFeedback(null);
+    }, 3000);
+    return () => window.clearTimeout(timer);
+  }, [feedback]);
 
   const ensureSavedConfig = useCallback(async () => {
     const settings = await getWebdavSyncSettings();
