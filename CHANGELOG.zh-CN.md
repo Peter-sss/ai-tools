@@ -8,6 +8,12 @@
 
 ---
 
+## [1.3.30] - 2026-11-02
+
+### 修复
+
+- **Cursor web 号切号 callback 403 不再阻断写库**：后台换票失败时仍按账号 JSON/快照 inject；若仍为 web token，再自动用 Chrome 打开 `loginDeepControl` 换取 IDE session 并二次写库。`_vscdb` 内已是 session 或 refresh 成功时跳过换票。
+
 ## [1.3.29] - 2026-10-30
 
 ### 变更

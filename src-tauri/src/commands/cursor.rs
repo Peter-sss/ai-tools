@@ -237,6 +237,9 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
     if let Err(err) = cursor_instance::strip_empty_restored_windows() {
         logger::log_warn(&format!("清理 Cursor 空恢复窗口失败: {}", err));
     }
+
+    let chrome_warning = cursor_account::try_chrome_session_upgrade_after_inject(&account_id).await;
+
     crate::modules::provider_current_state::set_current_account_id(
         "cursor",
         Some(account_id.as_str()),
@@ -276,7 +279,7 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
             started_at.elapsed().as_millis(),
             err
         ));
-        Ok(format!("切换完成，但 Cursor 启动失败: {}", err))
+        Ok(format!("切换完成，但 Cursor 启动失败: {}{}", err, chrome_warning.as_ref().map(|w| format!("（{}）", w)).unwrap_or_default()))
     } else {
         logger::log_info(&format!(
             "[Cursor Switch] 切号成功: account_id={}, email={}, elapsed={}ms",
@@ -284,7 +287,11 @@ pub async fn inject_cursor_account(app: AppHandle, account_id: String) -> Result
             account.email,
             started_at.elapsed().as_millis()
         ));
-        Ok(format!("切换完成: {}", account.email))
+        let mut message = format!("切换完成: {}", account.email);
+        if let Some(warn) = chrome_warning {
+            message.push_str(&format!("（{}）", warn));
+        }
+        Ok(message)
     }
 }
 

@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.30] - 2026-11-02
+
+### Fixed
+
+- **Cursor web account switch no longer stops at callback 403**: if backend token exchange fails, Cockpit still injects the stored JSON/snapshot; when the token remains `type=web`, Chrome opens `loginDeepControl` to obtain an IDE session and re-injects. Skips exchange when `_vscdb` already holds a session or refresh succeeds.
+
 ## [1.3.29] - 2026-10-30
 
 ### Changed

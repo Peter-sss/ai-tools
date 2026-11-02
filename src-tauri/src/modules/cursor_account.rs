@@ -1867,13 +1867,33 @@ fn apply_exchanged_session(
     }
 }
 
-/// 网页 token（JWT `type=web`）不能用于 Cursor 3.x 聊天。切号写库前换成 IDE session。
-/// 已是 session、或根本不是 JWT 的账号保持原样。换票失败时不改账号、也不写 Cursor。
+/// 网页 token（JWT `type=web`）不能用于 Cursor 3.x 聊天。切号写库前尽量换成 IDE session。
+/// 换票失败时不阻断 inject（JSON/快照写库）；inject 后仍可走 Chrome 补 session。
 pub async fn ensure_ide_session_for_switch(account_id: &str) -> Result<(), String> {
     let Some(mut account) = load_account(account_id) else {
         return Err(format!("Cursor 账号不存在: {}", account_id));
     };
+
     if access_token_jwt_type(&account.access_token).as_deref() != Some("web") {
+        return Ok(());
+    }
+
+    if sync_session_access_token_from_vscdb_snapshot(&mut account) {
+        upsert_account_record(account)?;
+        logger::log_info(&format!(
+            "[Cursor Switch] 使用 _vscdb 快照 session token，跳过换票: id={}",
+            account_id
+        ));
+        return Ok(());
+    }
+
+    if let Err(err) = try_refresh_web_account_to_session(&mut account).await {
+        logger::log_warn(&format!(
+            "[Cursor Switch] refresh 换 session 失败，继续尝试 callback: id={}, error={}",
+            account.id, err
+        ));
+    } else if access_token_jwt_type(&account.access_token).as_deref() != Some("web") {
+        upsert_account_record(account)?;
         return Ok(());
     }
 
@@ -1885,18 +1905,183 @@ pub async fn ensure_ide_session_for_switch(account_id: &str) -> Result<(), Strin
         account.id, account.email
     ));
 
-    let exchanged = crate::modules::cursor_oauth::exchange_web_session(&session_cookie).await?;
-    if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
-        return Err("换票结果不是 IDE session token，请重新导入账号".to_string());
+    match crate::modules::cursor_oauth::exchange_web_session(&session_cookie).await {
+        Ok(exchanged) => {
+            if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
+                return Err("换票结果不是 IDE session token，请重新导入账号".to_string());
+            }
+            apply_exchanged_session(
+                &mut account,
+                exchanged.access_token,
+                exchanged.refresh_token,
+            );
+            upsert_account_record(account)?;
+        }
+        Err(err) if crate::modules::cursor_oauth::is_recoverable_web_exchange_error(&err) => {
+            logger::log_warn(&format!(
+                "[Cursor Switch] 换票失败，继续 JSON 切号: id={}, error={}",
+                account.id, err
+            ));
+        }
+        Err(err) => return Err(err),
     }
 
-    apply_exchanged_session(
-        &mut account,
-        exchanged.access_token,
-        exchanged.refresh_token,
-    );
-    upsert_account_record(account)?;
     Ok(())
+}
+
+/// inject 后若仍为 web token，尝试 Chrome deep login + poll 换取 session 并再次写库。
+pub async fn try_chrome_session_upgrade_after_inject(account_id: &str) -> Option<String> {
+    let Some(account) = load_account(account_id) else {
+        return Some("账号不存在，无法浏览器授权".to_string());
+    };
+    if access_token_jwt_type(&account.access_token).as_deref() != Some("web") {
+        return None;
+    }
+
+    logger::log_info(&format!(
+        "[Cursor Switch] JSON 切号后仍为 web token，尝试 Chrome IDE 授权: id={}",
+        account.id
+    ));
+
+    match exchange_web_session_via_chrome(&account).await {
+        Ok(exchanged) => {
+            let Some(mut updated) = load_account(account_id) else {
+                return Some("账号不存在，无法保存浏览器授权结果".to_string());
+            };
+            if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
+                return Some("浏览器授权结果不是 IDE session token".to_string());
+            }
+            apply_exchanged_session(
+                &mut updated,
+                exchanged.access_token,
+                exchanged.refresh_token,
+            );
+            if let Err(err) = upsert_account_record(updated) {
+                return Some(format!("保存浏览器授权结果失败: {}", err));
+            }
+            if let Err(err) = inject_to_cursor(account_id) {
+                return Some(format!("浏览器授权后再次写库失败: {}", err));
+            }
+            None
+        }
+        Err(err) => Some(format!(
+            "浏览器授权未成功（{}），可对该号使用 OAuth 登录",
+            err
+        )),
+    }
+}
+
+fn vscdb_snapshot_access_token(account: &CursorAccount) -> Option<String> {
+    account
+        .cursor_auth_raw
+        .as_ref()
+        .and_then(Value::as_object)
+        .and_then(|raw| raw.get(CURSOR_AUTH_VSCDB_RAW_KEY))
+        .and_then(Value::as_object)
+        .and_then(|rows| rows.get("cursorAuth/accessToken"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn sync_session_access_token_from_vscdb_snapshot(account: &mut CursorAccount) -> bool {
+    let Some(token) = vscdb_snapshot_access_token(account) else {
+        return false;
+    };
+    if access_token_jwt_type(&token).as_deref() != Some("session") {
+        return false;
+    }
+    account.access_token = token.clone();
+    upsert_cursor_auth_raw_string(account, "accessToken", Some(token));
+    true
+}
+
+async fn try_refresh_web_account_to_session(account: &mut CursorAccount) -> Result<(), String> {
+    if account.refresh_token.as_deref().map(str::trim).filter(|v| !v.is_empty()).is_none() {
+        return Ok(());
+    }
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+    let rotated = refresh_account_access_token_with_client(&client, account).await?;
+    if !rotated {
+        return Ok(());
+    }
+    persist_rotated_cursor_tokens(account);
+    Ok(())
+}
+
+async fn exchange_web_session_via_chrome(
+    account: &CursorAccount,
+) -> Result<crate::modules::cursor_oauth::ExchangedCursorSession, String> {
+    use crate::modules::cursor_oauth::{
+        build_login_deep_control_url, new_web_exchange_pkce, oauth_poll_interval,
+        poll_exchanged_session, ExchangedCursorSession, OAUTH_MAX_POLLS,
+    };
+
+    let cookie_value = session_cookie_value(&account.access_token)
+        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+
+    let pkce = new_web_exchange_pkce();
+    let login_url = build_login_deep_control_url(&pkce.code_challenge, &pkce.login_uuid);
+
+    let chrome = find_google_chrome_executable()?;
+    let port = reserve_chrome_cdp_port()?;
+    let user_data_dir = std::env::temp_dir().join(format!(
+        "ai-tools-cursor-chrome-exchange-{}-{}",
+        account.id,
+        uuid::Uuid::new_v4()
+    ));
+    fs::create_dir_all(&user_data_dir)
+        .map_err(|e| format!("创建 Chrome 临时配置目录失败: {}", e))?;
+
+    logger::log_info(&format!(
+        "[Cursor Chrome] 切号浏览器授权: account_id={}, email={}, port={}",
+        account.id, account.email, port
+    ));
+
+    let mut child = launch_chrome_incognito_with_cdp(&chrome, &user_data_dir, port)?;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    if let Ok(Some(status)) = child.try_wait() {
+        kill_chrome_child_and_remove_profile(&mut child, &user_data_dir);
+        return Err(format!("Google Chrome 启动后立即退出: {}", status));
+    }
+
+    let websocket_url = match wait_for_chrome_page_target(port).await {
+        Ok(url) => url,
+        Err(err) => {
+            kill_chrome_child_and_remove_profile(&mut child, &user_data_dir);
+            return Err(err);
+        }
+    };
+
+    if let Err(err) =
+        chrome_set_cookie_and_navigate(&websocket_url, &cookie_value, &login_url).await
+    {
+        kill_chrome_child_and_remove_profile(&mut child, &user_data_dir);
+        return Err(err);
+    }
+
+    let client = reqwest::Client::builder()
+        .timeout(Duration::from_secs(15))
+        .build()
+        .map_err(|e| format!("创建 HTTP 客户端失败: {}", e))?;
+
+    let result = poll_exchanged_session(
+        &client,
+        &pkce.login_uuid,
+        &pkce.code_verifier,
+        OAUTH_MAX_POLLS,
+        oauth_poll_interval(),
+    )
+    .await;
+
+    kill_chrome_child_and_remove_profile(&mut child, &user_data_dir);
+
+    result.map(|session: ExchangedCursorSession| session)
 }
 
 pub fn inject_to_cursor(account_id: &str) -> Result<(), String> {
@@ -2699,9 +2884,10 @@ async fn cdp_send_and_wait(
     wait
 }
 
-async fn chrome_set_cookie_and_open_dashboard(
+async fn chrome_set_cookie_and_navigate(
     websocket_url: &str,
     cookie_value: &str,
+    navigate_url: &str,
 ) -> Result<(), String> {
     let (mut socket, _) = timeout(CHROME_CDP_CONNECT_TIMEOUT, connect_async(websocket_url))
         .await
@@ -2737,11 +2923,24 @@ async fn chrome_set_cookie_and_open_dashboard(
         &mut socket,
         2,
         "Page.navigate",
-        json!({ "url": CURSOR_DASHBOARD_URL }),
+        json!({ "url": navigate_url }),
     )
     .await?;
 
     Ok(())
+}
+
+async fn chrome_set_cookie_and_open_dashboard(
+    websocket_url: &str,
+    cookie_value: &str,
+) -> Result<(), String> {
+    chrome_set_cookie_and_navigate(websocket_url, cookie_value, CURSOR_DASHBOARD_URL).await
+}
+
+fn kill_chrome_child_and_remove_profile(child: &mut std::process::Child, user_data_dir: &Path) {
+    let _ = child.kill();
+    let _ = child.wait();
+    let _ = fs::remove_dir_all(user_data_dir);
 }
 
 fn launch_chrome_incognito_with_cdp(
@@ -4327,6 +4526,14 @@ mod tests {
         assert!(!is_cursor_session_auth_error(
             "请求 Cursor usage API失败: connection closed"
         ));
+    }
+
+    #[test]
+    fn build_login_deep_control_url_includes_cli_redirect() {
+        let url = crate::modules::cursor_oauth::build_login_deep_control_url("abc", "uuid-1");
+        assert!(url.contains("redirectTarget=cli"));
+        assert!(url.contains("mode=login"));
+        assert!(url.contains("uuid=uuid-1"));
     }
 
     #[test]

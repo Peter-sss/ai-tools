@@ -12,7 +12,7 @@ const CURSOR_LOGIN_URL: &str = "https://cursor.com/loginDeepControl";
 const CURSOR_DEEP_CALLBACK_URL: &str = "https://cursor.com/api/auth/loginDeepCallbackControl";
 const CURSOR_POLL_ENDPOINT: &str = "https://api2.cursor.sh/auth/poll";
 const OAUTH_POLL_INTERVAL_MS: u64 = 2000;
-const OAUTH_MAX_POLLS: u32 = 150;
+pub const OAUTH_MAX_POLLS: u32 = 150;
 const WEB_EXCHANGE_POLL_INTERVAL: Duration = Duration::from_secs(1);
 const WEB_EXCHANGE_MAX_POLLS: u32 = 20;
 
@@ -20,6 +20,28 @@ const WEB_EXCHANGE_MAX_POLLS: u32 = 20;
 pub struct ExchangedCursorSession {
     pub access_token: String,
     pub refresh_token: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub struct WebExchangePkce {
+    pub login_uuid: String,
+    pub code_verifier: String,
+    pub code_challenge: String,
+}
+
+pub fn new_web_exchange_pkce() -> WebExchangePkce {
+    let code_verifier = generate_code_verifier();
+    let code_challenge = generate_code_challenge(&code_verifier);
+    let login_uuid = generate_uuid();
+    WebExchangePkce {
+        login_uuid,
+        code_verifier,
+        code_challenge,
+    }
+}
+
+pub fn oauth_poll_interval() -> Duration {
+    Duration::from_millis(OAUTH_POLL_INTERVAL_MS)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,16 +95,22 @@ fn generate_uuid() -> String {
     uuid::Uuid::new_v4().to_string()
 }
 
+pub fn build_login_deep_control_url(code_challenge: &str, login_uuid: &str) -> String {
+    format!(
+        "{}?challenge={}&uuid={}&mode=login&redirectTarget=cli",
+        CURSOR_LOGIN_URL, code_challenge, login_uuid
+    )
+}
+
+const CURSOR_WEB_EXCHANGE_USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
+
 pub fn start_login() -> Result<CursorOAuthStartResponse, String> {
     let code_verifier = generate_code_verifier();
     let code_challenge = generate_code_challenge(&code_verifier);
     let login_uuid = generate_uuid();
     let login_id = login_uuid.clone();
 
-    let verification_uri = format!(
-        "{}?challenge={}&uuid={}&mode=login",
-        CURSOR_LOGIN_URL, code_challenge, login_uuid
-    );
+    let verification_uri = build_login_deep_control_url(&code_challenge, &login_uuid);
 
     let now = now_timestamp();
     let state = PendingOAuthState {
@@ -273,6 +301,144 @@ pub async fn complete_login(login_id: &str) -> Result<CursorImportPayload, Strin
     Err("Cursor 登录轮询超时，请重试".to_string())
 }
 
+pub async fn poll_exchanged_session(
+    client: &reqwest::Client,
+    login_uuid: &str,
+    code_verifier: &str,
+    max_polls: u32,
+    poll_interval: Duration,
+) -> Result<ExchangedCursorSession, String> {
+    let poll_url = format!(
+        "{}?uuid={}&verifier={}",
+        CURSOR_POLL_ENDPOINT, login_uuid, code_verifier
+    );
+
+    for attempt in 0..max_polls {
+        if attempt > 0 {
+            tokio::time::sleep(poll_interval).await;
+        }
+
+        let response = match client
+            .get(&poll_url)
+            .header("Accept", "application/json")
+            .send()
+            .await
+        {
+            Ok(response) => response,
+            Err(err) => {
+                logger::log_warn(&format!(
+                    "[Cursor OAuth] 换票轮询失败: attempt={}, error={}",
+                    attempt, err
+                ));
+                continue;
+            }
+        };
+
+        let status = response.status().as_u16();
+        if status == 404 {
+            continue;
+        }
+        if status != 200 {
+            logger::log_warn(&format!(
+                "[Cursor OAuth] 换票轮询状态异常: attempt={}, status={}",
+                attempt, status
+            ));
+            continue;
+        }
+
+        let body = response
+            .text()
+            .await
+            .map_err(|e| format!("读取换票轮询响应失败: {}", e))?;
+        let poll_data = match serde_json::from_str::<PollResponse>(&body) {
+            Ok(poll_data) => poll_data,
+            Err(err) => {
+                logger::log_warn(&format!(
+                    "[Cursor OAuth] 换票轮询响应无法解析: attempt={}, error={}",
+                    attempt, err
+                ));
+                continue;
+            }
+        };
+
+        let Some(access_token) = poll_data
+            .access_token
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty())
+        else {
+            continue;
+        };
+        let refresh_token = poll_data
+            .refresh_token
+            .map(|token| token.trim().to_string())
+            .filter(|token| !token.is_empty());
+
+        logger::log_info(&format!(
+            "[Cursor OAuth] 换票 poll 成功: has_refresh={}",
+            refresh_token.is_some()
+        ));
+        return Ok(ExchangedCursorSession {
+            access_token,
+            refresh_token,
+        });
+    }
+
+    Err("网页 token 换票超时，请重新导入账号".to_string())
+}
+
+async fn post_login_deep_callback(
+    client: &reqwest::Client,
+    session_cookie: &str,
+    code_challenge: &str,
+    login_uuid: &str,
+) -> Result<(), String> {
+    let login_page = build_login_deep_control_url(code_challenge, login_uuid);
+    let callback = client
+        .post(CURSOR_DEEP_CALLBACK_URL)
+        .header(
+            "Cookie",
+            format!("WorkosCursorSessionToken={}", session_cookie),
+        )
+        .header("Content-Type", "application/json")
+        .header("User-Agent", CURSOR_WEB_EXCHANGE_USER_AGENT)
+        .header("Origin", "https://cursor.com")
+        .header("Referer", login_page)
+        .json(&serde_json::json!({
+            "challenge": code_challenge,
+            "uuid": login_uuid,
+        }))
+        .send()
+        .await
+        .map_err(|e| format!("网页 token 换票请求失败: {}，请重新导入账号", e))?;
+
+    if callback.status().is_success() {
+        return Ok(());
+    }
+
+    let callback_status = callback.status().as_u16();
+    let body = callback.text().await.unwrap_or_default();
+    let body_len = body.len();
+    let body_preview = if body.len() > 160 {
+        format!("{}…", &body[..160])
+    } else {
+        body
+    };
+    logger::log_warn(&format!(
+        "[Cursor OAuth] loginDeepCallbackControl 失败: status={}, body_len={}, preview={}",
+        callback_status, body_len, body_preview
+    ));
+    Err(format!(
+        "网页 token 换票失败: status={}, body_len={}，请重新导入账号",
+        callback_status, body_len
+    ))
+}
+
+pub fn is_recoverable_web_exchange_error(err: &str) -> bool {
+    err.contains("网页 token 换票失败")
+        || err.contains("网页 token 换票超时")
+        || err.contains("网页 token 换票请求失败")
+}
+
 /// 用网页 `WorkosCursorSessionToken`（`userId%3A%3Ajwt`）换成 IDE session。
 ///
 /// `refresh_token` 仅在 poll 真正返回时带上；缺失时由调用方沿用 access token 兜底。
@@ -298,104 +464,21 @@ pub async fn exchange_web_session(session_cookie: &str) -> Result<ExchangedCurso
         login_uuid
     ));
 
-    let callback = client
-        .post(CURSOR_DEEP_CALLBACK_URL)
-        .header(
-            "Cookie",
-            format!("WorkosCursorSessionToken={}", session_cookie),
-        )
-        .header("Content-Type", "application/json")
-        .json(&serde_json::json!({
-            "challenge": code_challenge,
-            "uuid": login_uuid,
-        }))
-        .send()
-        .await
-        .map_err(|e| format!("网页 token 换票请求失败: {}，请重新导入账号", e))?;
+    post_login_deep_callback(&client, session_cookie, &code_challenge, &login_uuid).await?;
 
-    let callback_status = callback.status().as_u16();
-    if !callback.status().is_success() {
-        let body_len = callback.text().await.map(|body| body.len()).unwrap_or(0);
-        return Err(format!(
-            "网页 token 换票失败: status={}, body_len={}，请重新导入账号",
-            callback_status, body_len
-        ));
-    }
-
-    let poll_url = format!(
-        "{}?uuid={}&verifier={}",
-        CURSOR_POLL_ENDPOINT, login_uuid, code_verifier
-    );
-
-    for attempt in 0..WEB_EXCHANGE_MAX_POLLS {
-        tokio::time::sleep(WEB_EXCHANGE_POLL_INTERVAL).await;
-
-        let response = match client
-            .get(&poll_url)
-            .header("Accept", "application/json")
-            .send()
-            .await
-        {
-            Ok(response) => response,
-            Err(err) => {
-                logger::log_warn(&format!(
-                    "[Cursor OAuth] 网页 token 换票轮询失败: attempt={}, error={}",
-                    attempt, err
-                ));
-                continue;
-            }
-        };
-
-        let status = response.status().as_u16();
-        if status == 404 {
-            continue;
-        }
-        if status != 200 {
-            logger::log_warn(&format!(
-                "[Cursor OAuth] 网页 token 换票轮询状态异常: attempt={}, status={}",
-                attempt, status
-            ));
-            continue;
-        }
-
-        let body = response
-            .text()
-            .await
-            .map_err(|e| format!("读取网页 token 换票响应失败: {}", e))?;
-        let poll_data = match serde_json::from_str::<PollResponse>(&body) {
-            Ok(poll_data) => poll_data,
-            Err(err) => {
-                logger::log_warn(&format!(
-                    "[Cursor OAuth] 网页 token 换票响应无法解析: attempt={}, error={}",
-                    attempt, err
-                ));
-                continue;
-            }
-        };
-
-        let Some(access_token) = poll_data
-            .access_token
-            .map(|token| token.trim().to_string())
-            .filter(|token| !token.is_empty())
-        else {
-            continue;
-        };
-        let refresh_token = poll_data
-            .refresh_token
-            .map(|token| token.trim().to_string())
-            .filter(|token| !token.is_empty());
-
-        logger::log_info(&format!(
-            "[Cursor OAuth] 网页 token 已换成 IDE session: has_refresh={}",
-            refresh_token.is_some()
-        ));
-        return Ok(ExchangedCursorSession {
-            access_token,
-            refresh_token,
-        });
-    }
-
-    Err("网页 token 换票超时，请重新导入账号".to_string())
+    let session = poll_exchanged_session(
+        &client,
+        &login_uuid,
+        &code_verifier,
+        WEB_EXCHANGE_MAX_POLLS,
+        WEB_EXCHANGE_POLL_INTERVAL,
+    )
+    .await?;
+    logger::log_info(&format!(
+        "[Cursor OAuth] 网页 token 已换成 IDE session: has_refresh={}",
+        session.refresh_token.is_some()
+    ));
+    Ok(session)
 }
 
 pub fn cancel_login(login_id: Option<&str>) -> Result<(), String> {
