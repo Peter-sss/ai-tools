@@ -272,6 +272,7 @@ pub async fn complete_login(login_id: &str) -> Result<CursorImportPayload, Strin
                         auth_id: poll_data.auth_id.clone(),
                         name: None,
                         access_token,
+                        web_access_token: None,
                         refresh_token: Some(refresh_token),
                         membership_type: None,
                         subscription_status: None,

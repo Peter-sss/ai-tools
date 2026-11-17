@@ -40,6 +40,7 @@ pub mod codex_wakeup;
 pub mod codex_wakeup_scheduler;
 pub mod config;
 pub mod cursor_account;
+pub mod cursor_safe_storage;
 pub mod cursor_instance;
 pub mod cursor_oauth;
 pub mod db;

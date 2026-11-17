@@ -126,3 +126,15 @@ export async function openCursorAccountInChrome(
 ): Promise<void> {
   await invoke("open_cursor_account_in_chrome", { accountId });
 }
+
+export type EnsureCursorBothTokensResult = {
+  account: CursorAccount;
+  message: string;
+};
+
+/** 探测后按缺侧换票，尽量让网页和桌面 token 都有效。不切号。 */
+export async function ensureCursorBothTokens(
+  accountId: string,
+): Promise<EnsureCursorBothTokensResult> {
+  return await invoke("ensure_cursor_both_tokens", { accountId });
+}

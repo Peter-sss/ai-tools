@@ -386,12 +386,71 @@ fn extract_auth_id_from_raw_value(raw: Option<&Value>) -> Option<String> {
     )
 }
 
+fn payload_identity_token(payload: &CursorImportPayload) -> String {
+    let access = payload.access_token.trim();
+    if !access.is_empty() {
+        return access.to_string();
+    }
+    payload
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("")
+        .to_string()
+}
+
+fn is_web_cursor_token(token: &str) -> bool {
+    access_token_jwt_type(token).as_deref() == Some("web")
+}
+
+fn split_imported_token_fields(
+    access_token: String,
+    explicit_web: Option<String>,
+) -> (String, Option<String>) {
+    let mut web = explicit_web.filter(|value| !value.trim().is_empty());
+    if is_web_cursor_token(&access_token) {
+        if web.is_none() {
+            web = Some(access_token);
+        }
+        return (String::new(), web);
+    }
+    (access_token, web)
+}
+
+fn assign_local_tokens(desktop: Option<String>, web: Option<String>) -> (String, Option<String>) {
+    let mut access = String::new();
+    let mut web_token = None;
+    if let Some(token) = desktop
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        if is_web_cursor_token(&token) {
+            web_token = Some(token);
+        } else {
+            access = token;
+        }
+    }
+    if let Some(token) = web
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        if is_web_cursor_token(&token) {
+            web_token = Some(token);
+        } else if access.is_empty() {
+            access = token;
+        }
+    }
+    (access, web_token)
+}
+
 fn resolve_payload_auth_id(payload: &CursorImportPayload) -> Option<String> {
     normalize_auth_identity(payload.auth_id.as_deref())
         .or_else(|| extract_auth_id_from_raw_value(payload.cursor_auth_raw.as_ref()))
         .or_else(|| {
             normalize_auth_identity(
-                extract_auth_id_from_access_token(payload.access_token.as_str()).as_deref(),
+                extract_auth_id_from_access_token(payload_identity_token(payload).as_str())
+                    .as_deref(),
             )
         })
 }
@@ -839,8 +898,22 @@ fn apply_payload(
         account.email.clear();
     }
     account.name = payload.name;
-    account.access_token = payload.access_token;
-    account.refresh_token = payload.refresh_token;
+    if let Some(web) = payload
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        account.web_access_token = Some(web.to_string());
+    }
+    if let Some(incoming) = normalize_non_empty(Some(payload.access_token.as_str())) {
+        if is_web_cursor_token(&incoming) {
+            account.web_access_token = Some(incoming);
+        } else {
+            account.access_token = incoming;
+            account.refresh_token = payload.refresh_token.clone();
+        }
+    }
     account.membership_type = payload.membership_type;
     account.subscription_status = payload.subscription_status;
     account.sign_up_type = payload.sign_up_type;
@@ -864,7 +937,7 @@ pub fn upsert_account(payload: CursorImportPayload) -> Result<CursorAccount, Str
     let mut index = load_account_index();
     let incoming_auth_id = resolve_payload_auth_id(&payload);
     let incoming_email = normalize_email_identity(Some(payload.email.as_str()));
-    let incoming_token = normalize_token_identity(Some(payload.access_token.as_str()));
+    let incoming_token = normalize_token_identity(Some(payload_identity_token(&payload).as_str()));
 
     let identity_seed = incoming_auth_id
         .clone()
@@ -904,8 +977,21 @@ pub fn upsert_account(payload: CursorImportPayload) -> Result<CursorAccount, Str
         auth_id: incoming_auth_id.clone(),
         name: payload.name.clone(),
         tags,
-        access_token: payload.access_token.clone(),
+        access_token: if is_web_cursor_token(&payload.access_token) {
+            String::new()
+        } else {
+            payload.access_token.clone()
+        },
+        web_access_token: payload.web_access_token.clone().or_else(|| {
+            if is_web_cursor_token(&payload.access_token) {
+                Some(payload.access_token.clone())
+            } else {
+                None
+            }
+        }),
         refresh_token: payload.refresh_token.clone(),
+        desktop_token_valid: false,
+        web_token_valid: false,
         membership_type: payload.membership_type.clone(),
         subscription_status: payload.subscription_status.clone(),
         sign_up_type: payload.sign_up_type.clone(),
@@ -1050,12 +1136,15 @@ fn payload_from_token_parts(
     };
 
     let email = normalize_email_identity(email).unwrap_or_else(|| "unknown".to_string());
+    let (desktop_token, web_access_token) =
+        split_imported_token_fields(access_token.to_string(), None);
 
     Ok(CursorImportPayload {
         email,
         auth_id,
         name: None,
-        access_token: access_token.to_string(),
+        access_token: desktop_token,
+        web_access_token,
         refresh_token: None,
         membership_type: None,
         subscription_status: None,
@@ -1297,7 +1386,12 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
             "cursor_access_token",
         ],
     )
+    .or_else(|| {
+        extract_string(obj, &["web_access_token", "webAccessToken"])
+    })
     .ok_or_else(|| "缺少 access_token 字段".to_string())?;
+    let explicit_web = extract_string(obj, &["web_access_token", "webAccessToken"]);
+    let (access_token, web_access_token) = split_imported_token_fields(access_token, explicit_web);
 
     let name = extract_string(obj, &["name", "displayName"]);
     let refresh_token = extract_string(
@@ -1333,6 +1427,11 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
         extract_string(obj, &["auth_id", "authId", "workos_id", "workosId"])
             .or_else(|| extract_auth_id_from_raw_value(cursor_auth_raw.as_ref()))
             .or_else(|| extract_auth_id_from_access_token(access_token.as_str()))
+            .or_else(|| {
+                web_access_token
+                    .as_deref()
+                    .and_then(extract_auth_id_from_access_token)
+            })
             .as_deref(),
     );
 
@@ -1341,6 +1440,7 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
         auth_id,
         name,
         access_token,
+        web_access_token,
         refresh_token,
         membership_type,
         subscription_status,
@@ -1587,20 +1687,47 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("打开 Cursor 本地数据库失败({}): {}", db_path.display(), e))?;
 
-    let access_token = match read_vscdb_item(&conn, "cursorAuth/accessToken") {
-        Some(t) => t,
-        None => return Ok(None),
+    let data_dir = get_default_cursor_data_dir()?;
+    let desktop_plain = match read_vscdb_item(&conn, "cursorAuth/accessToken") {
+        Some(raw) if !raw.trim().is_empty() => Some(
+            crate::modules::cursor_safe_storage::open_stored_token(&raw, &data_dir)
+                .map_err(|err| format!("解密桌面 access token 失败: {}", err))?,
+        ),
+        _ => None,
     };
+    let refresh_plain = match read_vscdb_item(&conn, "cursorAuth/refreshToken") {
+        Some(raw) if !raw.trim().is_empty() => Some(
+            crate::modules::cursor_safe_storage::open_stored_token(&raw, &data_dir)
+                .map_err(|err| format!("解密桌面 refresh token 失败: {}", err))?,
+        ),
+        _ => None,
+    };
+    let web_plain = match read_vscdb_item(&conn, "cursor.accessToken") {
+        Some(raw) if !raw.trim().is_empty() => Some(
+            crate::modules::cursor_safe_storage::open_stored_token(&raw, &data_dir)
+                .map_err(|err| format!("读取网页 token 失败: {}", err))?,
+        ),
+        _ => None,
+    };
+    let (access_token, web_access_token) = assign_local_tokens(desktop_plain, web_plain);
+    if access_token.is_empty() && web_access_token.is_none() {
+        return Ok(None);
+    }
 
     let email = read_vscdb_item(&conn, "cursorAuth/cachedEmail").unwrap_or_default();
     if email.is_empty() {
         return Ok(None);
     }
 
-    let refresh_token = read_vscdb_item(&conn, "cursorAuth/refreshToken");
+    let refresh_token = refresh_plain.filter(|token| !is_web_cursor_token(token));
     let auth_id = normalize_auth_identity(
         read_vscdb_item(&conn, "cursorAuth/authId")
             .or_else(|| extract_auth_id_from_access_token(access_token.as_str()))
+            .or_else(|| {
+                web_access_token
+                    .as_deref()
+                    .and_then(extract_auth_id_from_access_token)
+            })
             .as_deref(),
     );
     let membership_type = read_vscdb_item(&conn, "cursorAuth/stripeMembershipType");
@@ -1608,10 +1735,15 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
     let sign_up_type = read_vscdb_item(&conn, "cursorAuth/cachedSignUpType");
 
     let mut auth_raw = serde_json::Map::new();
-    auth_raw.insert(
-        "accessToken".to_string(),
-        Value::String(access_token.clone()),
-    );
+    if !access_token.is_empty() {
+        auth_raw.insert(
+            "accessToken".to_string(),
+            Value::String(access_token.clone()),
+        );
+    }
+    if let Some(ref web) = web_access_token {
+        auth_raw.insert("webAccessToken".to_string(), Value::String(web.clone()));
+    }
     if let Some(ref rt) = refresh_token {
         auth_raw.insert("refreshToken".to_string(), Value::String(rt.clone()));
     }
@@ -1648,6 +1780,7 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
         auth_id,
         name: None,
         access_token,
+        web_access_token,
         refresh_token,
         membership_type,
         subscription_status,
@@ -1685,6 +1818,28 @@ fn upsert_vscdb_item(conn: &Connection, key: &str, value: &str) -> Result<(), St
     Ok(())
 }
 
+fn write_desktop_auth_secret(conn: &Connection, key: &str, plaintext: &str) -> Result<(), String> {
+    let plaintext = plaintext.trim();
+    if plaintext.is_empty() {
+        return Ok(());
+    }
+    let existing = read_vscdb_item(conn, key);
+    let encryption_on = read_vscdb_item(conn, "cursor.storage.authTokenEncryptionAtRest")
+        .map(|value| value.trim() == "true")
+        .unwrap_or(false);
+    let stored = if encryption_on
+        || existing
+            .as_deref()
+            .is_some_and(crate::modules::cursor_safe_storage::is_cursor_safe_storage)
+    {
+        let data_dir = get_default_cursor_data_dir()?;
+        crate::modules::cursor_safe_storage::seal_stored_token(plaintext, &data_dir)?
+    } else {
+        plaintext.to_string()
+    };
+    upsert_vscdb_item(conn, key, &stored)
+}
+
 fn delete_vscdb_item(conn: &Connection, key: &str) -> Result<(), String> {
     conn.execute("DELETE FROM ItemTable WHERE key = ?1", [key])
         .map_err(|e| format!("删除 {} 失败: {}", key, e))?;
@@ -1701,15 +1856,16 @@ fn inject_account_into_conn(conn: &Connection, account: &CursorAccount) -> Resul
         restored_keys.insert(key);
     }
 
-    upsert_vscdb_item(conn, "cursorAuth/accessToken", &account.access_token)?;
-
-    let refresh_token = account
-        .refresh_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(account.access_token.as_str());
-    upsert_vscdb_item(conn, "cursorAuth/refreshToken", refresh_token)?;
+    if !account.access_token.trim().is_empty() {
+        write_desktop_auth_secret(conn, "cursorAuth/accessToken", &account.access_token)?;
+        let refresh_token = account
+            .refresh_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(account.access_token.as_str());
+        write_desktop_auth_secret(conn, "cursorAuth/refreshToken", refresh_token)?;
+    }
 
     upsert_vscdb_item(conn, "cursorAuth/cachedEmail", &account.email)?;
 
@@ -1721,10 +1877,22 @@ fn inject_account_into_conn(conn: &Connection, account: &CursorAccount) -> Resul
         .unwrap_or("Auth_0");
     upsert_vscdb_item(conn, "cursorAuth/cachedSignUpType", sign_up_type)?;
 
-    upsert_vscdb_item(conn, "cursor.accessToken", &account.access_token)?;
+    if let Some(web) = account
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        upsert_vscdb_item(conn, "cursor.accessToken", web)?;
+    }
     upsert_vscdb_item(conn, "cursor.email", &account.email)?;
 
-    if let Some(jwt_sub) = extract_auth_id_from_access_token(&account.access_token) {
+    let identity_token = if account.access_token.trim().is_empty() {
+        account.web_access_token.as_deref().unwrap_or("")
+    } else {
+        account.access_token.as_str()
+    };
+    if let Some(jwt_sub) = extract_auth_id_from_access_token(identity_token) {
         let key_known = |key: &str| live_keys.contains(key) || restored_keys.contains(key);
         if key_known("cursorAuth/stripeMembershipAuthId") {
             upsert_vscdb_item(conn, "cursorAuth/stripeMembershipAuthId", &jwt_sub)?;
@@ -1852,10 +2020,11 @@ fn apply_exchanged_session(
     let Some(Value::Object(rows)) = raw.get_mut(CURSOR_AUTH_VSCDB_RAW_KEY) else {
         return;
     };
-    for key in ["cursorAuth/accessToken", "cursor.accessToken"] {
-        if rows.contains_key(key) {
-            rows.insert(key.to_string(), Value::String(access_token.clone()));
-        }
+    if rows.contains_key("cursorAuth/accessToken") {
+        rows.insert(
+            "cursorAuth/accessToken".to_string(),
+            Value::String(access_token.clone()),
+        );
     }
     if let Some(refresh) = refresh_token {
         if rows.contains_key("cursorAuth/refreshToken") {
@@ -1867,6 +2036,47 @@ fn apply_exchanged_session(
     }
 }
 
+fn stash_web_token_from_desktop_slot(account: &mut CursorAccount) -> bool {
+    if is_web_cursor_token(&account.access_token)
+        && account
+            .web_access_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .is_none()
+    {
+        account.web_access_token = Some(account.access_token.clone());
+        return true;
+    }
+    false
+}
+
+fn web_token_for_exchange(account: &CursorAccount) -> Option<&str> {
+    account
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .filter(|value| is_web_cursor_token(value))
+        .or_else(|| {
+            let token = account.access_token.trim();
+            if !token.is_empty() && is_web_cursor_token(token) {
+                Some(token)
+            } else {
+                None
+            }
+        })
+}
+
+fn desktop_session_token(account: &CursorAccount) -> Option<&str> {
+    let token = account.access_token.trim();
+    if token.is_empty() || is_web_cursor_token(token) {
+        None
+    } else {
+        Some(token)
+    }
+}
+
 /// 网页 token（JWT `type=web`）不能用于 Cursor 3.x 聊天。切号写库前尽量换成 IDE session。
 /// 换票失败时不阻断 inject（JSON/快照写库）；inject 后仍可走 Chrome 补 session。
 pub async fn ensure_ide_session_for_switch(account_id: &str) -> Result<(), String> {
@@ -1874,54 +2084,22 @@ pub async fn ensure_ide_session_for_switch(account_id: &str) -> Result<(), Strin
         return Err(format!("Cursor 账号不存在: {}", account_id));
     };
 
+    stash_web_token_from_desktop_slot(&mut account);
+
     if access_token_jwt_type(&account.access_token).as_deref() != Some("web") {
         return Ok(());
     }
 
-    if sync_session_access_token_from_vscdb_snapshot(&mut account) {
-        upsert_account_record(account)?;
-        logger::log_info(&format!(
-            "[Cursor Switch] 使用 _vscdb 快照 session token，跳过换票: id={}",
-            account_id
-        ));
-        return Ok(());
-    }
-
-    if let Err(err) = try_refresh_web_account_to_session(&mut account).await {
-        logger::log_warn(&format!(
-            "[Cursor Switch] refresh 换 session 失败，继续尝试 callback: id={}, error={}",
-            account.id, err
-        ));
-    } else if access_token_jwt_type(&account.access_token).as_deref() != Some("web") {
-        upsert_account_record(account)?;
-        return Ok(());
-    }
-
-    let session_cookie = session_cookie_value(&account.access_token)
-        .ok_or_else(|| "网页 token 无法解析 WorkOS 用户 ID，请重新导入账号".to_string())?;
-
-    logger::log_info(&format!(
-        "[Cursor Switch] 网页 token 换成 IDE session: id={}, email={}",
-        account.id, account.email
-    ));
-
-    match crate::modules::cursor_oauth::exchange_web_session(&session_cookie).await {
-        Ok(exchanged) => {
-            if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
-                return Err("换票结果不是 IDE session token，请重新导入账号".to_string());
-            }
-            apply_exchanged_session(
-                &mut account,
-                exchanged.access_token,
-                exchanged.refresh_token,
-            );
+    match try_silent_web_to_desktop_session(&mut account, true).await {
+        Ok(true) => {
             upsert_account_record(account)?;
         }
-        Err(err) if crate::modules::cursor_oauth::is_recoverable_web_exchange_error(&err) => {
+        Ok(false) => {
             logger::log_warn(&format!(
-                "[Cursor Switch] 换票失败，继续 JSON 切号: id={}, error={}",
-                account.id, err
+                "[Cursor Switch] 换票失败，继续 JSON 切号: id={}",
+                account.id
             ));
+            upsert_account_record(account)?;
         }
         Err(err) => return Err(err),
     }
@@ -2013,6 +2191,152 @@ async fn try_refresh_web_account_to_session(account: &mut CursorAccount) -> Resu
     Ok(())
 }
 
+/// 静默把网页 JWT 换成桌面 session。成功返回 true；可恢复的 callback 失败返回 false。
+async fn try_silent_web_to_desktop_session(
+    account: &mut CursorAccount,
+    skip_if_has_session: bool,
+) -> Result<bool, String> {
+    stash_web_token_from_desktop_slot(account);
+
+    if skip_if_has_session && desktop_session_token(account).is_some() {
+        return Ok(true);
+    }
+
+    let had_session = desktop_session_token(account).is_some();
+    if sync_session_access_token_from_vscdb_snapshot(account)
+        && (skip_if_has_session || !had_session)
+    {
+        logger::log_info(&format!(
+            "[Cursor Switch] 使用 _vscdb 快照 session token，跳过换票: id={}",
+            account.id
+        ));
+        return Ok(true);
+    }
+
+    let token_before_refresh = account.access_token.clone();
+    if let Err(err) = try_refresh_web_account_to_session(account).await {
+        logger::log_warn(&format!(
+            "[Cursor Switch] refresh 换 session 失败，继续尝试 callback: id={}, error={}",
+            account.id, err
+        ));
+    } else if desktop_session_token(account).is_some()
+        && (skip_if_has_session
+            || !had_session
+            || account.access_token != token_before_refresh)
+    {
+        return Ok(true);
+    }
+
+    let web_token = web_token_for_exchange(account).ok_or_else(|| {
+        "没有网页 token，无法换成 IDE session，请重新导入账号".to_string()
+    })?;
+    let session_cookie = session_cookie_value(web_token)
+        .ok_or_else(|| "网页 token 无法解析 WorkOS 用户 ID，请重新导入账号".to_string())?;
+
+    logger::log_info(&format!(
+        "[Cursor Switch] 网页 token 换成 IDE session: id={}, email={}",
+        account.id, account.email
+    ));
+
+    match crate::modules::cursor_oauth::exchange_web_session(&session_cookie).await {
+        Ok(exchanged) => {
+            if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
+                return Err("换票结果不是 IDE session token，请重新导入账号".to_string());
+            }
+            apply_exchanged_session(
+                account,
+                exchanged.access_token,
+                exchanged.refresh_token,
+            );
+            Ok(true)
+        }
+        Err(err) if crate::modules::cursor_oauth::is_recoverable_web_exchange_error(&err) => {
+            logger::log_warn(&format!(
+                "[Cursor Switch] 静默换票失败: id={}, error={}",
+                account.id, err
+            ));
+            Ok(false)
+        }
+        Err(err) => Err(err),
+    }
+}
+
+async fn ensure_desktop_session_from_web(account: &mut CursorAccount) -> Result<(), String> {
+    match try_silent_web_to_desktop_session(account, false).await {
+        Ok(true) => return Ok(()),
+        Ok(false) => {}
+        Err(err) => return Err(err),
+    }
+
+    logger::log_info(&format!(
+        "[Cursor Tokens] 静默换桌面失败，尝试 Chrome IDE 授权: id={}",
+        account.id
+    ));
+    let exchanged = exchange_web_session_via_chrome(account).await?;
+    if access_token_jwt_type(&exchanged.access_token).as_deref() != Some("session") {
+        return Err("浏览器授权结果不是 IDE session token".to_string());
+    }
+    apply_exchanged_session(account, exchanged.access_token, exchanged.refresh_token);
+    Ok(())
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct EnsureCursorBothTokensResult {
+    pub account: CursorAccount,
+    pub message: String,
+}
+
+pub async fn ensure_both_tokens(
+    account_id: &str,
+) -> Result<EnsureCursorBothTokensResult, String> {
+    let _ = probe_and_persist_token_validity(account_id).await?;
+    let Some(mut account) = load_account(account_id) else {
+        return Err(format!("Cursor 账号不存在: {}", account_id));
+    };
+
+    if stash_web_token_from_desktop_slot(&mut account) {
+        upsert_account_record(account.clone())?;
+        let _ = probe_and_persist_token_validity(account_id).await?;
+        account = load_account(account_id)
+            .ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
+    }
+
+    // 徽章点击与「网/桌」绿红一致：用量探测通过就不换票、不弹窗。
+    let desktop_ok = account.desktop_token_valid;
+    let web_ok = account.web_token_valid;
+
+    if desktop_ok && web_ok {
+        return Ok(EnsureCursorBothTokensResult {
+            account,
+            message: "网页和桌面 token 均已有效".to_string(),
+        });
+    }
+
+    if !desktop_ok && !web_ok {
+        return Err("网页和桌面 token 都无效，请重新导入或 OAuth 登录".to_string());
+    }
+
+    if desktop_ok && !web_ok {
+        return Err("网页 token 无效，无法从桌面反向换票，请重新导入或 OAuth 登录".to_string());
+    }
+
+    if web_token_for_exchange(&account).is_none() {
+        return Err("没有可用的网页 token，无法换桌面 session".to_string());
+    }
+    ensure_desktop_session_from_web(&mut account).await?;
+    upsert_account_record(account.clone())?;
+
+    let account = probe_and_persist_token_validity(account_id).await?;
+    if !account.desktop_token_valid {
+        return Err("未能拿到有效的桌面 session，请稍后重试".to_string());
+    }
+
+    Ok(EnsureCursorBothTokensResult {
+        account,
+        message: "已用网页 token 换到桌面 session".to_string(),
+    })
+}
+
 async fn exchange_web_session_via_chrome(
     account: &CursorAccount,
 ) -> Result<crate::modules::cursor_oauth::ExchangedCursorSession, String> {
@@ -2021,8 +2345,10 @@ async fn exchange_web_session_via_chrome(
         poll_exchanged_session, ExchangedCursorSession, OAUTH_MAX_POLLS,
     };
 
-    let cookie_value = session_cookie_value(&account.access_token)
-        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+    let web_token = web_token_for_exchange(account)
+        .ok_or_else(|| "没有网页 token，无法浏览器授权".to_string())?;
+    let cookie_value = session_cookie_value(web_token)
+        .ok_or_else(|| "无法从网页 token 解析 WorkOS 用户 ID".to_string())?;
 
     let pkce = new_web_exchange_pkce();
     let login_url = build_login_deep_control_url(&pkce.code_challenge, &pkce.login_uuid);
@@ -2974,11 +3300,14 @@ fn launch_chrome_incognito_with_cdp(
 pub async fn open_account_in_chrome(account_id: &str) -> Result<(), String> {
     let account =
         load_account(account_id).ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
-    if account.access_token.trim().is_empty() {
-        return Err("账号缺少 access token，无法打开 Chrome 登录".to_string());
-    }
-    let cookie_value = session_cookie_value(&account.access_token)
-        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+    let web_token = account
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .ok_or_else(|| "没有网页 token，无法打开 Chrome 登录".to_string())?;
+    let cookie_value = session_cookie_value(web_token)
+        .ok_or_else(|| "无法从网页 token 解析 WorkOS 用户 ID".to_string())?;
 
     let chrome = find_google_chrome_executable()?;
     let port = reserve_chrome_cdp_port()?;
@@ -3847,6 +4176,34 @@ async fn rotate_cursor_access_token(
     Ok(rotated)
 }
 
+async fn probe_usage_cookie(
+    client: &reqwest::Client,
+    token: &str,
+) -> (bool, Option<serde_json::Value>) {
+    let token = token.trim();
+    if token.is_empty() || !is_likely_jwt(token) {
+        return (false, None);
+    }
+    match fetch_usage_summary_with_client(client, token).await {
+        Ok(usage) => (true, Some(usage)),
+        Err(_) => (false, None),
+    }
+}
+
+pub async fn probe_and_persist_token_validity(account_id: &str) -> Result<CursorAccount, String> {
+    let mut account = load_account(account_id)
+        .ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
+    let client = build_cursor_http_client()?;
+    let (desktop_ok, _) = probe_usage_cookie(&client, &account.access_token).await;
+    let web_token = account.web_access_token.clone().unwrap_or_default();
+    let (web_ok, _) = probe_usage_cookie(&client, &web_token).await;
+    account.desktop_token_valid = desktop_ok;
+    account.web_token_valid = web_ok;
+    let updated = account.clone();
+    upsert_account_record(account)?;
+    Ok(updated)
+}
+
 async fn fetch_usage_summary_after_auth_retry(
     client: &reqwest::Client,
     account: &mut CursorAccount,
@@ -3975,29 +4332,48 @@ async fn refresh_account_async_once(
         }
     }
 
+    let mut desktop_usage_error = None;
+    let (desktop_ok, desktop_usage) = if account.access_token.trim().is_empty() {
+        (false, None)
+    } else {
+        match fetch_usage_summary_after_auth_retry(client, &mut account).await {
+            Ok(usage) => (true, Some(usage)),
+            Err(err) => {
+                desktop_usage_error = Some(err);
+                (false, None)
+            }
+        }
+    };
+    let web_token = account.web_access_token.clone().unwrap_or_default();
+    let (web_ok, web_usage) = probe_usage_cookie(client, &web_token).await;
+    account.desktop_token_valid = desktop_ok;
+    account.web_token_valid = web_ok;
+
     let mut usage_refreshed = false;
-    match fetch_usage_summary_after_auth_retry(client, &mut account).await {
-        Ok(mut usage) => {
+    match web_usage.or(desktop_usage) {
+        Some(mut usage) => {
             if let Some(mt) = usage.get("membershipType").and_then(|v| v.as_str()) {
                 if !mt.is_empty() {
                     account.membership_type = Some(mt.to_string());
                 }
             }
-            match fetch_sand_usage_status_with_client(&client, &account.access_token).await {
-                Ok(sand) => {
-                    if let Some(obj) = usage.as_object_mut() {
-                        obj.insert("grokBot".to_string(), sand);
+            if !account.access_token.trim().is_empty() {
+                match fetch_sand_usage_status_with_client(&client, &account.access_token).await {
+                    Ok(sand) => {
+                        if let Some(obj) = usage.as_object_mut() {
+                            obj.insert("grokBot".to_string(), sand);
+                        }
+                        logger::log_info(&format!(
+                            "[Cursor Refresh] Grok Bot 用量拉取成功: id={}",
+                            account.id
+                        ));
                     }
-                    logger::log_info(&format!(
-                        "[Cursor Refresh] Grok Bot 用量拉取成功: id={}",
-                        account.id
-                    ));
-                }
-                Err(err) => {
-                    logger::log_warn(&format!(
-                        "[Cursor Refresh] Grok Bot 用量拉取失败: id={}, error={}",
-                        account.id, err
-                    ));
+                    Err(err) => {
+                        logger::log_warn(&format!(
+                            "[Cursor Refresh] Grok Bot 用量拉取失败: id={}, error={}",
+                            account.id, err
+                        ));
+                    }
                 }
             }
             account.cursor_usage_raw = Some(usage);
@@ -4009,7 +4385,9 @@ async fn refresh_account_async_once(
                 account.id
             ));
         }
-        Err(err) => {
+        None => {
+            let err = desktop_usage_error
+                .unwrap_or_else(|| "Cursor 用量接口未通过".to_string());
             logger::log_warn(&format!(
                 "[Cursor Refresh] API 配额拉取失败: id={}, error={}",
                 account.id, err
@@ -4537,6 +4915,71 @@ mod tests {
     }
 
     #[test]
+    fn local_tokens_keep_web_and_desktop_apart() {
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        let (access, web_token) = assign_local_tokens(Some(session.clone()), Some(web.clone()));
+        assert_eq!(access, session);
+        assert_eq!(web_token.as_deref(), Some(web.as_str()));
+
+        let (swapped_access, swapped_web) =
+            assign_local_tokens(Some(web.clone()), Some(session.clone()));
+        assert_eq!(swapped_access, session);
+        assert_eq!(swapped_web.as_deref(), Some(web.as_str()));
+    }
+
+    #[test]
+    fn web_paste_stays_out_of_the_desktop_slot() {
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        let payload = parse_cursor_token_line(&web).expect("parse web jwt");
+        assert!(payload.access_token.is_empty());
+        assert_eq!(payload.web_access_token.as_deref(), Some(web.as_str()));
+    }
+
+    #[test]
+    fn inject_writes_web_and_desktop_tokens_to_their_own_keys() {
+        let session = sample_jwt("auth0|user_01NEXTACCOUNT00000000000");
+        let web = sample_jwt_with_type("auth0|user_01NEXTACCOUNT00000000000", "web");
+        let conn = Connection::open_in_memory().expect("memory db");
+        seed_item_table(
+            &conn,
+            &[
+                ("cursorAuth/accessToken", "old-desktop"),
+                ("cursor.accessToken", "old-web"),
+                ("cursorAuth/cachedEmail", "old@example.com"),
+            ],
+        );
+        let mut account = sample_account(&session);
+        account.web_access_token = Some(web.clone());
+        inject_account_into_conn(&conn, &account).expect("inject");
+        assert_eq!(
+            read_item(&conn, "cursorAuth/accessToken").as_deref(),
+            Some(session.as_str())
+        );
+        assert_eq!(
+            read_item(&conn, "cursor.accessToken").as_deref(),
+            Some(web.as_str())
+        );
+
+        account.web_access_token = None;
+        inject_account_into_conn(&conn, &account).expect("inject desktop only");
+        assert_eq!(
+            read_item(&conn, "cursor.accessToken").as_deref(),
+            Some(web.as_str())
+        );
+    }
+
+    #[test]
+    fn web_jwt_in_desktop_slot_is_stashed_not_used_as_session() {
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        let mut account = sample_account(&web);
+        assert!(stash_web_token_from_desktop_slot(&mut account));
+        assert_eq!(account.web_access_token.as_deref(), Some(web.as_str()));
+        assert!(desktop_session_token(&account).is_none());
+        assert_eq!(web_token_for_exchange(&account), Some(web.as_str()));
+    }
+
+    #[test]
     fn jwt_type_distinguishes_web_from_session() {
         let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
         let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
@@ -4675,7 +5118,7 @@ mod tests {
         assert_eq!(raw["refreshToken"], "refresh-1");
         assert_eq!(raw["_vscdb"]["cursorAuth/accessToken"], session);
         assert_eq!(raw["_vscdb"]["cursorAuth/refreshToken"], "refresh-1");
-        assert_eq!(raw["_vscdb"]["cursor.accessToken"], session);
+        assert_eq!(raw["_vscdb"]["cursor.accessToken"], web);
         assert_eq!(raw["_vscdb"]["cursorAuth/cachedEmail"], "next@example.com");
     }
 
@@ -4763,7 +5206,10 @@ mod tests {
             name: None,
             tags: None,
             access_token: jwt.clone(),
+            web_access_token: None,
             refresh_token: None,
+            desktop_token_valid: false,
+            web_token_valid: false,
             membership_type: None,
             subscription_status: None,
             sign_up_type: None,
@@ -4807,7 +5253,10 @@ mod tests {
             name: None,
             tags: None,
             access_token: jwt.clone(),
+            web_access_token: None,
             refresh_token: None,
+            desktop_token_valid: false,
+            web_token_valid: false,
             membership_type: None,
             subscription_status: None,
             sign_up_type: None,
@@ -4869,7 +5318,10 @@ mod tests {
             name: None,
             tags: None,
             access_token: jwt.to_string(),
+            web_access_token: None,
             refresh_token: None,
+            desktop_token_valid: false,
+            web_token_valid: false,
             membership_type: None,
             subscription_status: None,
             sign_up_type: None,
@@ -4891,6 +5343,7 @@ mod tests {
             auth_id: auth_id.map(|value| value.to_string()),
             name: None,
             access_token: jwt.to_string(),
+            web_access_token: None,
             refresh_token: None,
             membership_type: None,
             subscription_status: None,
@@ -5060,7 +5513,10 @@ mod tests {
             name: None,
             tags: None,
             access_token: jwt.to_string(),
+            web_access_token: None,
             refresh_token: None,
+            desktop_token_valid: false,
+            web_token_valid: false,
             membership_type: None,
             subscription_status: None,
             sign_up_type: None,

@@ -8,6 +8,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.31] - 2026-11-17
+
+### Added
+
+- **Cursor accounts show web/desktop token status**: list and card views display web/desktop marks; import, local import, and token paste probe validity and persist it.
+- **Click the plan badge to ensure both tokens**: exchange a web token for a desktop session without switching accounts; accounts can store a separate `web_access_token`.
+- **Read/write Cursor safeStorage sealed tokens**: decrypt Chromium `v10` tokens from the local DB on import, and reseal on write per platform.
+
 ## [1.3.30] - 2026-11-02
 
 ### Fixed

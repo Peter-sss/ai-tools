@@ -28,14 +28,20 @@ pub fn delete_cursor_accounts(account_ids: Vec<String>) -> Result<(), String> {
 }
 
 #[tauri::command]
-pub fn import_cursor_from_json(json_content: String) -> Result<Vec<CursorAccount>, String> {
-    cursor_account::import_from_json(&json_content)
+pub async fn import_cursor_from_json(json_content: String) -> Result<Vec<CursorAccount>, String> {
+    let accounts = cursor_account::import_from_json(&json_content)?;
+    let mut checked = Vec::with_capacity(accounts.len());
+    for account in accounts {
+        checked.push(cursor_account::probe_and_persist_token_validity(&account.id).await?);
+    }
+    Ok(checked)
 }
 
 #[tauri::command]
-pub fn import_cursor_from_local(app: AppHandle) -> Result<Vec<CursorAccount>, String> {
+pub async fn import_cursor_from_local(app: AppHandle) -> Result<Vec<CursorAccount>, String> {
     match cursor_account::import_from_local()? {
         Some(account) => {
+            let account = cursor_account::probe_and_persist_token_validity(&account.id).await?;
             let _ = crate::modules::tray::update_tray_menu(&app);
             Ok(vec![account])
         }
@@ -132,13 +138,17 @@ pub async fn refresh_all_cursor_tokens(app: AppHandle) -> Result<i32, String> {
 }
 
 #[tauri::command]
-pub fn add_cursor_account_with_token(
+pub async fn add_cursor_account_with_token(
     app: AppHandle,
     access_token: String,
 ) -> Result<Vec<CursorAccount>, String> {
     let accounts = cursor_account::import_from_token_text(&access_token)?;
+    let mut checked = Vec::with_capacity(accounts.len());
+    for account in accounts {
+        checked.push(cursor_account::probe_and_persist_token_validity(&account.id).await?);
+    }
     let _ = crate::modules::tray::update_tray_menu(&app);
-    Ok(accounts)
+    Ok(checked)
 }
 
 #[tauri::command]
@@ -214,6 +224,17 @@ pub async fn open_cursor_account_in_chrome(account_id: String) -> Result<(), Str
         account_id
     ));
     cursor_account::open_account_in_chrome(&account_id).await
+}
+
+#[tauri::command]
+pub async fn ensure_cursor_both_tokens(
+    account_id: String,
+) -> Result<cursor_account::EnsureCursorBothTokensResult, String> {
+    logger::log_info(&format!(
+        "[Cursor Tokens] 补齐两边 token: account_id={}",
+        account_id
+    ));
+    cursor_account::ensure_both_tokens(&account_id).await
 }
 
 #[tauri::command]

@@ -1300,7 +1300,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   } | null>(null);
 
   useEffect(() => {
-    if (!message || message.tone === "error") return;
+    if (!message) return;
     const timer = window.setTimeout(() => {
       setMessage(null);
     }, 3000);

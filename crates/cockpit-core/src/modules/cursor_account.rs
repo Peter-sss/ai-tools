@@ -316,6 +316,59 @@ fn decode_access_token_payload(access_token: &str) -> Option<serde_json::Value> 
     serde_json::from_slice(&decoded).ok()
 }
 
+fn access_token_jwt_type(access_token: &str) -> Option<String> {
+    decode_access_token_payload(access_token)?
+        .get("type")
+        .and_then(|value| value.as_str())
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn is_web_cursor_token(token: &str) -> bool {
+    access_token_jwt_type(token).as_deref() == Some("web")
+}
+
+fn split_imported_token_fields(
+    access_token: String,
+    explicit_web: Option<String>,
+) -> (String, Option<String>) {
+    let mut web = explicit_web.filter(|value| !value.trim().is_empty());
+    if is_web_cursor_token(&access_token) {
+        if web.is_none() {
+            web = Some(access_token);
+        }
+        return (String::new(), web);
+    }
+    (access_token, web)
+}
+
+fn assign_local_tokens(desktop: Option<String>, web: Option<String>) -> (String, Option<String>) {
+    let mut access = String::new();
+    let mut web_token = None;
+    if let Some(token) = desktop
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        if is_web_cursor_token(&token) {
+            web_token = Some(token);
+        } else {
+            access = token;
+        }
+    }
+    if let Some(token) = web
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+    {
+        if is_web_cursor_token(&token) {
+            web_token = Some(token);
+        } else if access.is_empty() {
+            access = token;
+        }
+    }
+    (access, web_token)
+}
+
 fn extract_auth_id_from_access_token(access_token: &str) -> Option<String> {
     let value = decode_access_token_payload(access_token)?;
     normalize_non_empty(value.get("sub").and_then(|raw| raw.as_str()))
@@ -755,8 +808,22 @@ fn apply_payload(
         account.email.clear();
     }
     account.name = payload.name;
-    account.access_token = payload.access_token;
-    account.refresh_token = payload.refresh_token;
+    if let Some(web) = payload
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        account.web_access_token = Some(web.to_string());
+    }
+    if let Some(incoming) = normalize_non_empty(Some(payload.access_token.as_str())) {
+        if is_web_cursor_token(&incoming) {
+            account.web_access_token = Some(incoming);
+        } else {
+            account.access_token = incoming;
+            account.refresh_token = payload.refresh_token.clone();
+        }
+    }
     account.membership_type = payload.membership_type;
     account.subscription_status = payload.subscription_status;
     account.sign_up_type = payload.sign_up_type;
@@ -832,8 +899,21 @@ pub fn upsert_account(payload: CursorImportPayload) -> Result<CursorAccount, Str
         auth_id: incoming_auth_id.clone(),
         name: payload.name.clone(),
         tags,
-        access_token: payload.access_token.clone(),
+        access_token: if is_web_cursor_token(&payload.access_token) {
+            String::new()
+        } else {
+            payload.access_token.clone()
+        },
+        web_access_token: payload.web_access_token.clone().or_else(|| {
+            if is_web_cursor_token(&payload.access_token) {
+                Some(payload.access_token.clone())
+            } else {
+                None
+            }
+        }),
         refresh_token: payload.refresh_token.clone(),
+        desktop_token_valid: false,
+        web_token_valid: false,
         membership_type: payload.membership_type.clone(),
         subscription_status: payload.subscription_status.clone(),
         sign_up_type: payload.sign_up_type.clone(),
@@ -934,7 +1014,10 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
             "cursor_access_token",
         ],
     )
+    .or_else(|| extract_string(obj, &["web_access_token", "webAccessToken"]))
     .ok_or_else(|| "缺少 access_token 字段".to_string())?;
+    let explicit_web = extract_string(obj, &["web_access_token", "webAccessToken"]);
+    let (access_token, web_access_token) = split_imported_token_fields(access_token, explicit_web);
 
     let name = extract_string(obj, &["name", "displayName"]);
     let refresh_token = extract_string(
@@ -968,13 +1051,19 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
         .or_else(|| clone_object_value(obj.get("cursorUsageRaw")));
     let auth_id = extract_string(obj, &["auth_id", "authId", "workos_id", "workosId"])
         .or_else(|| extract_auth_id_from_raw_value(cursor_auth_raw.as_ref()))
-        .or_else(|| extract_auth_id_from_access_token(access_token.as_str()));
+        .or_else(|| extract_auth_id_from_access_token(access_token.as_str()))
+        .or_else(|| {
+            web_access_token
+                .as_deref()
+                .and_then(extract_auth_id_from_access_token)
+        });
 
     Ok(CursorImportPayload {
         email,
         auth_id,
         name,
         access_token,
+        web_access_token,
         refresh_token,
         membership_type,
         subscription_status,
@@ -1233,19 +1322,46 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
     let conn = Connection::open(&db_path)
         .map_err(|e| format!("打开 Cursor 本地数据库失败({}): {}", db_path.display(), e))?;
 
-    let access_token = match read_vscdb_item(&conn, "cursorAuth/accessToken") {
-        Some(t) => t,
-        None => return Ok(None),
+    let data_dir = get_default_cursor_data_dir()?;
+    let desktop_plain = match read_vscdb_item(&conn, "cursorAuth/accessToken") {
+        Some(raw) if !raw.trim().is_empty() => Some(
+            crate::modules::cursor_safe_storage::open_stored_token(&raw, &data_dir)
+                .map_err(|err| format!("解密桌面 access token 失败: {}", err))?,
+        ),
+        _ => None,
     };
+    let refresh_plain = match read_vscdb_item(&conn, "cursorAuth/refreshToken") {
+        Some(raw) if !raw.trim().is_empty() => Some(
+            crate::modules::cursor_safe_storage::open_stored_token(&raw, &data_dir)
+                .map_err(|err| format!("解密桌面 refresh token 失败: {}", err))?,
+        ),
+        _ => None,
+    };
+    let web_plain = match read_vscdb_item(&conn, "cursor.accessToken") {
+        Some(raw) if !raw.trim().is_empty() => Some(
+            crate::modules::cursor_safe_storage::open_stored_token(&raw, &data_dir)
+                .map_err(|err| format!("读取网页 token 失败: {}", err))?,
+        ),
+        _ => None,
+    };
+    let (access_token, web_access_token) = assign_local_tokens(desktop_plain, web_plain);
+    if access_token.is_empty() && web_access_token.is_none() {
+        return Ok(None);
+    }
 
     let email = read_vscdb_item(&conn, "cursorAuth/cachedEmail").unwrap_or_default();
     if email.is_empty() {
         return Ok(None);
     }
 
-    let refresh_token = read_vscdb_item(&conn, "cursorAuth/refreshToken");
+    let refresh_token = refresh_plain.filter(|token| !is_web_cursor_token(token));
     let auth_id = read_vscdb_item(&conn, "cursorAuth/authId")
-        .or_else(|| extract_auth_id_from_access_token(access_token.as_str()));
+        .or_else(|| extract_auth_id_from_access_token(access_token.as_str()))
+        .or_else(|| {
+            web_access_token
+                .as_deref()
+                .and_then(extract_auth_id_from_access_token)
+        });
     let membership_type = read_vscdb_item(&conn, "cursorAuth/stripeMembershipType");
     let subscription_status = read_vscdb_item(&conn, "cursorAuth/stripeSubscriptionStatus");
     let sign_up_type = read_vscdb_item(&conn, "cursorAuth/cachedSignUpType");
@@ -1288,6 +1404,7 @@ pub fn read_local_cursor_auth() -> Result<Option<CursorImportPayload>, String> {
         auth_id,
         name: None,
         access_token,
+        web_access_token,
         refresh_token,
         membership_type,
         subscription_status,
@@ -1325,6 +1442,28 @@ fn upsert_vscdb_item(conn: &Connection, key: &str, value: &str) -> Result<(), St
     Ok(())
 }
 
+fn write_desktop_auth_secret(conn: &Connection, key: &str, plaintext: &str) -> Result<(), String> {
+    let plaintext = plaintext.trim();
+    if plaintext.is_empty() {
+        return Ok(());
+    }
+    let existing = read_vscdb_item(conn, key);
+    let encryption_on = read_vscdb_item(conn, "cursor.storage.authTokenEncryptionAtRest")
+        .map(|value| value.trim() == "true")
+        .unwrap_or(false);
+    let stored = if encryption_on
+        || existing
+            .as_deref()
+            .is_some_and(crate::modules::cursor_safe_storage::is_cursor_safe_storage)
+    {
+        let data_dir = get_default_cursor_data_dir()?;
+        crate::modules::cursor_safe_storage::seal_stored_token(plaintext, &data_dir)?
+    } else {
+        plaintext.to_string()
+    };
+    upsert_vscdb_item(conn, key, &stored)
+}
+
 fn delete_vscdb_item(conn: &Connection, key: &str) -> Result<(), String> {
     conn.execute("DELETE FROM ItemTable WHERE key = ?1", [key])
         .map_err(|e| format!("删除 {} 失败: {}", key, e))?;
@@ -1341,15 +1480,16 @@ fn inject_account_into_conn(conn: &Connection, account: &CursorAccount) -> Resul
         restored_keys.insert(key);
     }
 
-    upsert_vscdb_item(conn, "cursorAuth/accessToken", &account.access_token)?;
-
-    let refresh_token = account
-        .refresh_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(account.access_token.as_str());
-    upsert_vscdb_item(conn, "cursorAuth/refreshToken", refresh_token)?;
+    if !account.access_token.trim().is_empty() {
+        write_desktop_auth_secret(conn, "cursorAuth/accessToken", &account.access_token)?;
+        let refresh_token = account
+            .refresh_token
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .unwrap_or(account.access_token.as_str());
+        write_desktop_auth_secret(conn, "cursorAuth/refreshToken", refresh_token)?;
+    }
 
     upsert_vscdb_item(conn, "cursorAuth/cachedEmail", &account.email)?;
 
@@ -1361,7 +1501,14 @@ fn inject_account_into_conn(conn: &Connection, account: &CursorAccount) -> Resul
         .unwrap_or("Auth_0");
     upsert_vscdb_item(conn, "cursorAuth/cachedSignUpType", sign_up_type)?;
 
-    upsert_vscdb_item(conn, "cursor.accessToken", &account.access_token)?;
+    if let Some(web) = account
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
+        upsert_vscdb_item(conn, "cursor.accessToken", web)?;
+    }
     upsert_vscdb_item(conn, "cursor.email", &account.email)?;
 
     if let Some(jwt_sub) = extract_auth_id_from_access_token(&account.access_token) {

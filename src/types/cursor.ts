@@ -6,7 +6,10 @@ export interface CursorAccount {
   tags?: string[] | null;
 
   access_token: string;
+  web_access_token?: string | null;
   refresh_token?: string | null;
+  desktop_token_valid?: boolean;
+  web_token_valid?: boolean;
 
   membership_type?: string | null;
   subscription_status?: string | null;

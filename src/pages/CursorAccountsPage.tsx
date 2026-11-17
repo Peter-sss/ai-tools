@@ -62,6 +62,7 @@ import {
   isCursorAccountBanned,
 } from "../types/cursor";
 import type { CursorAccount } from "../types/cursor";
+import { cursorTokenMarkPassed } from "../utils/cursorTokenMarks";
 import { compareCurrentAccountFirst } from "../utils/currentAccountSort";
 import {
   applyPageReorder,
@@ -116,6 +117,27 @@ const CURSOR_TOKEN_JSON_EXAMPLE = `[
 ]`;
 
 type CursorExportFormat = "text" | "textWithReset" | "json";
+
+function CursorTokenMarks({ account }: { account: CursorAccount }) {
+  const desktopPassed = cursorTokenMarkPassed(account.desktop_token_valid);
+  const webPassed = cursorTokenMarkPassed(account.web_token_valid);
+  return (
+    <span className="cursor-token-marks">
+      <span
+        className={webPassed ? "pass" : "fail"}
+        title={webPassed ? "网页 token 已通过" : "网页 token 未通过"}
+      >
+        网
+      </span>
+      <span
+        className={desktopPassed ? "pass" : "fail"}
+        title={desktopPassed ? "桌面 token 已通过" : "桌面 token 未通过"}
+      >
+        桌
+      </span>
+    </span>
+  );
+}
 
 function extractWorkosUserIdFromJwt(jwt: string): string | null {
   try {
@@ -270,6 +292,7 @@ export function CursorAccountsPage() {
     text: string;
     tone: "success" | "error";
   } | null>(null);
+  const [ensuringBothId, setEnsuringBothId] = useState<string | null>(null);
   const copyToastTimerRef = useRef<number | null>(null);
   const untaggedKey = "__untagged__";
 
@@ -860,6 +883,34 @@ export function CursorAccountsPage() {
     [setMessage, t],
   );
 
+  const handleEnsureBothTokens = useCallback(
+    async (account: CursorAccount, event?: SyntheticEvent) => {
+      event?.preventDefault();
+      event?.stopPropagation();
+      if (ensuringBothId) {
+        return;
+      }
+      setEnsuringBothId(account.id);
+      try {
+        const result = await cursorService.ensureCursorBothTokens(account.id);
+        await store.fetchAccounts();
+        setMessage({ text: result.message, tone: "success" });
+      } catch (error) {
+        await store.fetchAccounts().catch(() => undefined);
+        setMessage({
+          text: t("cursor.ensureBothTokens.failed", {
+            error: String(error),
+            defaultValue: "换桌面 session 失败: {{error}}",
+          }),
+          tone: "error",
+        });
+      } finally {
+        setEnsuringBothId(null);
+      }
+    },
+    [ensuringBothId, setMessage, store, t],
+  );
+
   useEffect(() => {
     return () => {
       if (copyToastTimerRef.current != null) {
@@ -872,21 +923,39 @@ export function CursorAccountsPage() {
     (account: CursorAccount, resetTs: number | null) => {
       const planLabel = resolvePlanLabel(account);
       const daysLeft = formatResetDaysLeft(resetTs);
+      const isEnsuring = ensuringBothId === account.id;
       return (
-        <span
-          className={`tier-badge cursor-plan-badge ${resolvePlanBadgeClass(account)}`}
+        <button
+          type="button"
+          className={`cursor-account-plan-btn${isEnsuring ? " is-loading" : ""}`}
+          disabled={isEnsuring}
+          title={t(
+            "cursor.ensureBothTokens.hint",
+            "点击用网页 token 换桌面 session",
+          )}
+          onClick={(event) => void handleEnsureBothTokens(account, event)}
         >
-          <span className="cursor-plan-badge-label">{planLabel}</span>
-          {daysLeft ? (
-            <>
-              <span className="cursor-plan-badge-sep" aria-hidden="true" />
-              <span className="cursor-plan-badge-days">{daysLeft}</span>
-            </>
-          ) : null}
-        </span>
+          <span
+            className={`tier-badge cursor-plan-badge ${resolvePlanBadgeClass(account)}`}
+          >
+            <span className="cursor-plan-badge-label">{planLabel}</span>
+            {daysLeft ? (
+              <>
+                <span className="cursor-plan-badge-sep" aria-hidden="true" />
+                <span className="cursor-plan-badge-days">{daysLeft}</span>
+              </>
+            ) : null}
+          </span>
+        </button>
       );
     },
-    [resolvePlanBadgeClass, resolvePlanLabel],
+    [
+      ensuringBothId,
+      handleEnsureBothTokens,
+      resolvePlanBadgeClass,
+      resolvePlanLabel,
+      t,
+    ],
   );
 
   // ─── Platform-specific: Dynamic tier filter ────────────────────────
@@ -1406,6 +1475,7 @@ export function CursorAccountsPage() {
                 }
               }}
             >
+              <CursorTokenMarks account={account} />
               <span
                 className="account-email"
                 title={maskAccountText(emailText)}
@@ -1819,6 +1889,7 @@ export function CursorAccountsPage() {
               }}
             >
               <div className="account-main-line">
+                <CursorTokenMarks account={account} />
                 <span
                   className="account-email-text"
                   title={maskAccountText(emailText)}
@@ -1882,21 +1953,7 @@ export function CursorAccountsPage() {
               )}
             </td>
           )}
-          <td>
-            <button
-              type="button"
-              className="cursor-account-copy-plan-btn"
-              title={t(
-                "cursor.copyTokenLine.hint",
-                "点击复制 email----user_id::token",
-              )}
-              onClick={(event) =>
-                void handleCopyAccountTokenLine(account, event)
-              }
-            >
-              {renderPlanBadge(account, resetTs)}
-            </button>
-          </td>
+          <td>{renderPlanBadge(account, resetTs)}</td>
           <td>
             <button
               type="button"

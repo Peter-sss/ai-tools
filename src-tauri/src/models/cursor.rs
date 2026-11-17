@@ -12,8 +12,14 @@ pub struct CursorAccount {
     pub tags: Option<Vec<String>>,
 
     pub access_token: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub web_access_token: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub desktop_token_valid: bool,
+    #[serde(default)]
+    pub web_token_valid: bool,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub membership_type: Option<String>,
@@ -83,6 +89,7 @@ pub struct CursorImportPayload {
     pub auth_id: Option<String>,
     pub name: Option<String>,
     pub access_token: String,
+    pub web_access_token: Option<String>,
     pub refresh_token: Option<String>,
     pub membership_type: Option<String>,
     pub subscription_status: Option<String>,

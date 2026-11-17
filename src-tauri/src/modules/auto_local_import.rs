@@ -399,9 +399,16 @@ fn import_codex() -> ImportFuture {
 
 fn import_cursor() -> ImportFuture {
     Box::pin(async {
-        cursor_account::import_from_local()
-            .map(|account| account.is_some())
-            .map_err(|error| error.to_string())
+        match cursor_account::import_from_local() {
+            Ok(Some(account)) => {
+                cursor_account::probe_and_persist_token_validity(&account.id)
+                    .await
+                    .map(|_| true)
+                    .map_err(|error| error.to_string())
+            }
+            Ok(None) => Ok(false),
+            Err(error) => Err(error),
+        }
     })
 }
 
