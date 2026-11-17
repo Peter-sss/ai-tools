@@ -400,6 +400,24 @@ fn payload_identity_token(payload: &CursorImportPayload) -> String {
         .to_string()
 }
 
+fn is_placeholder_email(value: &str) -> bool {
+    let trimmed = value.trim();
+    trimmed.is_empty() || trimmed.eq_ignore_ascii_case("unknown")
+}
+
+fn account_session_token(account: &CursorAccount) -> &str {
+    let desktop = account.access_token.trim();
+    if !desktop.is_empty() {
+        return desktop;
+    }
+    account
+        .web_access_token
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or("")
+}
+
 fn is_web_cursor_token(token: &str) -> bool {
     access_token_jwt_type(token).as_deref() == Some("web")
 }
@@ -891,11 +909,8 @@ fn apply_payload(
     payload: CursorImportPayload,
     resolved_auth_id: Option<String>,
 ) {
-    let incoming_email = payload.email.trim().to_string();
-    if !incoming_email.is_empty() {
-        account.email = incoming_email;
-    } else if !account.email.contains('@') {
-        account.email.clear();
+    if let Some(email) = normalize_email_identity(Some(payload.email.as_str())) {
+        account.email = email;
     }
     account.name = payload.name;
     if let Some(web) = payload
@@ -2750,6 +2765,7 @@ const CURSOR_SAND_USAGE_RPC_URL: &str =
 const CURSOR_SAND_USAGE_DASHBOARD_URL: &str =
     "https://cursor.com/api/dashboard/get-sand-usage-status";
 const CURSOR_GET_USER_META_URL: &str = "https://api2.cursor.sh/aiserver.v1.AuthService/GetUserMeta";
+const CURSOR_AUTH_ME_URL: &str = "https://cursor.com/api/auth/me";
 const CURSOR_FULL_STRIPE_PROFILE_URL: &str = "https://api2.cursor.sh/auth/full_stripe_profile";
 const CURSOR_STRIPE_PROFILE_URL: &str = "https://api2.cursor.sh/auth/stripe_profile";
 const CURSOR_CURRENT_PERIOD_USAGE_URL: &str =
@@ -3469,6 +3485,82 @@ async fn fetch_user_meta_with_client(
 
     serde_json::from_str::<CursorUserMetaResponse>(&body)
         .map_err(|e| format!("解析 Cursor user meta JSON 失败: {}", e))
+}
+
+fn parse_auth_me_response(body: &str) -> Result<CursorUserMetaResponse, String> {
+    let value: Value = serde_json::from_str(body)
+        .map_err(|e| format!("解析 Cursor auth/me JSON 失败: {}", e))?;
+    let obj = value
+        .as_object()
+        .ok_or_else(|| "Cursor auth/me 响应不是对象".to_string())?;
+    let email = obj
+        .get("email")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    let workos_id = obj
+        .get("sub")
+        .or_else(|| obj.get("workosId"))
+        .or_else(|| obj.get("workos_id"))
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .map(str::to_string);
+    Ok(CursorUserMetaResponse {
+        email,
+        sign_up_type: None,
+        workos_id,
+    })
+}
+
+async fn fetch_auth_me_with_client(
+    client: &reqwest::Client,
+    access_token: &str,
+) -> Result<CursorUserMetaResponse, String> {
+    let cookie = build_session_cookie(access_token)
+        .ok_or_else(|| "无法从 accessToken 解析 WorkOS 用户 ID".to_string())?;
+
+    let response = send_cursor_with_retry("请求 Cursor auth/me", || {
+        client
+            .get(CURSOR_AUTH_ME_URL)
+            .header("Accept", "application/json")
+            .header("Cookie", &cookie)
+            .header(
+                "User-Agent",
+                "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)",
+            )
+    })
+    .await?;
+
+    let status = response.status;
+    if status == 401 || status == 403 {
+        return Err("Cursor 会话已过期或未认证，请重新导入账号".to_string());
+    }
+    if status != 200 {
+        return Err(format!("Cursor auth/me API 返回异常状态码: {}", status));
+    }
+
+    parse_auth_me_response(&response.body)
+}
+
+fn apply_user_meta(account: &mut CursorAccount, meta: &CursorUserMetaResponse) {
+    if let Some(email) = normalize_email_identity(meta.email.as_deref()) {
+        account.email = email.clone();
+        upsert_cursor_auth_raw_string(account, "cachedEmail", Some(email));
+    }
+
+    if let Some(sign_up_type) = normalize_cursor_sign_up_type(meta.sign_up_type.as_deref()) {
+        account.sign_up_type = Some(sign_up_type.clone());
+        upsert_cursor_auth_raw_string(account, "cachedSignUpType", Some(sign_up_type));
+    }
+
+    upsert_cursor_auth_raw_string(account, "workosId", meta.workos_id.clone());
+    if account.auth_id.is_none() {
+        account.auth_id = normalize_auth_identity(meta.workos_id.as_deref());
+    } else if let Some(canonical) = normalize_auth_identity(account.auth_id.as_deref()) {
+        account.auth_id = Some(canonical);
+    }
 }
 
 async fn fetch_stripe_profile_with_client(
@@ -4252,83 +4344,91 @@ async fn refresh_account_async_once(
         }
     }
 
-    match fetch_user_meta_with_client(&client, &account.access_token).await {
-        Ok(meta) => {
-            if let Some(email) = normalize_email_identity(meta.email.as_deref()) {
-                account.email = email.clone();
-                upsert_cursor_auth_raw_string(&mut account, "cachedEmail", Some(email));
+    let desktop_token = account.access_token.trim().to_string();
+    if !desktop_token.is_empty() {
+        match fetch_user_meta_with_client(client, &desktop_token).await {
+            Ok(meta) => {
+                apply_user_meta(&mut account, &meta);
+                logger::log_info(&format!(
+                    "[Cursor Refresh] 用户信息拉取成功: id={}, email={}",
+                    account.id, account.email
+                ));
             }
-
-            if let Some(sign_up_type) = normalize_cursor_sign_up_type(meta.sign_up_type.as_deref())
-            {
-                account.sign_up_type = Some(sign_up_type.clone());
-                upsert_cursor_auth_raw_string(&mut account, "cachedSignUpType", Some(sign_up_type));
+            Err(err) => {
+                logger::log_warn(&format!(
+                    "[Cursor Refresh] 用户信息拉取失败: id={}, error={}",
+                    account.id, err
+                ));
             }
-
-            upsert_cursor_auth_raw_string(&mut account, "workosId", meta.workos_id.clone());
-            if account.auth_id.is_none() {
-                account.auth_id = normalize_auth_identity(meta.workos_id.as_deref());
-            } else if let Some(canonical) = normalize_auth_identity(account.auth_id.as_deref()) {
-                account.auth_id = Some(canonical);
-            }
-
-            logger::log_info(&format!(
-                "[Cursor Refresh] 用户信息拉取成功: id={}, email={}",
-                account.id, account.email
-            ));
         }
-        Err(err) => {
-            logger::log_warn(&format!(
-                "[Cursor Refresh] 用户信息拉取失败: id={}, error={}",
-                account.id, err
-            ));
+
+        match fetch_stripe_profile_with_client(client, &desktop_token).await {
+            Ok(Some(profile)) => {
+                if let Some(membership_type) = resolve_membership_from_stripe_profile(&profile) {
+                    account.membership_type = Some(membership_type.clone());
+                    upsert_cursor_auth_raw_string(
+                        &mut account,
+                        "stripeMembershipType",
+                        Some(membership_type),
+                    );
+                }
+
+                let subscription_status =
+                    normalize_non_empty(profile.subscription_status.as_deref());
+                if let Some(status) = subscription_status.clone() {
+                    account.subscription_status = Some(status);
+                }
+                upsert_cursor_auth_raw_string(
+                    &mut account,
+                    "stripeSubscriptionStatus",
+                    subscription_status,
+                );
+                upsert_cursor_auth_raw_string(
+                    &mut account,
+                    "teamMembershipType",
+                    normalize_non_empty(profile.team_membership_type.as_deref()),
+                );
+                upsert_cursor_auth_raw_bool(&mut account, "isTeamMember", profile.is_team_member);
+                upsert_cursor_auth_raw_bool(&mut account, "isEnterprise", profile.is_enterprise);
+
+                logger::log_info(&format!(
+                    "[Cursor Refresh] 订阅信息拉取成功: id={}",
+                    account.id
+                ));
+            }
+            Ok(None) => {
+                logger::log_warn(&format!(
+                    "[Cursor Refresh] 未获取到订阅信息: id={}",
+                    account.id
+                ));
+            }
+            Err(err) => {
+                logger::log_warn(&format!(
+                    "[Cursor Refresh] 订阅信息拉取失败: id={}, error={}",
+                    account.id, err
+                ));
+            }
         }
     }
 
-    match fetch_stripe_profile_with_client(&client, &account.access_token).await {
-        Ok(Some(profile)) => {
-            if let Some(membership_type) = resolve_membership_from_stripe_profile(&profile) {
-                account.membership_type = Some(membership_type.clone());
-                upsert_cursor_auth_raw_string(
-                    &mut account,
-                    "stripeMembershipType",
-                    Some(membership_type),
-                );
+    if is_placeholder_email(&account.email) {
+        let session_token = account_session_token(&account).to_string();
+        if !session_token.is_empty() {
+            match fetch_auth_me_with_client(client, &session_token).await {
+                Ok(meta) => {
+                    apply_user_meta(&mut account, &meta);
+                    logger::log_info(&format!(
+                        "[Cursor Refresh] auth/me 用户信息拉取成功: id={}, email={}",
+                        account.id, account.email
+                    ));
+                }
+                Err(err) => {
+                    logger::log_warn(&format!(
+                        "[Cursor Refresh] auth/me 用户信息拉取失败: id={}, error={}",
+                        account.id, err
+                    ));
+                }
             }
-
-            let subscription_status = normalize_non_empty(profile.subscription_status.as_deref());
-            if let Some(status) = subscription_status.clone() {
-                account.subscription_status = Some(status);
-            }
-            upsert_cursor_auth_raw_string(
-                &mut account,
-                "stripeSubscriptionStatus",
-                subscription_status,
-            );
-            upsert_cursor_auth_raw_string(
-                &mut account,
-                "teamMembershipType",
-                normalize_non_empty(profile.team_membership_type.as_deref()),
-            );
-            upsert_cursor_auth_raw_bool(&mut account, "isTeamMember", profile.is_team_member);
-            upsert_cursor_auth_raw_bool(&mut account, "isEnterprise", profile.is_enterprise);
-
-            logger::log_info(&format!(
-                "[Cursor Refresh] 订阅信息拉取成功: id={}",
-                account.id
-            ));
-        }
-        Ok(None) => {
-            logger::log_warn(&format!(
-                "[Cursor Refresh] 未获取到订阅信息: id={}",
-                account.id
-            ));
-        }
-        Err(err) => {
-            logger::log_warn(&format!(
-                "[Cursor Refresh] 订阅信息拉取失败: id={}, error={}",
-                account.id, err
-            ));
         }
     }
 
@@ -4934,6 +5034,45 @@ mod tests {
         let payload = parse_cursor_token_line(&web).expect("parse web jwt");
         assert!(payload.access_token.is_empty());
         assert_eq!(payload.web_access_token.as_deref(), Some(web.as_str()));
+    }
+
+    #[test]
+    fn account_session_token_prefers_desktop_then_web() {
+        let desktop = sample_jwt("auth0|user_01DESKTOP00000000000000");
+        let web = sample_jwt_with_type("auth0|user_01WEB00000000000000000", "web");
+        let mut account = sample_account(&desktop);
+        account.web_access_token = Some(web.clone());
+        assert_eq!(account_session_token(&account), desktop);
+
+        account.access_token.clear();
+        assert_eq!(account_session_token(&account), web);
+
+        account.web_access_token = None;
+        assert_eq!(account_session_token(&account), "");
+    }
+
+    #[test]
+    fn apply_payload_does_not_overwrite_real_email_with_unknown() {
+        let jwt = sample_jwt("auth0|user_01KEEPMAIL0000000000000");
+        let mut account = sample_account(&jwt);
+        account.email = "keep@example.com".to_string();
+        let auth_id = account.auth_id.clone();
+        apply_payload(
+            &mut account,
+            sample_import_payload("unknown", auth_id.as_deref(), &jwt),
+            auth_id,
+        );
+        assert_eq!(account.email, "keep@example.com");
+    }
+
+    #[test]
+    fn parse_auth_me_response_reads_email_and_sub() {
+        let meta = parse_auth_me_response(
+            r#"{"email":"User@Example.com","name":"User","sub":"auth0|user_01AUTHME000"}"#,
+        )
+        .expect("parse auth/me");
+        assert_eq!(meta.email.as_deref(), Some("User@Example.com"));
+        assert_eq!(meta.workos_id.as_deref(), Some("auth0|user_01AUTHME000"));
     }
 
     #[test]
