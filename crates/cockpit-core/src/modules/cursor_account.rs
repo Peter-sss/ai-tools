@@ -329,18 +329,52 @@ fn is_web_cursor_token(token: &str) -> bool {
     access_token_jwt_type(token).as_deref() == Some("web")
 }
 
+fn unrecognized_imported_cursor_token_type(token: &str) -> String {
+    let current = access_token_jwt_type(token).unwrap_or_else(|| "缺失".to_string());
+    format!(
+        "无法识别的 Cursor Token 类型（当前为 {}），仅支持 type=web（网页）或 type=session（桌面）",
+        current
+    )
+}
+
+fn classify_imported_token(
+    token: &str,
+    desktop: &mut String,
+    web: &mut Option<String>,
+) -> Result<(), String> {
+    match access_token_jwt_type(token).as_deref() {
+        Some("web") => {
+            *web = Some(token.to_string());
+            Ok(())
+        }
+        Some("session") => {
+            if desktop.is_empty() {
+                *desktop = token.to_string();
+            }
+            Ok(())
+        }
+        _ => Err(unrecognized_imported_cursor_token_type(token)),
+    }
+}
+
 fn split_imported_token_fields(
     access_token: String,
     explicit_web: Option<String>,
-) -> (String, Option<String>) {
-    let mut web = explicit_web.filter(|value| !value.trim().is_empty());
-    if is_web_cursor_token(&access_token) {
-        if web.is_none() {
-            web = Some(access_token);
-        }
-        return (String::new(), web);
+) -> Result<(String, Option<String>), String> {
+    let access = access_token.trim();
+    let explicit = explicit_web
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let mut desktop = String::new();
+    let mut web = None;
+    if !access.is_empty() {
+        classify_imported_token(access, &mut desktop, &mut web)?;
     }
-    (access_token, web)
+    if let Some(explicit_token) = explicit {
+        classify_imported_token(&explicit_token, &mut desktop, &mut web)?;
+    }
+    Ok((desktop, web))
 }
 
 fn assign_local_tokens(desktop: Option<String>, web: Option<String>) -> (String, Option<String>) {
@@ -1017,7 +1051,7 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
     .or_else(|| extract_string(obj, &["web_access_token", "webAccessToken"]))
     .ok_or_else(|| "缺少 access_token 字段".to_string())?;
     let explicit_web = extract_string(obj, &["web_access_token", "webAccessToken"]);
-    let (access_token, web_access_token) = split_imported_token_fields(access_token, explicit_web);
+    let (access_token, web_access_token) = split_imported_token_fields(access_token, explicit_web)?;
 
     let name = extract_string(obj, &["name", "displayName"]);
     let refresh_token = extract_string(

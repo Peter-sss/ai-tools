@@ -203,6 +203,8 @@ export interface ProviderAccountBase {
 const DEFAULT_SORT_BY = "created_at";
 const DEFAULT_SORT_DIRECTION: SortDirection = "desc";
 const DEFAULT_VIEW_MODE: ViewMode = "grid";
+/** Cursor 切号 UI loading 超时：后端 Chrome 换票可长达约 5 分钟，先解锁按钮。 */
+const CURSOR_INJECT_UI_LOADING_TIMEOUT_MS = 25_000;
 
 const normalizeSortDirection = (value: string | null): SortDirection =>
   value === "asc" ? "asc" : DEFAULT_SORT_DIRECTION;
@@ -1284,6 +1286,7 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [refreshingAll, setRefreshingAll] = useState(false);
   const [injecting, setInjecting] = useState<string | null>(null);
+  const injectAttemptSeqRef = useRef(0);
   const [deleteConfirm, rawSetDeleteConfirm] = useState<{
     ids: string[];
     message: string;
@@ -1426,13 +1429,32 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
     const injectFn = dataService.injectToVSCode;
     return async (accountId: string) => {
       setMessage(null);
+      const attempt = ++injectAttemptSeqRef.current;
       setInjecting(accountId);
       const account = accounts.find((item) => item.id === accountId);
       const displayEmail = account
         ? config.getDisplayEmail(account)
         : accountId;
+
+      // Cursor 切号后可能弹 Chrome 换票并轮询很久；UI loading 先超时解锁，避免关浏览器后一直转圈。
+      let timeoutId: number | undefined;
+      if (platformId === "cursor") {
+        timeoutId = window.setTimeout(() => {
+          if (injectAttemptSeqRef.current !== attempt) return;
+          setInjecting(null);
+          setMessage({
+            text: t(
+              "messages.switchAuthPending",
+              "切号已提交，浏览器授权仍在后台进行；可稍后刷新或重试",
+            ),
+          });
+        }, CURSOR_INJECT_UI_LOADING_TIMEOUT_MS);
+      }
+
       try {
         await injectFn(accountId);
+        if (injectAttemptSeqRef.current !== attempt) return;
+
         // Grok：以后端为准（关闭「切号同步官方登录」时不应有「当前账号」）。
         // 其他平台仍乐观标记当前账号，避免 resolver 短暂为空导致标识闪烁。
         let resolvedCurrentAccountId: string | null = accountId;
@@ -1441,6 +1463,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
         } else {
           setCurrentAccountId(accountId);
         }
+        if (injectAttemptSeqRef.current !== attempt) return;
+
         if (platformId) {
           await emitCurrentAccountChanged({
             platformId,
@@ -1448,6 +1472,8 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
             reason: "switch",
           });
         }
+        if (injectAttemptSeqRef.current !== attempt) return;
+
         setMessage({
           text: t("messages.switched", {
             email: maskAccountText(displayEmail),
@@ -1468,14 +1494,21 @@ export function useProviderAccountsPage<TAccount extends ProviderAccountBase>(
           }
         }
       } catch (e: unknown) {
+        if (injectAttemptSeqRef.current !== attempt) return;
         setMessage({
           text: t("messages.switchFailed", {
             error: String(e) || t("common.failed", "Failed"),
           }),
           tone: "error",
         });
+      } finally {
+        if (timeoutId != null) {
+          window.clearTimeout(timeoutId);
+        }
+        if (injectAttemptSeqRef.current === attempt) {
+          setInjecting(null);
+        }
       }
-      setInjecting(null);
     };
   }, [
     accounts,

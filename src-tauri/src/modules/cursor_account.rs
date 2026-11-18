@@ -422,18 +422,56 @@ fn is_web_cursor_token(token: &str) -> bool {
     access_token_jwt_type(token).as_deref() == Some("web")
 }
 
+fn is_session_cursor_token(token: &str) -> bool {
+    access_token_jwt_type(token).as_deref() == Some("session")
+}
+
+fn unrecognized_imported_cursor_token_type(token: &str) -> String {
+    let current = access_token_jwt_type(token).unwrap_or_else(|| "缺失".to_string());
+    format!(
+        "无法识别的 Cursor Token 类型（当前为 {}），仅支持 type=web（网页）或 type=session（桌面）",
+        current
+    )
+}
+
+fn classify_imported_token(
+    token: &str,
+    desktop: &mut String,
+    web: &mut Option<String>,
+) -> Result<(), String> {
+    match access_token_jwt_type(token).as_deref() {
+        Some("web") => {
+            *web = Some(token.to_string());
+            Ok(())
+        }
+        Some("session") => {
+            if desktop.is_empty() {
+                *desktop = token.to_string();
+            }
+            Ok(())
+        }
+        _ => Err(unrecognized_imported_cursor_token_type(token)),
+    }
+}
+
 fn split_imported_token_fields(
     access_token: String,
     explicit_web: Option<String>,
-) -> (String, Option<String>) {
-    let mut web = explicit_web.filter(|value| !value.trim().is_empty());
-    if is_web_cursor_token(&access_token) {
-        if web.is_none() {
-            web = Some(access_token);
-        }
-        return (String::new(), web);
+) -> Result<(String, Option<String>), String> {
+    let access = access_token.trim();
+    let explicit = explicit_web
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+
+    let mut desktop = String::new();
+    let mut web = None;
+    if !access.is_empty() {
+        classify_imported_token(access, &mut desktop, &mut web)?;
     }
-    (access_token, web)
+    if let Some(explicit_token) = explicit {
+        classify_imported_token(&explicit_token, &mut desktop, &mut web)?;
+    }
+    Ok((desktop, web))
 }
 
 fn assign_local_tokens(desktop: Option<String>, web: Option<String>) -> (String, Option<String>) {
@@ -1152,7 +1190,7 @@ fn payload_from_token_parts(
 
     let email = normalize_email_identity(email).unwrap_or_else(|| "unknown".to_string());
     let (desktop_token, web_access_token) =
-        split_imported_token_fields(access_token.to_string(), None);
+        split_imported_token_fields(access_token.to_string(), None)?;
 
     Ok(CursorImportPayload {
         email,
@@ -1406,7 +1444,7 @@ fn payload_from_import_value(raw: Value) -> Result<CursorImportPayload, String> 
     })
     .ok_or_else(|| "缺少 access_token 字段".to_string())?;
     let explicit_web = extract_string(obj, &["web_access_token", "webAccessToken"]);
-    let (access_token, web_access_token) = split_imported_token_fields(access_token, explicit_web);
+    let (access_token, web_access_token) = split_imported_token_fields(access_token, explicit_web)?;
 
     let name = extract_string(obj, &["name", "displayName"]);
     let refresh_token = extract_string(
@@ -2085,10 +2123,20 @@ fn web_token_for_exchange(account: &CursorAccount) -> Option<&str> {
 
 fn desktop_session_token(account: &CursorAccount) -> Option<&str> {
     let token = account.access_token.trim();
-    if token.is_empty() || is_web_cursor_token(token) {
+    if token.is_empty() || !is_session_cursor_token(token) {
         None
     } else {
         Some(token)
+    }
+}
+
+fn chrome_dashboard_token(account: &CursorAccount) -> Option<(&str, &'static str)> {
+    if let Some(web) = web_token_for_exchange(account) {
+        Some((web, "网页"))
+    } else if let Some(desktop) = desktop_session_token(account) {
+        Some((desktop, "桌面"))
+    } else {
+        None
     }
 }
 
@@ -3312,18 +3360,14 @@ fn launch_chrome_incognito_with_cdp(
         .map_err(|e| format!("启动 Google Chrome 失败: {}", e))
 }
 
-/// 用账号 Session Token 打开 Chrome 无痕窗口并登录 Cursor Dashboard。
+/// 优先用网页 token 打开 Chrome 无痕窗口并登录 Cursor Dashboard；没有再用桌面 session。
 pub async fn open_account_in_chrome(account_id: &str) -> Result<(), String> {
     let account =
         load_account(account_id).ok_or_else(|| format!("Cursor 账号不存在: {}", account_id))?;
-    let web_token = account
-        .web_access_token
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .ok_or_else(|| "没有网页 token，无法打开 Chrome 登录".to_string())?;
-    let cookie_value = session_cookie_value(web_token)
-        .ok_or_else(|| "无法从网页 token 解析 WorkOS 用户 ID".to_string())?;
+    let (token, kind) = chrome_dashboard_token(&account)
+        .ok_or_else(|| "没有可用 token，无法打开 Chrome 登录".to_string())?;
+    let cookie_value = session_cookie_value(token)
+        .ok_or_else(|| format!("无法从{} token 解析 WorkOS 用户 ID", kind))?;
 
     let chrome = find_google_chrome_executable()?;
     let port = reserve_chrome_cdp_port()?;
@@ -4983,6 +5027,15 @@ mod tests {
         format!("{}.{}.sig", header, payload)
     }
 
+    fn sample_jwt_without_type(sub: &str) -> String {
+        let header = base64::engine::general_purpose::URL_SAFE_NO_PAD
+            .encode(br#"{"alg":"HS256","typ":"JWT"}"#);
+        let payload = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(
+            format!(r#"{{"sub":"{}","aud":"https://cursor.com"}}"#, sub).as_bytes(),
+        );
+        format!("{}.{}.sig", header, payload)
+    }
+
     #[test]
     fn cursor_refresh_retries_rate_limit_and_bad_gateway_only() {
         assert!(is_retryable_cursor_status(429));
@@ -5034,6 +5087,62 @@ mod tests {
         let payload = parse_cursor_token_line(&web).expect("parse web jwt");
         assert!(payload.access_token.is_empty());
         assert_eq!(payload.web_access_token.as_deref(), Some(web.as_str()));
+    }
+
+    #[test]
+    fn session_paste_goes_to_the_desktop_slot() {
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let payload = parse_cursor_token_line(&session).expect("parse session jwt");
+        assert_eq!(payload.access_token, session);
+        assert!(payload.web_access_token.is_none());
+    }
+
+    #[test]
+    fn unknown_or_missing_jwt_type_is_rejected_on_paste() {
+        let other = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "other");
+        let missing = sample_jwt_without_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let other_err = parse_cursor_token_line(&other).expect_err("reject other type");
+        let missing_err = parse_cursor_token_line(&missing).expect_err("reject missing type");
+        assert!(other_err.contains("当前为 other"), "{other_err}");
+        assert!(missing_err.contains("当前为 缺失"), "{missing_err}");
+        assert!(other_err.contains("type=web"));
+        assert!(other_err.contains("type=session"));
+    }
+
+    #[test]
+    fn json_import_classifies_by_jwt_type_not_field_name() {
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        let payload = payload_from_import_value(json!({
+            "email": "a@example.com",
+            "access_token": web,
+            "web_access_token": session,
+        }))
+        .expect("parse swapped json fields");
+        assert_eq!(payload.access_token, session);
+        assert_eq!(payload.web_access_token.as_deref(), Some(web.as_str()));
+    }
+
+    #[test]
+    fn chrome_dashboard_token_prefers_web_then_session() {
+        let session = sample_jwt("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV");
+        let web = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "web");
+        let mut account = sample_account(&session);
+        account.web_access_token = Some(web.clone());
+        assert_eq!(
+            chrome_dashboard_token(&account),
+            Some((web.as_str(), "网页"))
+        );
+
+        account.web_access_token = None;
+        assert_eq!(
+            chrome_dashboard_token(&account),
+            Some((session.as_str(), "桌面"))
+        );
+
+        let other = sample_jwt_with_type("auth0|user_01ABCDEFGHIJKLMNOPQRSTUV", "other");
+        account.access_token = other;
+        assert!(chrome_dashboard_token(&account).is_none());
     }
 
     #[test]

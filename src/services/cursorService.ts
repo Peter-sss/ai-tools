@@ -120,7 +120,7 @@ export async function injectCursorAccount(accountId: string): Promise<string> {
   return await invoke("inject_cursor_account", { accountId });
 }
 
-/** 用账号 Session Token 打开 Chrome 无痕窗口并登录 Cursor Dashboard */
+/** 优先用网页 token 打开 Chrome 无痕窗口并登录 Cursor Dashboard；没有再用桌面 session */
 export async function openCursorAccountInChrome(
   accountId: string,
 ): Promise<void> {
