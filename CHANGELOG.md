@@ -8,6 +8,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.32] - 2026-11-18
+
+### Fixed
+
+- **Cursor refresh can fill in a real email**: when the stored email is a placeholder, refresh calls `auth/me` with the session token. An existing real email is not replaced by `unknown`.
+- **Cursor switch button no longer spins forever**: if the switch still needs Chrome to exchange a token, the button unlocks after 25 seconds while the exchange continues in the background.
+
+### Changed
+
+- **Imported Cursor tokens must be web or desktop**: `type=web` is stored as the web token and `type=session` as the desktop token. An unrecognized type is rejected instead of being saved as a desktop token.
+- **Chrome login prefers the web token**: opening the Cursor Dashboard uses the web token first, then the desktop session if there is no web token.
+
 ## [1.3.31] - 2026-11-17
 
 ### Added

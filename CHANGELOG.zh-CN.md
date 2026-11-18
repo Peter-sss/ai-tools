@@ -8,6 +8,18 @@
 
 ---
 
+## [1.3.32] - 2026-11-18
+
+### 修复
+
+- **Cursor 刷新可补回真实邮箱**：邮箱是占位值时，用 session token 调 `auth/me` 补真实邮箱；已有真实邮箱不会被 `unknown` 覆盖。
+- **Cursor 切号按钮不再一直转圈**：切号后若还要开 Chrome 换票，按钮在 25 秒后解锁，换票继续在后台进行。
+
+### 变更
+
+- **导入 Cursor token 只接受网页或桌面类型**：`type=web` 记为网页 token，`type=session` 记为桌面 token；无法识别时直接报错，不再当成桌面 token 入库。
+- **Chrome 登录优先使用网页 token**：打开 Cursor Dashboard 时先用网页 token，没有再用桌面 session。
+
 ## [1.3.31] - 2026-11-17
 
 ### 新增
