@@ -1,6 +1,6 @@
 cask "ai-tools" do
-  version "1.3.32"
-  sha256 "d4cfb76653ac6859c1d73d42322ceef22ea684f22e5615cb7e5ec0793a707366"
+  version "1.3.33"
+  sha256 "69a0be672805dbb75ef0956a21ff9e340fc032f233e67bfa1fc3f87b72a6ea40"
 
   url "https://github.com/Peter-sss/ai-tools/releases/download/v#{version}/ai-tools_#{version}_universal.dmg",
       verified: "github.com/Peter-sss/ai-tools/"
