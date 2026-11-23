@@ -3866,14 +3866,6 @@ fn resolve_auto_bucket_models(period: Option<&Value>) -> Vec<String> {
         .collect()
 }
 
-fn normalize_sand_percent(raw: f64) -> f64 {
-    if raw > 0.0 && raw <= 1.0 {
-        raw * 100.0
-    } else {
-        raw
-    }
-}
-
 fn infer_cap_cents(used_cents: f64, percent: Option<f64>) -> Option<f64> {
     let percent = percent?;
     if !used_cents.is_finite()
@@ -4724,6 +4716,7 @@ fn pick_grok_bot_percent(raw_obj: &serde_json::Map<String, Value>) -> Option<f64
     if !grok_bot_has_personal_allowance(bot) {
         return None;
     }
+    // Sand usagePercent is already 0–100 (e.g. 0.67 means 0.67%, not a 0–1 ratio).
     pick_number(
         bot,
         &[
@@ -4735,7 +4728,6 @@ fn pick_grok_bot_percent(raw_obj: &serde_json::Map<String, Value>) -> Option<f64
             "bot_percent_used",
         ],
     )
-    .map(normalize_sand_percent)
 }
 
 fn pick_number(value: Option<&Value>, keys: &[&str]) -> Option<f64> {
@@ -5290,10 +5282,34 @@ mod tests {
     }
 
     #[test]
-    fn sand_percent_treats_fraction_as_official_weekly() {
-        assert!((normalize_sand_percent(0.80) - 80.0).abs() < f64::EPSILON);
-        assert!((normalize_sand_percent(80.0) - 80.0).abs() < f64::EPSILON);
-        assert!((normalize_sand_percent(0.0) - 0.0).abs() < f64::EPSILON);
+    fn sand_usage_percent_keeps_zero_to_hundred_scale() {
+        let mut raw = serde_json::Map::new();
+        raw.insert(
+            "grokBot".to_string(),
+            json!({
+                "usagePercent": 0.672035,
+                "hasNonZeroIncludedLimit": true,
+            }),
+        );
+        assert!((pick_grok_bot_percent(&raw).unwrap() - 0.672035).abs() < 1e-9);
+
+        raw.insert(
+            "grokBot".to_string(),
+            json!({
+                "usagePercent": 13.588743,
+                "hasNonZeroIncludedLimit": true,
+            }),
+        );
+        assert!((pick_grok_bot_percent(&raw).unwrap() - 13.588743).abs() < 1e-9);
+
+        raw.insert(
+            "grokBot".to_string(),
+            json!({
+                "usagePercent": 80.0,
+                "hasNonZeroIncludedLimit": true,
+            }),
+        );
+        assert!((pick_grok_bot_percent(&raw).unwrap() - 80.0).abs() < f64::EPSILON);
     }
 
     #[test]

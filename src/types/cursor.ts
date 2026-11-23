@@ -338,7 +338,8 @@ function readGrokBotPercent(raw: unknown, plan: unknown): number | null {
     if (pooled === true || includedZero === true || hasAllowance === false) {
       return null;
     }
-    const percent = pickNumber(
+    // usagePercent is already 0–100 (fractional values like 0.67 mean 0.67%, not 67%).
+    return pickNumber(
       grokBot,
       "usagePercent",
       "usage_percent",
@@ -347,9 +348,6 @@ function readGrokBotPercent(raw: unknown, plan: unknown): number | null {
       "botPercentUsed",
       "bot_percent_used",
     );
-    if (percent != null) {
-      return percent > 0 && percent <= 1 ? percent * 100 : percent;
-    }
   }
 
   return pickNumber(plan, "botPercentUsed", "bot_percent_used");

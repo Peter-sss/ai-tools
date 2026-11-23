@@ -8,6 +8,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
+## [1.3.33] - 2026-11-23
+
+### Fixed
+
+- **Cursor Bot usage percent matches the dashboard**: Sand `usagePercent` is already 0–100 (including fractional values like `0.67`). The app no longer multiplies `(0, 1]` by 100, which previously showed ~67% when the spending page showed ~1%.
+
 ## [1.3.32] - 2026-11-18
 
 ### Fixed
