@@ -5,6 +5,8 @@ on:
   pull_request:
     branches:
       - "main"
+    paths-ignore:
+      - "Casks/**"
   push:
     branches:
       - "feature/build-matrix*"

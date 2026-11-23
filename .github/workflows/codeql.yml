@@ -2,9 +2,11 @@ name: CodeQL
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ["main"]
   pull_request:
-    branches: [ "main" ]
+    branches: ["main"]
+    paths-ignore:
+      - "Casks/**"
   schedule:
     - cron: "31 2 * * 1"
 
@@ -21,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        language: [ "javascript-typescript", "rust" ]
+        language: ["javascript-typescript", "rust"]
 
     steps:
       - name: Checkout repository
